@@ -1,0 +1,8 @@
+{
+  "id": "farol",
+  "name": "Farol",
+  "requirements": {
+    "paseo": ">=0.14.0"
+  },
+  "build": [["npm", "ci", "--omit=dev", "--ignore-scripts"]]
+}
