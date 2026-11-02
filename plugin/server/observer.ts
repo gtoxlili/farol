@@ -2,7 +2,7 @@
 // the agent directory subscription, timeline streams for running and focused
 // agents, a tail refetch when a turn ends, and provider usage every few minutes.
 // Owned by the plugin's server entry; single-threaded (Node event loop).
-import type { PaseoAgent, PaseoApi } from "@getpaseo/client";
+import type { PaseoAgent, PaseoApi } from "./paseo-types";
 import type { AgentFacts, Entry, UsageFacts } from "./digest";
 import { applyItem, emptyLive, foldItems, type Live, type TimelineItem } from "./live";
 

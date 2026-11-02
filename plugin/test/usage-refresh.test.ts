@@ -1,6 +1,6 @@
 // A board turning to its usage screen refreshes usage at once, at most once a minute.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PaseoApi } from "@getpaseo/client";
+import type { PaseoApi } from "../server/paseo-types";
 import { Farol } from "../server/farol";
 import { Observer, USAGE_MIN_GAP_MS } from "../server/observer";
 

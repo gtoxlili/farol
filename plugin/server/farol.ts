@@ -4,7 +4,7 @@
 // observation starts lazily and lives as long as the plugin process.
 import { execFile } from "node:child_process";
 import os from "node:os";
-import type { PaseoApi } from "@getpaseo/client";
+import type { PaseoApi } from "./paseo-types";
 import type { Act, ActResult, BoardPrefs, BoardSettings, Snapshot, Start } from "../shared/protocol";
 import { DEFAULT_SETTINGS, type Settings, TIMELINE_KIND } from "../shared/settings";
 import { Actions, type PermissionResponse } from "./actions";
