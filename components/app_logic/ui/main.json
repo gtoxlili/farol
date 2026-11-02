@@ -1,0 +1,47 @@
+{
+  "screen": "app",
+  "w": 480,
+  "h": 480,
+  "screen_bg": "#0E1116",
+  "font": "fonts/rhr-medium-subset.ttf",
+  "default_font_size": 24,
+  "swipe": false,
+  "objects": [
+    {"type": "page_flow", "parent": -1, "name": "pager", "x": 0, "y": 0, "w": 480, "h": 480,
+     "page_count": 3, "selected": 0, "axis": "horizontal", "bar_height": 0,
+     "pages": ["home", "clock", "about"]},
+
+    {"type": "layer", "parent_name": "pager", "name": "home", "x": 0, "y": 0, "w": 480, "h": 480, "bg_color": "#0E1116"},
+    {"type": "label", "parent_name": "home", "x": 40, "y": 72, "w": 400, "h": 60,
+     "text": "你好，Mosaico", "font_size": 44, "text_align": "center", "fg_color": "#F8FAFC"},
+    {"type": "container", "parent_name": "home", "name": "pulse", "x": 224, "y": 168, "w": 32, "h": 32,
+     "radius": 16, "bg_color": "#FF4C01", "opacity": {"default": 0, "min": 0, "max": 255}},
+    {"type": "label", "parent_name": "home", "name": "status", "bind": "status", "x": 40, "y": 220, "w": 400, "h": 40,
+     "text": "轻点下方按钮", "text_align": "center", "fg_color": "#CBD5E1",
+     "font_charset": "已点击次 0123456789"},
+    {"type": "button", "parent_name": "home", "name": "tap_button", "callback": "tap",
+     "x": 150, "y": 290, "w": 180, "h": 64, "radius": 32, "text": "点一下", "font_size": 26,
+     "bg_color": "#FF4C01", "fg_color": "#FFFFFF", "pressed_dim": 64},
+    {"type": "label", "parent_name": "home", "x": 40, "y": 400, "w": 400, "h": 32,
+     "text": "左右滑动查看更多", "font_size": 20, "text_align": "center", "fg_color": "#64748B"},
+
+    {"type": "layer", "parent_name": "pager", "name": "clock", "x": 480, "y": 0, "w": 480, "h": 480, "bg_color": "#0E1116"},
+    {"type": "label", "parent_name": "clock", "x": 40, "y": 120, "w": 400, "h": 48,
+     "text": "运行时间", "font_size": 32, "text_align": "center", "fg_color": "#F8FAFC"},
+    {"type": "label", "parent_name": "clock", "name": "uptime", "bind": "uptime", "x": 40, "y": 190, "w": 400, "h": 80,
+     "text": "00:00:00", "font_size": 64, "text_align": "center", "fg_color": "#FF4C01",
+     "font_charset": "0123456789:"},
+    {"type": "label", "parent_name": "clock", "x": 40, "y": 300, "w": 400, "h": 32,
+     "text": "由 Rust 每秒更新", "font_size": 20, "text_align": "center", "fg_color": "#64748B"},
+
+    {"type": "layer", "parent_name": "pager", "name": "about", "x": 960, "y": 0, "w": 480, "h": 480, "bg_color": "#0E1116"},
+    {"type": "label", "parent_name": "about", "x": 40, "y": 120, "w": 400, "h": 48,
+     "text": "关于", "font_size": 32, "text_align": "center", "fg_color": "#F8FAFC"},
+    {"type": "label", "parent_name": "about", "x": 40, "y": 200, "w": 400, "h": 32,
+     "text": "GSP 渲染界面、负责全部动效", "text_align": "center", "fg_color": "#CBD5E1"},
+    {"type": "label", "parent_name": "about", "x": 40, "y": 244, "w": 400, "h": 32,
+     "text": "Rust 处理事件与状态", "text_align": "center", "fg_color": "#CBD5E1"},
+    {"type": "label", "parent_name": "about", "x": 40, "y": 288, "w": 400, "h": 32,
+     "text": "左右滑动切换页面", "text_align": "center", "fg_color": "#CBD5E1"}
+  ]
+}
