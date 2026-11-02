@@ -74,6 +74,10 @@ export interface DigestInput {
   now: number;
   /** Board settings made in Paseo, with their rev. */
   boardSettings?: BoardSettings;
+  /** The boards' language, when known. */
+  lang?: "zh" | "en";
+  /** Where sessions started on a board go. */
+  compose?: { workspace: string };
 }
 
 function minutes(clock: string): number {
@@ -323,5 +327,7 @@ export function digest(input: DigestInput): Omit<Snapshot, "rev" | "idle"> {
     ...(input.boardSettings ? { settings: input.boardSettings } : {}),
     agents,
     ...digestUsage(input.usage),
+    ...(input.lang ? { lang: input.lang } : {}),
+    ...(input.compose ? { compose: input.compose } : {}),
   };
 }

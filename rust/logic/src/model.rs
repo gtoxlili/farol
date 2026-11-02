@@ -150,6 +150,29 @@ pub struct Snapshot {
     pub usage: Vec<Window>,
     #[serde(default)]
     pub fuel: Option<Fuel>,
+    /// The Paseo app's language for the board: "zh" or "en"; absent from
+    /// plugins before it, which leaves the board's own.
+    #[serde(default)]
+    pub lang: Option<String>,
+    /// Where a session started on the board goes; absent when no default
+    /// workspace is set in the plugin or boards are read-only.
+    #[serde(default)]
+    pub compose: Option<Compose>,
+}
+
+/// New sessions from the board (`farol.start`) start in this workspace.
+#[derive(Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct Compose {
+    /// The workspace's name, for the board to show.
+    pub workspace: String,
+}
+
+/// `farol.start` input: a new agent session in the default workspace, with
+/// `text` (typed or dictated on the board) as its first prompt.
+#[derive(Serialize, Debug, PartialEq)]
+pub struct Start {
+    pub device: String,
+    pub text: String,
 }
 
 /// What the board asks the plugin to do (`farol.act`).
@@ -180,15 +203,19 @@ pub struct Act {
     pub turn: Option<String>,
 }
 
-/// The plugin's answer to `farol.act`.
+/// The plugin's answer to `farol.act` and `farol.start`.
 #[derive(Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct ActResult {
     pub ok: bool,
-    /// "already_resolved", "read_only", "not_found", "failed".
+    /// "already_resolved", "read_only", "not_found", "failed"; for a start
+    /// also "no_workspace".
     #[serde(default)]
     pub reason: String,
     #[serde(default)]
     pub message: String,
+    /// `farol.start`: the new agent.
+    #[serde(default)]
+    pub agent: Option<String>,
 }
 
 /// `farol.next` input: long-poll for anything newer than `cursor`.

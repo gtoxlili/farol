@@ -22,7 +22,9 @@ pub const FIRMWARE: &str = env!("CARGO_PKG_VERSION");
 
 mod app;
 mod demo;
+pub mod dictation;
 pub mod endpoint;
+pub mod lang;
 pub mod model;
 pub mod paseo;
 pub mod qr;

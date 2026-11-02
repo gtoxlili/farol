@@ -19,6 +19,12 @@ export const SettingsSchema = z.object({
     .default({ enabled: false, start: "22:00", end: "08:00" }),
   /** IANA zone for the board's clock; empty follows the Mac. */
   timeZone: z.string().default(""),
+  /** Where sessions started on a board go (a workspace id); empty turns that off. */
+  workspaceId: z.string().default(""),
+  /** The agent profile those sessions use (an id from Paseo's agent profiles). */
+  profileId: z.string().default(""),
+  /** The boards' language: "auto" follows the Paseo app. */
+  boardLanguage: z.enum(["auto", "zh", "en"]).default("auto"),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
@@ -55,7 +61,16 @@ export const statusRpc = defineRpc({
     canStop: z.boolean(),
     /** When provider usage was last fetched, epoch ms. */
     usageAt: z.number().nullable(),
+    /** The language boards use now ("zh", "en"), or null while unknown. */
+    boardLanguage: z.enum(["zh", "en"]).nullable(),
   }),
+});
+
+/** The Paseo app reports its language (boards follow it unless set otherwise). */
+export const languageRpc = defineRpc({
+  name: "farol.language",
+  input: z.object({ locale: z.string().max(40) }),
+  output: z.object({ ok: z.literal(true) }),
 });
 
 export const TIMELINE_KIND = "farol-action";

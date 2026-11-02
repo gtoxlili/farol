@@ -13,6 +13,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::ffi::{CStr, c_char, c_int, c_void};
 
+use logic::lang::Lang;
 use logic::paseo::Config;
 use logic::sys::Prefs;
 
@@ -31,8 +32,9 @@ const MALLOC_CAP_INTERNAL: u32 = 1 << 11;
 const NAMESPACE: &CStr = c"farol";
 const KEY_PREFS: &CStr = c"prefs";
 const KEY_PASEO: &CStr = c"paseo";
-/// Leading byte of the prefs record; bump when its layout changes.
-const RECORD_VERSION: u8 = 1;
+/// Leading byte of the prefs record; bump when its layout changes (2 added
+/// the language).
+const PREFS_VERSION: u8 = 2;
 /// A saved connection and password never exceed this.
 const PASEO_RECORD_MAX: usize = 1024;
 
@@ -150,26 +152,36 @@ impl Drop for Nvs {
     }
 }
 
-fn encode_prefs(p: &Prefs) -> [u8; 5] {
+fn encode_prefs(p: &Prefs) -> [u8; 6] {
     [
-        RECORD_VERSION,
+        PREFS_VERSION,
         u8::from(p.sound),
         u8::from(p.haptic),
         p.brightness,
         u8::from(p.auto),
+        u8::from(p.lang == Lang::En),
     ]
 }
 
+/// Version 1 had no language: it reads as Chinese.
 fn decode_prefs(bytes: &[u8]) -> Option<Prefs> {
-    match bytes {
-        [RECORD_VERSION, sound, haptic, brightness, auto] => Some(Prefs {
-            sound: *sound != 0,
-            haptic: *haptic != 0,
-            brightness: (*brightness).clamp(5, 100),
-            auto: *auto != 0,
-        }),
-        _ => None,
-    }
+    let (fields, lang) = match bytes {
+        [1, rest @ ..] if rest.len() == 4 => (rest, Lang::Zh),
+        [PREFS_VERSION, rest @ .., lang] if rest.len() == 4 => {
+            (rest, if *lang == 1 { Lang::En } else { Lang::Zh })
+        }
+        _ => return None,
+    };
+    let [sound, haptic, brightness, auto] = fields else {
+        return None;
+    };
+    Some(Prefs {
+        sound: *sound != 0,
+        haptic: *haptic != 0,
+        brightness: (*brightness).clamp(5, 100),
+        auto: *auto != 0,
+        lang,
+    })
 }
 
 /// Bytes from the hardware RNG. With Wi-Fi running (the relay needs it) they

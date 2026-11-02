@@ -19,6 +19,7 @@ use alloc::vec::Vec;
 
 use serde_json::{Value, json};
 
+use crate::lang::Lang;
 use crate::relay;
 
 /// The Paseo daemon's default port, as in the app's form.
@@ -221,26 +222,26 @@ fn split_host_port(text: &str) -> Option<(String, Option<u16>)> {
 
 /// The Host step: trims, and takes what people paste (`https://host:8443/…`).
 /// Returns the host and the port if one came with it.
-pub fn parse_host(text: &str) -> Result<(String, Option<u16>), &'static str> {
+pub fn parse_host(text: &str, l: Lang) -> Result<(String, Option<u16>), &'static str> {
     let text = text.trim();
     let text = text.split_once("://").map_or(text, |(_, rest)| rest);
     let authority = text.split(['/', '?', '#']).next().unwrap_or("");
     if authority.is_empty() {
-        return Err("Host 必填");
+        return Err(l.pick("Host 必填", "Host is required"));
     }
     if authority.contains(char::is_whitespace) || authority.contains('@') {
-        return Err("Host 里不能有空格或 @");
+        return Err(l.pick("Host 里不能有空格或 @", "No spaces or @ in a host"));
     }
-    split_host_port(authority).ok_or("这不是一个有效的 Host")
+    split_host_port(authority).ok_or(l.pick("这不是一个有效的 Host", "Not a valid host"))
 }
 
 /// The Port step; an empty field takes `default`.
-pub fn parse_port(text: &str, default: u16) -> Result<u16, &'static str> {
+pub fn parse_port(text: &str, default: u16, l: Lang) -> Result<u16, &'static str> {
     let text = text.trim();
     if text.is_empty() {
         return Ok(default);
     }
-    port(text).ok_or("端口必须在 1 到 65535 之间")
+    port(text).ok_or(l.pick("端口必须在 1 到 65535 之间", "Port must be 1 to 65535"))
 }
 
 /// A port number, 1 to 65535.
@@ -468,25 +469,31 @@ mod tests {
     #[test]
     fn typed_hosts_and_ports() {
         assert_eq!(
-            parse_host(" 192.168.1.20 "),
+            parse_host(" 192.168.1.20 ", Lang::Zh),
             Ok(("192.168.1.20".into(), None))
         );
         assert_eq!(
-            parse_host("https://paseo.example.net:8443/ws"),
+            parse_host("https://paseo.example.net:8443/ws", Lang::Zh),
             Ok(("paseo.example.net".into(), Some(8443)))
         );
-        assert_eq!(parse_host("fd00::1"), Ok(("fd00::1".into(), None)));
         assert_eq!(
-            parse_host("[fd00::1]:7000"),
+            parse_host("fd00::1", Lang::Zh),
+            Ok(("fd00::1".into(), None))
+        );
+        assert_eq!(
+            parse_host("[fd00::1]:7000", Lang::Zh),
             Ok(("fd00::1".into(), Some(7000)))
         );
-        assert!(parse_host("").is_err());
-        assert!(parse_host("a b").is_err());
-        assert_eq!(parse_port("6767", 1), Ok(6767));
-        assert_eq!(parse_port(" ", DEFAULT_PORT), Ok(DEFAULT_PORT));
-        assert!(parse_port("0", 1).is_err());
-        assert!(parse_port("70000", 1).is_err());
-        assert_eq!(parse_host("example.net:"), Err("这不是一个有效的 Host"));
+        assert!(parse_host("", Lang::Zh).is_err());
+        assert!(parse_host("a b", Lang::Zh).is_err());
+        assert_eq!(parse_port("6767", 1, Lang::Zh), Ok(6767));
+        assert_eq!(parse_port(" ", DEFAULT_PORT, Lang::Zh), Ok(DEFAULT_PORT));
+        assert!(parse_port("0", 1, Lang::Zh).is_err());
+        assert!(parse_port("70000", 1, Lang::Zh).is_err());
+        assert_eq!(
+            parse_host("example.net:", Lang::Zh),
+            Err("这不是一个有效的 Host")
+        );
     }
 
     #[test]

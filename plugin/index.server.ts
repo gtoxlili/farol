@@ -1,6 +1,6 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { actRpc, focusRpc, nextRpc } from "./shared/protocol";
-import { farolSettings, statusRpc } from "./shared/settings";
+import { actRpc, focusRpc, nextRpc, startRpc } from "./shared/protocol";
+import { farolSettings, languageRpc, statusRpc } from "./shared/settings";
 import type { PermissionResponse } from "./server/actions";
 import { Farol } from "./server/farol";
 
@@ -27,6 +27,13 @@ export default function contribute(server: PluginServerContext) {
   });
   // `device` names the board in the timeline row; boards before firmware 1.0.0 omit it.
   server.handle(actRpc, (input, { paseo }) => farol.act(paseo, input, input.device ?? ""));
+  server.handle(startRpc, (input, { paseo }) => farol.start(paseo, input));
+
+  // The Paseo app's language (its client reports it; boards follow it on "auto").
+  server.handle(languageRpc, ({ locale }) => {
+    farol.setLocale(locale);
+    return { ok: true as const };
+  });
 
   // Settings page RPCs.
   server.handle(statusRpc, async (_input, { paseo }) => {
@@ -36,6 +43,7 @@ export default function contribute(server: PluginServerContext) {
       boards: farol.stream.boards(),
       canStop: farol.canStop,
       usageAt: farol.usageAt,
+      boardLanguage: farol.boardLanguage,
     };
   });
 
