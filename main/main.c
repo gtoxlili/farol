@@ -3,6 +3,7 @@
 #if CONFIG_FAROL_BENCH
 #include "app_bench.h"
 #endif
+#include "app_camera.h"
 #include "app_display.h"
 #include "app_link.h"
 #include "app_logic.h"
@@ -96,6 +97,12 @@ void app_main(void)
     ESP_ERROR_CHECK(iris_screen_mirror_init());
     ESP_ERROR_CHECK(esp_gsp_esp_lcd_start(&config, &display, &application.ui));
     ESP_ERROR_CHECK(iris_screen_mirror_attach(application.ui));
+    /* The scan page's camera preview pushes frames to this UI. Without it the
+     * logic's camera requests fail and are logged; the rest runs on. */
+    err = app_camera_init(application.ui);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "camera unavailable (0x%x)", err);
+    }
 
     const int32_t logic_err = app_logic_start(application.ui);
     if (logic_err != 0) {
