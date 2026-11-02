@@ -57,7 +57,8 @@ CONFIG_SPIRAM_SPEED_250M=y
 CONFIG_SPIRAM_XIP_FROM_PSRAM=y
 CONFIG_SPIRAM_MEMTEST=n
 
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=20480
+# app_main used about 4 KiB on the board (it logs what stays unused).
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 CONFIG_ESP_TASK_WDT_INIT=n
 
 # 1 kHz tick, as the factory firmware: 1 ms timer and queue resolution for the

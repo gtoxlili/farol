@@ -11,6 +11,8 @@
 #include "esp_gsp_esp_lcd.h"
 #include "esp_iris.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "iris_ota_support.h"
 #include "iris_screen_mirror.h"
 #include "nvs_flash.h"
@@ -114,5 +116,6 @@ void app_main(void)
     static const app_bench_hooks_t bench_hooks = {.reset_scene = bench_reset_scene};
     ESP_ERROR_CHECK(app_bench_start(application.ui, application.display.presenter, &bench_hooks));
 #endif
-    ESP_LOGI(TAG, "ready");
+    /* CONFIG_ESP_MAIN_TASK_STACK_SIZE is sized from this line. */
+    ESP_LOGI(TAG, "ready (main stack unused %u B)", (unsigned)uxTaskGetStackHighWaterMark(NULL));
 }
