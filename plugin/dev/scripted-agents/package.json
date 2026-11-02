@@ -1,0 +1,8 @@
+{
+  "name": "farol-scripted-agents",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Development-only Paseo provider with scripted fake agents",
+  "license": "Apache-2.0",
+  "type": "module"
+}

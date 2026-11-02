@@ -1,0 +1,7 @@
+{
+  "id": "scripted-agents",
+  "name": "Scripted agents (Farol development)",
+  "requirements": {
+    "paseo": ">=0.14.0"
+  }
+}
