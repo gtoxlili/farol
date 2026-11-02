@@ -9,3 +9,6 @@ dependencies:
   # Keep in step with .gspc_version and third_party/*/idf_component.yml
   # (CHANGELOG: ESP-GSP 1.9.0 pairs with GSPC 0.10.0 and simulator 1.9.0).
   espressif/esp-gsp: "==1.9.0"
+  # The Paseo link (components/app_link). Pinned exactly: app_link relies on
+  # its close-code event data and error fields.
+  espressif/esp_websocket_client: "==1.8.0"
