@@ -58,8 +58,12 @@ Verified with: workspace `esp-mosaico-vibe` 1872fd8, ESP-IDF 7b9cc1ac, ESP-GSP
    ```
 
    It builds the firmware and installs it next to the board's retained Vibe
-   Mode. The camera support needs the build steps in
-   [components/app_camera/README.md](components/app_camera/README.md).
+   Mode. The camera driver patches ESP-IDF while the project configures, so
+   Farol builds against a private copy of the pinned ESP-IDF and stops when
+   `$IDF_PATH` lacks the patch, to keep a shared checkout untouched. Set the
+   copy up once as in
+   [components/app_camera/README.md](components/app_camera/README.md#building-with-the-camera),
+   then run the command above with its three exports.
 
 2. Plugin. On the Mac that runs the daemon:
 

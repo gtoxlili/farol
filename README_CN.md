@@ -45,8 +45,11 @@ HTTPS 地址，并把它加进 daemon 的 `hostnames`。[docs/remote-access.md](
    python mosaico.py iris system-update --project projects/farol
    ```
 
-   它会构建固件，并装在板子保留的 Vibe Mode 旁边。摄像头支持的构建步骤见
-   [components/app_camera/README.md](components/app_camera/README.md)。
+   它会构建固件，并装在板子保留的 Vibe Mode 旁边。摄像头驱动会在配置时给 ESP-IDF 打补丁，
+   所以 Farol 要用一份固定版本 ESP-IDF 的私有副本来构建；`$IDF_PATH` 没打补丁时构建会停下，
+   以免改动共享的 ESP-IDF。按
+   [components/app_camera/README.md](components/app_camera/README.md#building-with-the-camera)
+   做一次副本，之后带上那三个环境变量运行上面的命令。
 
 2. 插件。在运行 daemon 的 Mac 上：
 
