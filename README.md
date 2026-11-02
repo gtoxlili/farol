@@ -51,13 +51,13 @@ Farol is a desk lamp for your [Paseo](https://paseo.sh) agents. It runs on an ES
 | Anywhere | Swipe left or right | Usage, lamp, cards |
 | Anywhere | Pull down from the top | Control centre: Wi-Fi, Paseo, do not disturb, sound, haptics, brightness |
 | Lamp | Tap | The most urgent card |
-| Lamp | Hold | A new session |
+| Lamp | Hold | A new session. Hold the light again to talk. |
 | Cards | Swipe up or down | The next agent, most urgent first |
 | A question | Hold an option for 0.5 s | Sends that answer |
 | A running card | Hold for 1.2 s | Stops this turn. Let go early to cancel. |
 | A finished card | Tap Mark read | Greys it out. It leaves the deck an hour later. |
 | AI key | Click | The most urgent card. Click again to go back to the lamp. |
-| AI key | Hold | Talk. Let go, check the text, tap Send. |
+| AI key | Hold | Talk. Let go, check the text, hold Send. |
 | The board | Turn face down | Do not disturb while it lies there |
 
 A tap never changes an agent. Only a hold does.
@@ -72,7 +72,11 @@ A tap never changes an agent. Only a hold does.
 
 ### Start a session by voice
 
-<img src="docs/media/en/voice.gif" width="360" alt="Hold the lamp, hold to talk, send, the new session's card opens"> · [MP4](docs/media/en/voice.mp4)
+<img src="docs/media/en/voice.gif" width="360" alt="The lamp turns violet and listens, the words become the card, holding Send starts the session"> · [MP4](docs/media/en/voice.mp4)
+
+Hold the AI key and talk. The lamp turns violet and rises and falls with your voice. Let go, and Paseo turns the words into text. The text shows as the card the session will be. Hold Send until the bar fills, and the new session's card opens. To redo, hold the AI key again.
+
+<img src="docs/media/en/listening.png" width="240" alt="The lamp listening"> <img src="docs/media/en/transcript.png" width="240" alt="The session to be, with its send bar"> <img src="docs/media/en/new-session.png" width="240" alt="The new session at work">
 
 The session starts in the workspace and with the agent profile you pick in the plugin's settings. The board's keyboard has Latin letters only, so speak to write Chinese. Paseo's dictation does the speech-to-text with the provider set up in Paseo. If it mishears your language, set `features.dictation.stt.language` in the daemon's config.
 
@@ -83,6 +87,8 @@ The session starts in the workspace and with the agent profile you pick in the p
 ## Plugin settings
 
 In Paseo, open Settings › Plugins › Farol.
+
+<img src="docs/media/en/plugin-settings.png" width="560" alt="Farol's settings in Paseo">
 
 - Recent boards, with their firmware and their own sound, haptics and brightness.
 - New sessions from a board. Pick a workspace and an agent profile. Boards can start sessions only when both are set.

@@ -47,7 +47,7 @@ Paseo times plugin RPCs out after 30 s. A plugin error reaches the board as `rpc
 
 ### `farol.start`
 
-`{ "device": "farol-3a1f", "text": "…" }` starts an agent in the workspace with the agent profile set in the plugin's settings, `text` as its first prompt. The agent carries the label `farol.device`. The answer carries the new agent's id in `agent`.
+`{ "device": "farol-3a1f", "text": "…" }` (typed, or dictated as below and then held to send) starts an agent in the workspace with the agent profile set in the plugin's settings, `text` as its first prompt. The agent carries the label `farol.device`. The answer carries the new agent's id in `agent`.
 
 ### `ActResult`
 
@@ -83,7 +83,7 @@ Paseo times plugin RPCs out after 30 s. A plugin error reaches the board as `rpc
 | `readOnly` | Boards may not act. |
 | `idle` | The poll timed out with no change. Only `v`, `rev` and `now` count. |
 | `lang` | `zh` or `en`: the plugin setting, else the Paseo app's language. Absent while unknown, and the board keeps its own. |
-| `compose` | Where `farol.start` sessions go. Absent without a workspace and profile, or when read-only. |
+| `compose` | Where `farol.start` sessions go: `workspace` and the agent `profile`'s names. Absent without both, or when read-only. |
 | `settings` | Board settings made in Paseo. A newer `rev` replaces the board's own sound, LED brightness and quiet hours. `quietStart` and `quietEnd` are minutes after local midnight. They may wrap past midnight, and equal values mean no quiet hours. |
 | `agents` | Cards, most urgent first (`call`, `fail`, `done`, `work`, `seen`), then newest `since`. At most 24. Archived and internal agents are left out, and so are read cards older than an hour, except the focused one. |
 | `usage` | Quota windows: `label`, `used` percent, `resets` epoch ms. |

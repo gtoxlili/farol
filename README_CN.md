@@ -51,13 +51,13 @@ Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里�
 | 任何地方 | 左右滑 | 额度、灯、卡片组 |
 | 任何地方 | 从顶部下拉 | 控制中心，含 Wi-Fi、Paseo、勿扰、声音、振动和亮度 |
 | 灯 | 轻点 | 最紧急的那张卡 |
-| 灯 | 按住 | 新会话 |
+| 灯 | 按住 | 新会话，再按住光说话 |
 | 卡片组 | 上下滑 | 下一个 agent，最紧急的排在前面 |
 | 提问卡 | 按住一个选项 0.5 秒 | 用这个选项回答 |
 | 运行中的卡 | 按住 1.2 秒 | 停止这一轮，提前松手就取消 |
 | 完成的卡 | 点“已读” | 变灰，一小时后离开卡片组 |
 | AI 键 | 单击 | 最紧急的那张卡，再按一次回到灯 |
-| AI 键 | 按住 | 说话，松开后看一眼文字，点“发送” |
+| AI 键 | 按住 | 说话，松开后看一眼文字，按住“发送” |
 | 板子 | 扣过来放 | 扣着的时候勿扰 |
 
 轻点永远不会改动 agent，只有按住才会。
@@ -72,7 +72,11 @@ Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里�
 
 ### 用语音开会话
 
-<img src="docs/media/zh/voice.gif" width="360" alt="按住灯，按住说话，发送，新会话的卡片出现"> · [MP4](docs/media/zh/voice.mp4)
+<img src="docs/media/zh/voice.gif" width="360" alt="灯变成紫色在听，文字变成卡片，按住发送开始新会话"> · [MP4](docs/media/zh/voice.mp4)
+
+按住 AI 键说话，灯会变成紫色，跟着你的声音起伏。松开后 Paseo 把话转成文字，文字显示成这个新会话将来的卡片。按住“发送”直到条填满，新会话的卡片就打开了。想重说，就再按住 AI 键。
+
+<img src="docs/media/zh/listening.png" width="240" alt="灯在听"> <img src="docs/media/zh/transcript.png" width="240" alt="将要开始的会话和发送条"> <img src="docs/media/zh/new-session.png" width="240" alt="新会话开始工作">
 
 新会话开在插件设置里选的 workspace 里，用那里选的 agent 配置。板子的键盘只有英文字母，写中文就用说的。语音转文字由 Paseo 的语音输入完成，用的是你在 Paseo 里配好的服务。中文识别不准时，在 daemon 配置里把 `features.dictation.stt.language` 设成 `zh`。
 
@@ -83,6 +87,8 @@ Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里�
 ## 插件设置
 
 在 Paseo 里打开 设置 › 插件 › Farol。
+
+<img src="docs/media/zh/plugin-settings.png" width="560" alt="Paseo 里的 Farol 设置">
 
 - 最近的板子，含固件版本，以及每块板子自己的声音、振动和亮度。
 - 从板子开始新会话。选一个 workspace 和一个 agent 配置，两个都选了板子才能开会话。
