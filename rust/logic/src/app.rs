@@ -266,10 +266,10 @@ impl App {
                 }
             }
             Event::Presence(near) => {
+                // Someone was there until now either way: the off timer starts
+                // when they leave, not when they arrived.
                 self.presence = near;
-                if near {
-                    self.last_presence = self.now;
-                }
+                self.last_presence = self.now;
             }
             Event::Ambient(level) => self.ambient = Some(level),
             Event::Motion(motion) => match motion {
