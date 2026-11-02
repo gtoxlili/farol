@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../shared/settings";
 import { type AgentFacts, digest, digestUsage, type Entry, MAX_AGENTS } from "../server/digest";
 import { applyItem, emptyLive, foldItems } from "../server/live";
-import { modelLabel, tzOffsetMinutes } from "../server/text";
+import { tzOffsetMinutes } from "../server/text";
 
 const NOW = Date.parse("2026-11-02T06:00:00.000Z");
 
@@ -54,10 +54,26 @@ describe("digest", () => {
     ]);
   });
 
-  it("a board's seen mark holds until a newer turn ends", () => {
+  it("a card a board marked read leaves every board until the agent moves on", () => {
     const since = Date.parse("2026-11-02T05:59:00.000Z");
-    expect(run([{ agent: finished("d"), project: null }], { seen: { d: since } }).agents[0]!.state).toBe("seen");
-    expect(run([{ agent: finished("d"), project: null }], { seen: { d: since - 1 } }).agents[0]!.state).toBe("done");
+    const marked = { seen: { d: since } };
+    expect(run([{ agent: finished("d"), project: null }], marked).agents).toEqual([]);
+    // Even while a board still has it in focus.
+    expect(run([{ agent: finished("d"), project: null }], { ...marked, focus: "d" }).agents).toEqual([]);
+    // A newer attention brings it back.
+    const later = agent("d", {
+      requiresAttention: true,
+      attentionReason: "error",
+      attentionTimestamp: "2026-11-02T05:59:30.000Z",
+    });
+    expect(run([{ agent: later, project: null }], marked).agents.map((a) => a.state)).toEqual(["fail"]);
+    // A new turn, or a question, always shows.
+    const working = agent("d", { status: "running", activeTurn: { turnId: "t", startedAt: "2026-11-02T05:58:00.000Z" } });
+    expect(run([{ agent: working, project: null }], marked).agents.map((a) => a.state)).toEqual(["work"]);
+    const asking = { ...finished("d"), pendingPermissions: [{ id: "p", name: "Bash", kind: "tool" }] };
+    expect(run([{ agent: asking, project: null }], marked).agents.map((a) => a.state)).toEqual(["call"]);
+    // Read in Paseo itself (no board mark): a seen card, as before.
+    expect(run([{ agent: agent("s"), project: null }]).agents.map((a) => a.state)).toEqual(["seen"]);
   });
 
   it("read-only follows the allow-actions setting; previews follow theirs", () => {
@@ -122,13 +138,46 @@ describe("usage", () => {
     ];
     expect(digestUsage(usage)).toEqual({
       usage: [
-        { label: "A · 5h", used: 30, resets: null },
-        { label: "A · wk", used: 90, resets: null },
+        { label: "A · 5h", group: "A", name: "5h", used: 30, resets: null },
+        { label: "A · wk", group: "A", name: "wk", used: 90, resets: null },
       ],
       fuel: { label: "A · wk", left: 10 },
     });
     usage[0]!.windows[0] = { label: "5h", usedPct: 30, summary: true } as never;
     expect(digestUsage(usage).fuel).toEqual({ label: "A · 5h", left: 70 });
+  });
+});
+
+describe("usage from the user's daemon", () => {
+  const providers = [
+    ["Claude (someone@example.com)", ["Session", "Weekly", "Weekly · Fable"]],
+    ["Codex (someone.else@example.com)", ["5-hour", "Weekly"]],
+    ["GitHub Copilot", []],
+    [
+      "Antigravity (Antigravity)",
+      ["Gemini · 5h", "Gemini · Weekly", "Claude & GPT · 5h", "Claude & GPT · Weekly", "Gemini 4 Argon · Weekly"],
+    ],
+    ["GLM Coding Plan (open.bigmodel.cn)", ["5-hour", "MCP calls · Monthly"]],
+  ] as const;
+  const usage = providers.map(([displayName, labels]) => ({
+    displayName,
+    status: "available",
+    windows: labels.map((label, i) => ({ label, usedPct: label === "Session" ? 55 : 10 + i, summary: i < 2 })),
+  }));
+
+  it("sends every window, grouped by provider without the account, in provider order", () => {
+    const out = digestUsage(usage);
+    expect(out.usage).toHaveLength(12);
+    expect(out.usage.map((w) => w.group)).toEqual([
+      ...Array(3).fill("Claude"),
+      ...Array(2).fill("Codex"),
+      ...Array(5).fill("Antigravity"),
+      ...Array(2).fill("GLM Coding Plan"),
+    ]);
+    expect(out.usage[2]).toMatchObject({ group: "Claude", name: "Weekly · Fable", label: "Claude · Weekly · Fable" });
+    expect(out.usage[11]).toMatchObject({ name: "MCP calls · Monthly", label: "GLM Coding Plan · MCP calls · M…" });
+    expect(out.usage.some((w) => w.label.includes("@"))).toBe(false);
+    expect(out.fuel).toEqual({ label: "Claude · Session", left: 45 });
   });
 });
 
@@ -158,12 +207,5 @@ describe("live timeline", () => {
     live = applyItem(live, { type: "assistant_message", text: "lo" }, null, true);
     live = applyItem(live, { type: "assistant_message", text: "[System Error] boom" }, null, true);
     expect(live.reply).toBe("Hello");
-  });
-
-  it("model labels", () => {
-    expect(modelLabel("claude-opus-5-5")).toBe("opus 5.5");
-    expect(modelLabel("gpt-6.1-sol")).toBe("gpt-6.1 sol");
-    expect(modelLabel("codex/gpt-6.1-terra")).toBe("gpt-6.1 terra");
-    expect(modelLabel(null)).toBe("");
   });
 });

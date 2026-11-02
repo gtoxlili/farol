@@ -11,7 +11,7 @@
       "id": "a-call",
       "title": "给 Farol 首页选一种光球动效",
       "project": "farol",
-      "model": "opus 5.5",
+      "model": "Opus 5.5",
       "state": "call",
       "since": 1793597820000,
       "ask": {
@@ -25,7 +25,7 @@
       "id": "a-work",
       "title": "修复子 agent 调用失败，补回归测试",
       "project": "api-server",
-      "model": "gpt-6.1 sol",
+      "model": "GPT-6.1 Sol",
       "state": "work",
       "since": 1793597292000,
       "now": "cargo test -p runtime --lib",
@@ -39,10 +39,10 @@
       "id": "a-done",
       "title": "查喂食器的出粮记录为什么总是堵",
       "project": "notes",
-      "model": "sonnet 5.5",
+      "model": "Sonnet 5.5",
       "state": "done",
       "since": 1793597700000,
-      "body": "查到了：定时出粮和「早饭」自动化都在 7:00 触发，两次出粮间隔不到一分钟，粮道还没清空就又推了一次。建议停掉其中一个，或者把自动化挪到 7:05。",
+      "body": "查到了：定时出粮和「早饭」自动化都在 **7:00** 触发，两次出粮间隔不到一分钟，粮道还没清空就又推了一次。\n\n## 建议 ✓\n\n- 停掉其中一个，**或者**\n- 把自动化挪到 7:05。",
       "ctx": 23,
       "cost": "$0.42"
     },
@@ -50,7 +50,7 @@
       "id": "a-fail",
       "title": "迁移到 Rsbuild 2.x 并跑一遍构建",
       "project": "web-console",
-      "model": "gpt-6.1 terra",
+      "model": "GPT-6.1 Terra",
       "state": "fail",
       "since": 1793597940000,
       "error": "usage limit reached · resets 15:00",
@@ -58,10 +58,10 @@
     }
   ],
   "usage": [
-    {"label": "Claude · 本窗", "used": 65, "resets": 1793602380000},
-    {"label": "Claude · 本周", "used": 15, "resets": 1793927460000},
-    {"label": "Codex · 本周", "used": 64, "resets": 1793785260000},
-    {"label": "Gemini Argon · 周", "used": 99, "resets": 1794036000000}
+    {"label": "Claude · 本窗", "group": "Claude", "name": "本窗", "used": 65, "resets": 1793602380000},
+    {"label": "Claude · 本周", "group": "Claude", "name": "本周", "used": 15, "resets": 1793927460000},
+    {"label": "Codex · 本周", "group": "Codex", "name": "本周", "used": 64, "resets": 1793785260000},
+    {"label": "Gemini Argon · 周", "group": "Gemini Argon", "name": "周", "used": 99, "resets": 1794036000000}
   ],
   "fuel": {"label": "Claude · 本窗", "left": 35}
 }

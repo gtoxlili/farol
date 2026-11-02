@@ -43,7 +43,7 @@ Paseo times plugin RPCs out after 30 s. A plugin error reaches the board as `rpc
 
 - `answer` picks option `choice` of the pending `ask` whose `requestId` matches. Paseo applies one response per request. The plugin waits up to 3 s for `agent.permission_resolved` and answers `ok` only when the applied response is the board's, `already_resolved` when another client's won.
 - `stop` interrupts the turn named by `turn`. The plugin runs `paseo stop <id>`, because Paseo's SDK has no cancel. That cancels whatever turn is current, so the plugin first re-reads the agent and refuses (`already_resolved`) when another turn has started. A turn that starts in the milliseconds between that check and the cancel is still stopped.
-- `seen` marks a finished or failed card as read until a newer turn ends.
+- `seen` marks a card as read. The plugin then leaves it out of every board's snapshot until the agent moves on: a new turn, a new question or permission, or a newer attention (its `since` passes the marked value). Waiting and working cards always show. Paseo's own unread badge stays: the plugin API (Paseo 0.14) cannot clear an agent's attention.
 
 ### `farol.start`
 
@@ -85,15 +85,15 @@ Paseo times plugin RPCs out after 30 s. A plugin error reaches the board as `rpc
 | `lang` | `zh` or `en`: the plugin setting, else the Paseo app's language. Absent while unknown, and the board keeps its own. |
 | `compose` | Where `farol.start` sessions go: `workspace` and the agent `profile`'s names. Absent without both, or when read-only. |
 | `settings` | Board settings made in Paseo. A newer `rev` replaces the board's own sound, LED brightness and quiet hours. `quietStart` and `quietEnd` are minutes after local midnight. They may wrap past midnight, and equal values mean no quiet hours. |
-| `agents` | Cards, most urgent first (`call`, `fail`, `done`, `work`, `seen`), then newest `since`. At most 24. Archived and internal agents are left out, and so are read cards older than an hour, except the focused one. |
-| `usage` | Quota windows: `label`, `used` percent, `resets` epoch ms. |
-| `fuel` | The tightest window, as percent `left`. |
+| `agents` | Cards, most urgent first (`call`, `fail`, `done`, `work`, `seen`), then newest `since`. At most 24. Archived and internal agents are left out, and so are cards a board marked read (until they move on) and read cards older than an hour, except the focused one. |
+| `usage` | Quota windows, every window of every provider in Paseo's order (at most 24). See [Window](#window). |
+| `fuel` | The tightest window (of those Paseo marks as summary, when any), as percent `left`. |
 
 ### Agent
 
 | Field | Meaning |
 | --- | --- |
-| `id`, `title`, `project`, `model` | Paseo agent id, title, project name, short model label. |
+| `id`, `title`, `project`, `model` | Paseo agent id, title, project name, model label. The label is the name of the user's agent profile for that provider and model, else the provider catalog's label, else a cleaned id ("Opus 5.5"). At most 24 characters. |
 | `state` | `call`: a question, permission or plan waits. `fail`: the last turn failed. `done`: finished, not yet read. `work`: a turn runs. `seen`: anything else. |
 | `since` | When the running turn or the attention began, epoch ms. |
 | `now` | Working cards: the latest action. |
@@ -102,10 +102,33 @@ Paseo times plugin RPCs out after 30 s. A plugin error reaches the board as `rpc
 | `ctx` | Context window used, percent. |
 | `cost` | Cost of the last turn, on finished cards. |
 | `ask` | `call` cards: `{ kind, requestId, text, options }`, `kind` one of question, permission, plan. `choice` indexes `options`. Permissions and plans without their own actions offer allow/deny and approve/keep planning. |
-| `body` | Finished, failed and read cards: the start of the last reply, when reply preview is on. |
+| `body` | Finished, failed and read cards: the start of the last reply in [Farol markdown](#reply-bodies), when reply preview is on. |
 | `error` | Failed cards: Paseo's last error. |
 | `stoppable` | Working cards, when the plugin can run `paseo stop`. |
 | `turn` | Working cards: the running turn's id, which a stop names. |
+
+### Window
+
+| Field | Meaning |
+| --- | --- |
+| `label` | `"group · name"`, at most 32 characters. Boards that read only this keep working. |
+| `group` | Optional. The provider's name without its account: `Claude`, `Antigravity`, `GLM Coding Plan`. Windows of one provider are adjacent. |
+| `name` | Optional. The window's own label: `Session`, `Weekly`, `MCP calls · Monthly`. |
+| `used` | Percent used, 0..100. |
+| `resets` | When the window resets, epoch ms, or null. |
+
+### Reply bodies
+
+`body` is "Farol markdown", a small subset the board renders. The plugin converts the reply into it.
+
+- Blocks are separated by a blank line. A block's lines are separated by a single newline.
+- Block lines: `# `, `## `, `### ` heading; `- ` bullet and `  - ` one nested level; `1. ` numbered; `> ` quote; a fenced code block between two lines of exactly three backticks (no language). Any other line is paragraph text.
+- Inline: only `**strong**`, always balanced. Every other `*` is literal.
+- What the plugin maps: emphasis to plain text, inline code and `__x__` to strong, links to their text, images to their alt text, tables to one line per row with cells joined by ` · ` (the header row strong), `*`/`+` bullets to `- `, deeper nesting to one level, task boxes to `✓`. Rules, HTML tags and link definitions go; entities are decoded.
+- Characters: emoji with a text equivalent become it (✅ ✓, ❌ ✗, ⚠️ !); other emoji are dropped. `−` (U+2212) stays.
+- At most about 320 characters, markup included. A longer reply is cut at a block, line or word boundary and ends in `…`. A cut inside a code block puts `…` as its last line, before the closing fence.
+
+Older firmware shows the text as it is.
 
 ### BoardPrefs
 

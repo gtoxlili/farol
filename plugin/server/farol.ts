@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS, type Settings, TIMELINE_KIND } from "../shared/settin
 import { Actions, type PermissionResponse } from "./actions";
 import type { AgentFacts } from "./digest";
 import { boardSettingsOf, digest } from "./digest";
+import { ModelNames } from "./models";
 import { Observer } from "./observer";
 import { boardLanguage, type ProfileFacts, type StartPorts, startSession } from "./start";
 import { findPaseoCli, runStop } from "./stop";
@@ -21,6 +22,8 @@ export class Farol {
   readonly stream: Stream;
   private readonly actions: Actions;
   private observer: Observer | null = null;
+  /** Profile names and provider catalogs for the cards' model labels. */
+  private models: ModelNames | null = null;
   private starting: Promise<Observer> | null = null;
   private settings: Settings = DEFAULT_SETTINGS;
   /** Answers waiting to learn which response Paseo applied, by request id. */
@@ -166,6 +169,7 @@ export class Farol {
     if (this.observer) return Promise.resolve(this.observer);
     if (!this.starting) {
       this.apiValue = paseo;
+      this.models = new ModelNames(paseo, () => this.stream.changed(), this.log);
       void this.refreshWorkspace();
       const observer = new Observer(paseo, () => this.stream.changed(), this.log);
       this.starting = observer
@@ -269,6 +273,7 @@ export class Farol {
   async close(): Promise<void> {
     this.closed = true;
     this.stream.close();
+    this.models?.close();
     await this.observer?.close();
     this.observer = null;
   }
@@ -289,8 +294,10 @@ export class Farol {
   }
 
   private build(focus: string | null) {
+    const entries = this.observer?.entries() ?? [];
     return digest({
-      entries: this.observer?.entries() ?? [],
+      entries,
+      models: this.models?.directory(entries.map((e) => e.agent.provider)),
       usage: this.observer?.usageFacts() ?? [],
       seen: Object.fromEntries(this.seen),
       focus,

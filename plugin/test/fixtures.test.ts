@@ -28,6 +28,7 @@ function run(overrides: Record<string, unknown> = {}) {
     entries,
     usage: input.usage,
     seen: input.seen,
+    models: input.models,
     focus: input.focus,
     settings: { ...DEFAULT_SETTINGS, ...input.settings },
     host: input.host,

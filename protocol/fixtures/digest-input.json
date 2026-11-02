@@ -15,6 +15,10 @@
   },
   "settingsRev": 7,
   "seen": {},
+  "models": {
+    "profiles": [{ "provider": "claude", "model": "claude-sonnet-5-5", "name": "Sonnet 5.5" }],
+    "catalogs": { "codex": [{ "id": "gpt-6.1-terra", "label": "GPT-6.1 Terra" }] }
+  },
   "entries": [
     {
       "project": "farol",
@@ -125,7 +129,7 @@
         { "type": "user_message", "text": "查一下喂食器为什么总是堵" },
         {
           "type": "assistant_message",
-          "text": "查到了：定时出粮和「早饭」自动化都在 7:00 触发，两次出粮间隔不到一分钟，粮道还没清空就又推了一次。建议停掉其中一个，或者把自动化挪到 7:05。"
+          "text": "查到了：*定时出粮*和「早饭」自动化都在 `7:00` 触发，两次出粮间隔不到一分钟，粮道还没清空就又推了一次。\n\n## 建议 ✅\n\n* 停掉其中一个，**或者**\n* 把自动化挪到 7:05。"
         }
       ]
     },
@@ -186,7 +190,7 @@
   "usage": [
     {
       "providerId": "claude",
-      "displayName": "Claude",
+      "displayName": "Claude (me@example.com)",
       "status": "available",
       "planLabel": "Max",
       "windows": [

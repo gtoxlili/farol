@@ -9,33 +9,6 @@ export function clip(text: string | null | undefined, max: number): string {
   return chars.slice(0, Math.max(0, max - 1)).join("").trimEnd() + "…";
 }
 
-/** Like `clip` but keeps paragraph breaks, for reply previews. */
-export function clipBlock(text: string | null | undefined, max: number): string {
-  if (!text) return "";
-  const tidy = text
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{2,}/g, "\n")
-    .trim();
-  const chars = Array.from(tidy);
-  if (chars.length <= max) return tidy;
-  return chars.slice(0, Math.max(0, max - 1)).join("").trimEnd() + "…";
-}
-
-/**
- * Short model label for the card header: "claude-opus-5-5" -> "opus 5.5",
- * "gpt-6.1-sol" -> "gpt-6.1 sol".
- */
-export function modelLabel(model: string | null | undefined): string {
-  if (!model) return "";
-  let m = model.trim();
-  const slash = m.lastIndexOf("/");
-  if (slash >= 0) m = m.slice(slash + 1);
-  m = m.replace(/^claude-/, "").replace(/\[.*\]$/, "").replace(/-\d{8}$/, "");
-  m = m.replace(/(\d+)-(\d+)(?=$|-)/g, "$1.$2");
-  return clip(m.replace(/[-_]+/g, " ").replace(/^gpt (?=\d)/, "gpt-"), 24);
-}
-
 export function formatCost(usd: number | null | undefined): string | undefined {
   if (usd == null || !Number.isFinite(usd) || usd <= 0) return undefined;
   if (usd < 0.01) return "<$0.01";

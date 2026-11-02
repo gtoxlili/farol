@@ -51,7 +51,12 @@ export const AgentSchema = z.object({
 export type Agent = z.infer<typeof AgentSchema>;
 
 export const WindowSchema = z.object({
+  /** "group · name", for boards that read only this. */
   label: z.string(),
+  /** The provider, without its account: "Claude", "GLM Coding Plan". */
+  group: z.string().optional(),
+  /** The window within the provider: "Session", "Weekly". */
+  name: z.string().optional(),
   used: u8,
   resets: z.number().int().nullable().optional(),
 });

@@ -4,7 +4,9 @@ import type { Agent, Ask, BoardSettings, Fuel, Snapshot, State, Window } from ".
 import { PROTOCOL_VERSION, STATES } from "../shared/protocol";
 import type { Settings } from "../shared/settings";
 import type { Live } from "./live";
-import { clip, clipBlock, epochMs, formatCost, modelLabel, tzOffsetMinutes } from "./text";
+import { BODY_MAX, farolMarkdown } from "./markdown";
+import { type ModelDirectory, modelLabelFor } from "./models";
+import { clip, epochMs, formatCost, tzOffsetMinutes } from "./text";
 
 /** The parts of a Paseo permission request the board shows. */
 export interface PermissionFacts {
@@ -64,8 +66,10 @@ export interface Entry {
 export interface DigestInput {
   entries: Entry[];
   usage: UsageFacts[];
-  /** agentId -> the `since` a board marked as seen. */
+  /** agentId -> the `since` a board marked as read; the card stays off the boards until it moves on. */
   seen: Record<string, number>;
+  /** Profile names and provider catalogs for model labels; absent, ids are cleaned up instead. */
+  models?: ModelDirectory;
   focus: string | null;
   settings: Pick<Settings, "allowActions" | "replyPreview" | "timeZone">;
   host: string;
@@ -103,7 +107,7 @@ export function boardSettingsOf(
 /** Read cards older than this leave the payload; the board retires them after an hour anyway. */
 export const SEEN_KEEP_MS = 60 * 60 * 1000;
 export const MAX_AGENTS = 24;
-const MAX_WINDOWS = 8;
+export const MAX_WINDOWS = 24;
 const MAX_OPTIONS = 6;
 
 const PERMISSION_OPTIONS = ["允许", "拒绝"];
@@ -211,18 +215,28 @@ function ctxOf(agent: AgentFacts): number | undefined {
   return Math.max(0, Math.min(100, pct));
 }
 
+/**
+ * A board marked this card read and nothing happened since: no new turn, no new
+ * attention. Waiting and working cards always show.
+ */
+export function markedRead(agent: AgentFacts, seen: Record<string, number>): boolean {
+  const mark = seen[agent.id];
+  if (mark == null) return false;
+  const state = stateOf(agent);
+  if (state === "call" || state === "work") return false;
+  const since = sinceOf(agent, state);
+  return since != null && since <= mark;
+}
+
 function digestAgent(entry: Entry, input: DigestInput, focused: boolean): Agent {
   const a = entry.agent;
-  let state = stateOf(a);
+  const state = stateOf(a);
   const since = sinceOf(a, state);
-  if ((state === "done" || state === "fail") && since != null && input.seen[a.id] === since) {
-    state = "seen";
-  }
   const out: Agent = { id: a.id, state, since };
   const title = clip(a.title, 80);
   if (title) out.title = title;
   if (entry.project) out.project = clip(entry.project, 40);
-  const model = modelLabel(a.runtimeInfo?.model ?? a.model);
+  const model = modelLabelFor(input.models, a.provider, [a.runtimeInfo?.model, a.model]);
   if (model) out.model = model;
   const live = entry.live;
 
@@ -254,7 +268,7 @@ function digestAgent(entry: Entry, input: DigestInput, focused: boolean): Agent 
     if (error) out.error = error;
   }
   if ((state === "done" || state === "fail" || state === "seen") && input.settings.replyPreview) {
-    const body = clipBlock(live?.reply, 280);
+    const body = farolMarkdown(live?.reply, BODY_MAX);
     if (body) out.body = body;
   }
   return out;
@@ -266,16 +280,25 @@ function stateRank(s: State): number {
   return STATES.indexOf(s);
 }
 
+/** "Claude (someone@example.com)" -> "Claude": the provider without its account. */
+export function usageGroup(displayName: string): string {
+  return displayName.replace(/\s*\([^()]*\)\s*$/, "").trim() || displayName.trim();
+}
+
 export function digestUsage(usage: UsageFacts[]): { usage: Window[]; fuel?: Fuel } {
   const windows: Array<Window & { summary: boolean }> = [];
   for (const provider of usage) {
     if (provider.status !== "available") continue;
+    const group = clip(usageGroup(provider.displayName), 32);
     for (const w of provider.windows) {
       const used =
         w.usedPct != null ? w.usedPct : w.remainingPct != null ? 100 - w.remainingPct : null;
       if (used == null || !Number.isFinite(used)) continue;
+      const name = clip(w.label, 32);
       windows.push({
-        label: clip(`${provider.displayName} · ${w.label}`, 32),
+        label: clip(`${group} · ${name}`, 32),
+        group,
+        name,
         used: Math.max(0, Math.min(100, Math.round(used))),
         resets: epochMs(w.resetsAt),
         summary: w.summary === true,
@@ -297,7 +320,7 @@ export function digest(input: DigestInput): Omit<Snapshot, "rev" | "idle"> {
   const agents: Agent[] = [];
   for (const entry of input.entries) {
     const a = entry.agent;
-    if (a.archivedAt || a.internal) continue;
+    if (a.archivedAt || a.internal || markedRead(a, input.seen)) continue;
     const focused = input.focus === a.id;
     const agent = digestAgent(entry, input, focused);
     const stale =
