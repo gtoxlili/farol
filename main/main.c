@@ -30,6 +30,7 @@ void app_main(void)
         ESP_LOGE(TAG, "GSP UI unavailable (0x%x); Recovery RPC remains active", err);
         return;
     }
+    ESP_ERROR_CHECK(app_logic_font_apply(&config));
     err = app_display_create(&application.display);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Display unavailable (0x%x); Recovery RPC remains active", err);

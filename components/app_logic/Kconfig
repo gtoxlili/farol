@@ -1,0 +1,12 @@
+menu "Farol"
+
+    config FAROL_DEMO
+        bool "Start on the built-in demo fleet"
+        default n
+        help
+            Development and measurement builds: the board runs sample agents
+            from boot and never connects to Paseo, so it can be watched and
+            measured without a daemon or anyone at the board. Leave off in
+            builds for use.
+
+endmenu

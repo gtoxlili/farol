@@ -2,10 +2,18 @@
 # ../../rust, whose `platform` crate is built here by cargo as a no_std
 # staticlib for riscv32imafc-unknown-none-elf. host/ is the simulator backend's
 # separate CMake project and is not part of the device build.
-idf_component_register(SRCS "app_logic.c" INCLUDE_DIRS "include" REQUIRES esp-gsp)
+idf_component_register(SRCS "app_logic.c" INCLUDE_DIRS "include" REQUIRES esp-gsp
+    PRIV_REQUIRES heap log)
 
 include("${MOSAICO_UTILS_ROOT}/mosaico-tools/cmake/gsp_bundle.cmake")
 mosaico_gsp_add_ui_bundle(${COMPONENT_LIB} "ui/main.json")
+
+# Runtime text (agent titles, questions, replies) is Chinese and Latin of any
+# kind, beyond what the bundle's baked glyphs cover: GSP rasterizes the rest
+# from this font with FreeType. It is linked into the application image (the
+# bundle partition is 1 MB) and copied to PSRAM at boot (app_logic.c).
+gsp_enable_freetype()
+target_add_binary_data(${COMPONENT_LIB} "ui/fonts/NotoSansSC-Farol.ttf" BINARY)
 
 set(app_logic_workspace "${CMAKE_CURRENT_LIST_DIR}/../../rust")
 set(app_logic_target "riscv32imafc-unknown-none-elf")
@@ -51,6 +59,7 @@ add_custom_target(app_logic_cargo
 
 # Components whose C symbols the Rust code calls directly.
 add_prebuilt_library(app_logic_staticlib "${app_logic_staticlib}"
-    PRIV_REQUIRES espressif__esp-gsp heap log esp_timer freertos)
+    PRIV_REQUIRES espressif__esp-gsp heap log esp_timer freertos nvs_flash esp_hw_support
+        app_display)
 add_dependencies(app_logic_staticlib app_logic_cargo)
 target_link_libraries(${COMPONENT_LIB} INTERFACE app_logic_staticlib)
