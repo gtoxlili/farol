@@ -4,7 +4,9 @@
 #include "app_bench.h"
 #endif
 #include "app_display.h"
+#include "app_link.h"
 #include "app_logic.h"
+#include "app_net.h"
 #include "esp_gsp_esp_lcd.h"
 #include "esp_iris.h"
 #include "esp_log.h"
@@ -14,6 +16,8 @@
 #include "ui_bundle.h"
 
 static const char *TAG = "farol";
+/* NVS namespace (default partition) shared with the Rust logic's settings. */
+#define FAROL_NVS_NAMESPACE "farol"
 
 #if CONFIG_FAROL_BENCH
 /* Every bench run starts from the same demo moment: 14 s into the script the
@@ -36,13 +40,26 @@ static struct {
 
 void app_main(void)
 {
+    esp_err_t err;
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_iris_boot_probe());
     ESP_ERROR_CHECK(nvs_flash_init());
     /* Recovery must remain reachable even when the UI bundle cannot be loaded. */
     iris_ota_support_start();
+    /* Networking before the UI, so ESP-Iris's TCP transport (which listens
+     * once a netif exists) is up even when the UI fails. Neither failure is
+     * fatal: the logic then reports Wi-Fi off or the link down, and Recovery
+     * stays reachable over USB. The link stays idle until the session opens it. */
+    err = app_net_start(FAROL_NVS_NAMESPACE);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Wi-Fi unavailable (0x%x); continuing without network", err);
+    }
+    err = app_link_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Paseo link unavailable (0x%x)", err);
+    }
 
     esp_gsp_config_t config;
-    esp_err_t err = ui_bundle_open(&config);
+    err = ui_bundle_open(&config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "GSP UI unavailable (0x%x); Recovery RPC remains active", err);
         return;
