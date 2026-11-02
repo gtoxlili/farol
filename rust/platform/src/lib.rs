@@ -15,6 +15,7 @@
 extern crate alloc;
 
 mod board;
+mod camera;
 mod feedback;
 mod heap;
 mod idf;
@@ -59,15 +60,9 @@ static SWALLOWING: AtomicBool = AtomicBool::new(false);
 
 /// Effects on the board. The link and Wi-Fi go to app_link and app_net
 /// ([`net`]); haptics, sound, LEDs and the panel to app_feedback
-/// ([`feedback`]); the camera arrives with app_camera, and is logged until then.
+/// ([`feedback`]); the camera to app_camera ([`camera`]).
 struct Board {
     display: Option<Display>,
-}
-
-impl Board {
-    fn later(what: &str) {
-        idf::log_line(idf::LogLevel::Info, c"logic", what);
-    }
 }
 
 impl Sys for Board {
@@ -99,7 +94,7 @@ impl Sys for Board {
         net::wifi(cmd);
     }
     fn camera(&mut self, on: bool) {
-        Self::later(&alloc::format!("camera {on} (no app_camera yet)"));
+        camera::set(on);
     }
 }
 
@@ -309,6 +304,7 @@ pub unsafe extern "C" fn app_logic_start(handle: gsp::esp_gsp_handle_t) -> i32 {
     // Reports wait in the queue until the task below runs.
     net::subscribe(queue);
     feedback::start(queue);
+    camera::subscribe(queue);
     let arg = Box::into_raw(task).cast::<c_void>();
     if !idf::spawn(c"logic", TASK_STACK_BYTES, TASK_PRIORITY, logic_task, arg) {
         // The callbacks stay registered on the leaked queue, which nobody
