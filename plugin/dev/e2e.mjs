@@ -142,17 +142,18 @@ try {
 
   check(first.settings != null, "snapshot carries Paseo's board settings", JSON.stringify(first.settings));
 
-  // 0. The board's control centre switches sound off: Paseo's setting follows.
+  // 0. The board's control centre switches sound off: the change stays on that
+  // board (Paseo's shared settings do not move) and the plugin's board list shows it.
   const flipped = !first.settings.sound;
   const sent = await board.setPrefs({ sound: flipped, haptic: true, brightness: 70, dnd: false });
   check(sent.output?.ok === true, "farol.focus with prefs ok");
-  const synced = await until("settings follow the board", (s) => s.settings?.sound === flipped, 5_000);
-  check(synced.settings.rev > first.settings.rev, "settings rev increased with the board's sound", JSON.stringify(synced.settings));
   const status = await board.rpc("farol.status", {});
   const me = status.output?.boards?.find((b) => b.device === board.device);
-  check(me?.prefs?.brightness === 70 && status.output?.boardSound === flipped, "recent boards show the board's prefs", JSON.stringify(me));
+  check(me?.prefs?.brightness === 70 && me?.prefs?.sound === flipped, "recent boards show the board's prefs", JSON.stringify(me));
+  await new Promise((r) => setTimeout(r, 1500));
+  const shared = latest?.settings ?? first.settings;
+  check(shared.sound === first.settings.sound, "Paseo's shared settings ignore one board's prefs", JSON.stringify(shared));
   await board.setPrefs({ sound: first.settings.sound, haptic: true, brightness: 70, dnd: false });
-  await until("settings back", (s) => s.settings?.sound === first.settings.sound, 5_000);
 
   check(me?.fw === "1.0.0" && me?.screen === "home", "recent boards show firmware and screen", `fw=${me?.fw} screen=${me?.screen}`);
 
@@ -173,11 +174,13 @@ try {
   const w = agentIn(done, work);
   check(Boolean(w?.body?.includes("regression test")), "finished card has reply preview and cost", `body="${w?.body}" cost=${w?.cost} ctx=${w?.ctx}`);
 
-  // 2. Mark seen.
+  check(Boolean(w?.model), "finished card has a model label", `model="${w?.model}"`);
+
+  // 2. Mark read: the card leaves the board.
   const seen = await board.act(work, "seen");
   check(seen.output?.ok === true, "act seen ok", JSON.stringify(seen.output));
-  await until("work agent seen", (s) => agentIn(s, work)?.state === "seen", 5_000);
-  check(agentIn(latest, work)?.state === "seen", "seen sticks in the next snapshot");
+  await until("work agent gone", (s) => !agentIn(s, work), 5_000);
+  check(!agentIn(latest, work), "a card marked read stays off the board");
 
   // 3. A question, answered from the board.
   const ask = await spawn("Pick a lamp style", "ask fast");
@@ -249,7 +252,7 @@ try {
   }
   check(peak <= 5, "push rate at most 5 per second", `peak ${peak} in 1 s over ${full.length} snapshots`);
 
-  // 9. Idle long poll: nothing changes, the poll answers idle within 25 s.
+  // 9. Idle long poll: nothing changes, the poll answers idle within 20 s.
   if (!SKIP_IDLE) {
     board.setFocus(null);
     await new Promise((r) => setTimeout(r, 1500));
@@ -265,10 +268,10 @@ try {
       setTimeout(() => {
         clearInterval(iv);
         resolve();
-      }, 29_000);
+      }, 24_000);
     });
     const idle = snapshots.slice(before).find((s) => s.idle);
-    check(Boolean(idle) && idle.ms >= 24_000 && idle.ms <= 26_000, "idle answer after ~25 s", `poll took ${idle?.ms} ms, waited ${Date.now() - tIdle} ms`);
+    check(Boolean(idle) && idle.ms >= 19_000 && idle.ms <= 21_000, "idle answer after ~20 s", `poll took ${idle?.ms} ms, waited ${Date.now() - tIdle} ms`);
   }
 
   // 10. The board turns to its usage screen: usage is fetched at once, but at
