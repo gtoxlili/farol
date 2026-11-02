@@ -38,6 +38,8 @@ pub const HOLD_SHOW_MS: u64 = 250;
 pub const HOLD_STOP_MS: u64 = 1200;
 /// Wi-Fi lost for this long brings up the "no Wi-Fi" page.
 const NO_WIFI_PAGE_MS: u64 = 10_000;
+/// How often the overlays' visibility is sent again (see `view::OVERLAY_VIS`).
+pub(crate) const OVERLAY_REASSERT_MS: u64 = 1_000;
 /// Paseo unreachable for this long shows the banner.
 const BANNER_MS: u64 = 30_000;
 /// An alert keeps the screen on this long even when nobody is around.
@@ -292,6 +294,8 @@ pub struct App {
     ripple: bool,
     /// The last render had writes GSP refused; render again soon.
     render_retry: bool,
+    /// When the overlays' visibility is next sent again.
+    overlay_reassert_at: u64,
     /// Phase of the "connecting" Wi-Fi arcs, advanced by `poll`.
     pub(crate) wifi_phase: u8,
     last_second: u64,
@@ -361,6 +365,7 @@ impl App {
             lamp_fade: Cell::new(None),
             ripple: false,
             render_retry: false,
+            overlay_reassert_at: 0,
             wifi_phase: 0,
             last_second: now_ms / 1000,
         };
@@ -627,6 +632,10 @@ impl App {
             self.attach_keyboard(ui);
         }
         self.show_started(ui);
+        if self.now >= self.overlay_reassert_at {
+            self.painter.forget_visible(&crate::view::OVERLAY_VIS);
+            self.overlay_reassert_at = self.now + OVERLAY_REASSERT_MS;
+        }
         if ripple {
             self.painter.run(ui.set_i32(
                 gsp::GSP_OBJ_KEY_LAMP,
@@ -1625,6 +1634,8 @@ mod tests {
         typed: String,
         /// Scene writes made so far.
         writes: usize,
+        /// The last visibility written to each bind.
+        shown: alloc::collections::BTreeMap<Bind, bool>,
     }
 
     impl Ui for NullUi {
@@ -1632,8 +1643,9 @@ mod tests {
             self.writes += 1;
             Ok(())
         }
-        fn set_visible(&mut self, _: Bind, _: bool) -> UiResult {
+        fn set_visible(&mut self, bind: Bind, visible: bool) -> UiResult {
             self.writes += 1;
+            self.shown.insert(bind, visible);
             Ok(())
         }
         fn set_color(&mut self, _: Bind, _: u32) -> UiResult {
@@ -1696,10 +1708,15 @@ mod tests {
         glows: usize,
         saved: Option<Config>,
         listening: bool,
+        sent: Vec<String>,
     }
 
     impl Sys for Effects {
-        fn link(&mut self, _: Out) {}
+        fn link(&mut self, out: Out) {
+            if let Out::Send(text) = out {
+                self.sent.push(text);
+            }
+        }
         fn haptic(&mut self, _: Haptic) {}
         fn chime(&mut self, _: Chime) {}
         fn glow(&mut self, _: Glow) {
@@ -1921,6 +1938,106 @@ mod tests {
         press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_PAIR_CONNECT);
         assert_eq!(sys.saved, Some(direct("secret")));
         assert_eq!(app.session.config(), Some(&direct("secret")));
+    }
+
+    #[test]
+    fn a_lost_overlay_write_heals_within_a_second() {
+        let (mut app, mut ui, mut sys) =
+            (App::new(0, "test"), NullUi::default(), Effects::default());
+        // Not configured yet: the welcome page is up.
+        app.poll(100, &mut ui, &mut sys);
+        let status = crate::view::OVERLAY_VIS[0];
+        assert_eq!(ui.shown.get(&status), Some(&true));
+        // The page goes away, but GSP drops the write that hides it while the
+        // painter believes it went out.
+        app.start_demo(0);
+        app.poll(200, &mut ui, &mut sys);
+        assert_eq!(app.overlay, Overlay::None);
+        assert_eq!(ui.shown.get(&status), Some(&false));
+        ui.shown.insert(status, true);
+        app.poll(300, &mut ui, &mut sys);
+        assert_eq!(ui.shown.get(&status), Some(&true), "cached, not re-sent yet");
+        app.poll(100 + OVERLAY_REASSERT_MS + 50, &mut ui, &mut sys);
+        assert_eq!(ui.shown.get(&status), Some(&false));
+    }
+
+    /// The order a real board saw on 2026-11-02: it restores its config before
+    /// Wi-Fi is up, fails DNS three times, joins Wi-Fi, connects and is answered.
+    #[test]
+    fn a_board_that_boots_before_its_wifi_reaches_the_lamp_once_paseo_answers() {
+        use crate::paseo::Down;
+        use crate::sys::{Net, NetState};
+        let (mut app, mut ui, mut sys) =
+            (App::new(0, "test"), NullUi::default(), Effects::default());
+        let net = |state| {
+            Event::Net(Net {
+                state,
+                ssid: "home".into(),
+                ..Default::default()
+            })
+        };
+        app.handle(3870, net(NetState::Connecting), &mut ui, &mut sys);
+        let restored = Event::Restored {
+            config: Some(direct("pw")),
+            prefs: Prefs::default(),
+        };
+        app.handle(5864, restored, &mut ui, &mut sys);
+        for (closed, next) in [(5895, 6955), (7014, 9075), (9141, 10_000)] {
+            app.handle(closed, Event::Link(Link::Closed(Down::Dns)), &mut ui, &mut sys);
+            app.poll(next, &mut ui, &mut sys);
+        }
+        assert_eq!(app.overlay, Overlay::NoPaseo);
+        app.handle(10_292, net(NetState::Online), &mut ui, &mut sys);
+        app.handle(10_340, Event::Link(Link::Opened), &mut ui, &mut sys);
+        let info = r#"{"type":"session","message":{"type":"status","payload":{"status":"server_info","hostname":"studio"}}}"#;
+        app.handle(10_380, Event::Link(Link::Text(info.into())), &mut ui, &mut sys);
+        app.poll(10_400, &mut ui, &mut sys);
+        let poll = sys
+            .sent
+            .iter()
+            .rev()
+            .find(|t| t.contains("plugin.rpc.invoke.request"))
+            .expect("a poll went out");
+        let poll: serde_json::Value = serde_json::from_str(poll).unwrap();
+        let id = poll["message"]["requestId"]
+            .as_str()
+            .or_else(|| poll["message"]["payload"]["requestId"].as_str())
+            .expect("the poll has a request id")
+            .to_string();
+        let snapshot: serde_json::Value =
+            serde_json::from_str(include_str!("../../../protocol/fixtures/snapshot.json")).unwrap();
+        let answer = serde_json::json!({"type": "session", "message": {
+            "type": "plugin.rpc.invoke.response",
+            "payload": {"requestId": id, "output": snapshot}}});
+        app.handle(10_500, Event::Link(Link::Text(answer.to_string())), &mut ui, &mut sys);
+        app.poll(10_600, &mut ui, &mut sys);
+        assert!(app.session.is_ready(), "down = {:?}", app.down());
+        assert_eq!(app.down(), &Down::None);
+        assert!(app.has_snapshot);
+        assert_eq!(app.overlay, Overlay::None);
+    }
+
+    #[test]
+    fn a_link_that_comes_up_after_dns_failures_leaves_the_no_paseo_page() {
+        let (mut app, mut ui, mut sys) =
+            (App::new(0, "test"), NullUi::default(), Effects::default());
+        app.overlay = Overlay::Pair { config: direct("pw") };
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_PAIR_CONNECT);
+        let mut t = 10;
+        for _ in 0..3 {
+            app.handle(t, Event::Link(Link::Closed(crate::paseo::Down::Dns)), &mut ui, &mut sys);
+            t += 5_000;
+            app.poll(t, &mut ui, &mut sys);
+            t += 10;
+        }
+        assert_eq!(app.overlay, Overlay::NoPaseo);
+        app.handle(t, Event::Link(Link::Opened), &mut ui, &mut sys);
+        let info = r#"{"type":"session","message":{"type":"status","payload":{"status":"server_info","hostname":"studio"}}}"#;
+        app.handle(t + 1, Event::Link(Link::Text(info.into())), &mut ui, &mut sys);
+        app.poll(t + 2, &mut ui, &mut sys);
+        assert!(app.session.is_ready(), "down = {:?}", app.down());
+        assert_eq!(app.down(), &crate::paseo::Down::None);
+        assert_eq!(app.overlay, Overlay::None);
     }
 
     #[test]

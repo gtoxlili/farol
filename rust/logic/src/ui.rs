@@ -130,6 +130,13 @@ impl Painter {
         self.written.clear();
     }
 
+    /// Forgets these visibility writes, so the next render sends them again.
+    pub fn forget_visible(&mut self, binds: &[Bind]) {
+        for b in binds {
+            self.written.remove(&(VISIBLE, u32::from(*b)));
+        }
+    }
+
     pub fn rejections(&self) -> u32 {
         self.rejections
     }

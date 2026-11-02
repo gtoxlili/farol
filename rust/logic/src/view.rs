@@ -766,6 +766,26 @@ fn down_text(down: &Down, l: Lang) -> &'static str {
 
 // ---------------------------------------------------------------- overlays
 
+/// Every overlay's visibility bind. A board once kept the no-Paseo page up
+/// after the session recovered: GSP accepted the hide (while app_display had
+/// it paused for a panel command) but the page stayed. The app re-sends these
+/// every [`crate::app::OVERLAY_REASSERT_MS`] so a lost write heals itself.
+pub(crate) const OVERLAY_VIS: [u16; 13] = [
+    bind(gsp::GSP_BIND_OV_STATUS_VIS),
+    bind(gsp::GSP_BIND_ST_WELCOME_VIS),
+    bind(gsp::GSP_BIND_ST_NOWIFI_VIS),
+    bind(gsp::GSP_BIND_ST_NOPASEO_VIS),
+    bind(gsp::GSP_BIND_ST_CONNECT_VIS),
+    bind(gsp::GSP_BIND_ST_PAIR_VIS),
+    bind(gsp::GSP_BIND_ST_TLS_VIS),
+    bind(gsp::GSP_BIND_ST_COMPOSE_VIS),
+    bind(gsp::GSP_BIND_ST_SCAN_VIS),
+    bind(gsp::GSP_BIND_ST_INPUT_VIS),
+    bind(gsp::GSP_BIND_ST_WIFI_VIS),
+    bind(gsp::GSP_BIND_ST_NETINFO_VIS),
+    bind(gsp::GSP_BIND_ST_LINK_VIS),
+];
+
 fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     let l = app.lang();
     let o = &app.overlay;
