@@ -18,7 +18,7 @@ mod panic;
 
 use alloc::boxed::Box;
 use core::ffi::c_void;
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
 use gsp_sys as gsp;
 use logic::App;
@@ -42,6 +42,8 @@ const HEALTH_PERIOD_MS: u64 = 60_000;
 type EventQueue = idf::Queue<*mut Event>;
 
 static STARTED: AtomicBool = AtomicBool::new(false);
+/// The logic task's queue once started, for C callers (the bench harness).
+static QUEUE: AtomicPtr<EventQueue> = AtomicPtr::new(core::ptr::null_mut());
 /// Whether the panel shows anything. Written by the logic task, read by the
 /// input interceptor: a touch on a dark panel only wakes it.
 static SCREEN_ON: AtomicBool = AtomicBool::new(true);
@@ -160,12 +162,31 @@ impl LogicTask {
 }
 
 /// Posts an event to the logic task; never blocks. Dropped when the queue is full.
-fn post(queue: &EventQueue, event: Event) {
+fn post(queue: &EventQueue, event: Event) -> bool {
     let event = Box::into_raw(Box::new(event));
-    if !queue.try_send(event) {
-        // SAFETY: the queue refused the pointer, so it is still ours.
-        drop(unsafe { Box::from_raw(event) });
+    if queue.try_send(event) {
+        return true;
     }
+    // SAFETY: the queue refused the pointer, so it is still ours.
+    drop(unsafe { Box::from_raw(event) });
+    false
+}
+
+/// Restarts the demo fleet `offset_ms` into its script, on the home page
+/// (any task, never blocks). False before the logic started or when its queue
+/// is full. The bench harness calls it at the start of every run.
+#[unsafe(no_mangle)]
+pub extern "C" fn app_logic_restart_demo(offset_ms: u32) -> bool {
+    // SAFETY: QUEUE is null or the queue leaked by app_logic_start.
+    let Some(queue) = (unsafe { QUEUE.load(Ordering::Acquire).as_ref() }) else {
+        return false;
+    };
+    post(
+        queue,
+        Event::Demo {
+            offset_ms: u64::from(offset_ms),
+        },
+    )
 }
 
 /// GSP event callback (render task): a `callback` action fired.
@@ -264,6 +285,7 @@ pub unsafe extern "C" fn app_logic_start(handle: gsp::esp_gsp_handle_t) -> i32 {
     };
     // The queue outlives everything: GSP keeps its pointer as callback context.
     let queue: &'static EventQueue = Box::leak(Box::new(queue));
+    QUEUE.store((queue as *const EventQueue).cast_mut(), Ordering::Release);
     let device = board::device_id();
     // SAFETY: the caller guarantees a started GSP instance alive until reboot.
     let ui = unsafe { GspUi::new(handle) };

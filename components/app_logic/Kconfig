@@ -9,4 +9,14 @@ menu "Farol"
             measured without a daemon or anyone at the board. Leave off in
             builds for use.
 
+    config FAROL_BENCH
+        bool "Frame benchmark harness (scripted touch, BENCH lines)"
+        default n
+        select FAROL_DEMO
+        help
+            Measurement builds: replaces the touch panel with a scripted
+            gesture timeline, wraps the presenter to time every frame and
+            prints BENCH lines per phase for three runs (components/app_bench).
+            Turns on the demo fleet. Leave off in builds for use.
+
 endmenu

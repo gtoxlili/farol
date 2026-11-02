@@ -36,6 +36,11 @@ pub enum Event {
     Motion(Motion),
     /// A QR code the camera decoded.
     Scanned(String),
+    /// (Re)start the demo fleet this far into its script, on the home page:
+    /// measurement runs start from the same moment every time.
+    Demo {
+        offset_ms: u64,
+    },
     /// Stored settings loaded at boot.
     Restored {
         config: Option<Config>,
