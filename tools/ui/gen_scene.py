@@ -663,20 +663,22 @@ def status_bar():
     group(None, "sb", 0, 0, W, BAR_H, vis=False, drift=True)
     label("sb", 24, 9, 90, 22, "00:00", font=G_M, size=16, name="sb_time", bind=True,
           charset=DIGITS + ":-")
-    rect("sb", 426, 13, 24, 12, BG, radius=3, border=INK2)
+    # Hidden while the fuel gauge has not answered.
+    group("sb", "sb_batt_box", 0, 0, W, BAR_H, hidden=True)
+    rect("sb_batt_box", 426, 13, 24, 12, BG, radius=3, border=INK2)
     # A rect with both a dynamic width and a color bind fails to load in GSP 1.9.0
     # ("Invalid GSB render effects"), and a Progress's bind slot carries its value,
     # so the low-battery color is a second Progress switched by visibility.
     for name, fg in (("sb_batt", INK1), ("sb_batt_low", FAIL)):
-        batt = under("sb", {"type": "progress", "name": name, "x": 428, "y": 15, "w": 20, "h": 8,
-                            "value": 87, "bg_color": BG, "fg_color": fg, "radius": 2,
-                            "hidden": name == "sb_batt_low"})
+        batt = under("sb_batt_box", {"type": "progress", "name": name, "x": 428, "y": 15, "w": 20,
+                                     "h": 8, "value": 87, "bg_color": BG, "fg_color": fg,
+                                     "radius": 2, "hidden": name == "sb_batt_low"})
         visibility(batt)
-    rect("sb", 451, 17, 2, 4, INK2, radius=1)
-    bolt = under("sb", {"type": "image", "name": "sb_bolt", "x": 432, "y": 13, "w": 12, "h": 12,
-                        "image": "icons/bolt.svg", "tint": BG, "hidden": True})
+    rect("sb_batt_box", 451, 17, 2, 4, INK2, radius=1)
+    bolt = under("sb_batt_box", {"type": "image", "name": "sb_bolt", "x": 432, "y": 13, "w": 12,
+                                 "h": 12, "image": "icons/bolt.svg", "tint": BG, "hidden": True})
     visibility(bolt)
-    label("sb", 380, 10, 42, 20, "", font=MONO, size=13, color=INK2, align="right",
+    label("sb_batt_box", 380, 10, 42, 20, "", font=MONO, size=13, color=INK2, align="right",
           name="sb_batt_pct", bind=True, charset=DIGITS + "%")
     for k, (x, h) in enumerate([(362, 5), (367, 8), (372, 11)]):
         rect("sb", x, 26 - h, 3, h, DIM, radius=1, name=f"sb_wifi{k}", color_bind=True)

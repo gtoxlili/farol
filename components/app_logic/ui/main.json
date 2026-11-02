@@ -7060,6 +7060,18 @@
    "parent_name": "sb"
   },
   {
+   "type": "container",
+   "name": "sb_batt_box",
+   "x": 0,
+   "y": 0,
+   "w": 480,
+   "h": 36,
+   "hidden": true,
+   "parent_name": "sb",
+   "bind": "sb_batt_box_vis",
+   "bind_target": "visible"
+  },
+  {
    "type": "rect",
    "x": 426,
    "y": 13,
@@ -7069,7 +7081,7 @@
    "radius": 3,
    "border_color": "#8C8A84",
    "border_width": 1,
-   "parent_name": "sb"
+   "parent_name": "sb_batt_box"
   },
   {
    "type": "progress",
@@ -7083,7 +7095,7 @@
    "fg_color": "#F2EFE8",
    "radius": 2,
    "hidden": false,
-   "parent_name": "sb",
+   "parent_name": "sb_batt_box",
    "bind": "sb_batt_vis",
    "bind_target": "visible"
   },
@@ -7099,7 +7111,7 @@
    "fg_color": "#FF5A4E",
    "radius": 2,
    "hidden": true,
-   "parent_name": "sb",
+   "parent_name": "sb_batt_box",
    "bind": "sb_batt_low_vis",
    "bind_target": "visible"
   },
@@ -7111,7 +7123,7 @@
    "h": 4,
    "bg_color": "#8C8A84",
    "radius": 1,
-   "parent_name": "sb"
+   "parent_name": "sb_batt_box"
   },
   {
    "type": "image",
@@ -7123,7 +7135,7 @@
    "image": "icons/bolt.svg",
    "tint": "#000000",
    "hidden": true,
-   "parent_name": "sb",
+   "parent_name": "sb_batt_box",
    "bind": "sb_bolt_vis",
    "bind_target": "visible"
   },
@@ -7141,7 +7153,7 @@
    "name": "sb_batt_pct",
    "bind": "sb_batt_pct",
    "font_charset": "0123456789%",
-   "parent_name": "sb"
+   "parent_name": "sb_batt_box"
   },
   {
    "type": "rect",
