@@ -268,7 +268,7 @@ impl Demo {
         });
         agents.push(Agent {
             state: State::Seen,
-            since: Some(epoch - 95 * MINUTE),
+            since: Some(epoch - 20 * MINUTE),
             body: "已经把 README 的安装步骤按新的 CLI 重写了一遍。".into(),
             ..base("readme", "按新的 CLI 改写安装说明", "docs", "flash")
         });

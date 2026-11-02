@@ -43,6 +43,10 @@ const OFF_AFTER_ABSENT_MS: u64 = 180_000;
 const DIM_PERCENT: u8 = 25;
 /// Long-press on the AI key silences the board for this long.
 const DND_MS: u64 = 3_600_000;
+/// A read card stays in the deck, greyed, this long after it was read.
+const SEEN_KEEP_MS: i64 = 3_600_000;
+/// The deck order is re-checked this often (read cards leaving it).
+const ORDER_REFRESH_MS: u64 = 60_000;
 /// A one-line message on a card (an action failed) stays this long.
 const NOTE_MS: u64 = 6_000;
 
@@ -99,8 +103,9 @@ pub struct App {
     pub(crate) has_snapshot: bool,
     /// Indices into `snapshot.agents`, most urgent first.
     pub(crate) order: Vec<usize>,
-    /// Agents the user marked read on the board: id -> `since` at the time.
-    seen: BTreeMap<String, Option<i64>>,
+    /// Agents the user marked read on the board: id -> (`since` at the time,
+    /// epoch ms of the mark).
+    seen: BTreeMap<String, (Option<i64>, i64)>,
     pub(crate) screen: u16,
     /// Position in `order` of the card on screen.
     pub(crate) deck: usize,
@@ -326,6 +331,12 @@ impl App {
         }
         if self.net.state == NetState::Connecting {
             self.wifi_phase = ((now_ms / 400) % 4) as u8;
+        }
+        if self.has_snapshot
+            && now_ms / ORDER_REFRESH_MS != self.last_second * 1000 / ORDER_REFRESH_MS
+        {
+            let current = self.current_agent().map(|a| a.id.clone());
+            self.refresh_order(current);
         }
         self.last_second = now_ms / 1000;
         self.after(ui, sys);
@@ -640,7 +651,7 @@ impl App {
             return;
         }
         // Local read marks hold until the agent finishes a newer turn.
-        self.seen.retain(|id, since| {
+        self.seen.retain(|id, (since, _)| {
             snapshot
                 .agents
                 .iter()
@@ -668,6 +679,12 @@ impl App {
         }
         self.snapshot = snapshot;
         self.has_snapshot = true;
+        self.refresh_order(current);
+    }
+
+    /// Re-sorts the deck, keeping `current` (an agent id) on screen when it is
+    /// still in it.
+    fn refresh_order(&mut self, current: Option<String>) {
         self.sort();
         if let Some(id) = current
             && let Some(pos) = self.position_of(&id)
@@ -726,9 +743,21 @@ impl App {
         }
     }
 
+    /// A read card leaves the deck an hour after it was read (or, when it was
+    /// read elsewhere, an hour after its turn ended).
+    fn expired(&self, agent: &Agent, now: Option<i64>) -> bool {
+        let Some(now) = now else { return false };
+        let read_at = self.seen.get(&agent.id).map(|(_, at)| *at);
+        let since = agent.since.max(read_at).unwrap_or(now);
+        agent.state == State::Seen && now - since >= SEEN_KEEP_MS
+    }
+
     fn sort(&mut self) {
+        let now = self.epoch();
         let agents = &self.snapshot.agents;
-        let mut order: Vec<usize> = (0..agents.len()).collect();
+        let mut order: Vec<usize> = (0..agents.len())
+            .filter(|&i| !self.expired(&agents[i], now))
+            .collect();
         order.sort_by(|&a, &b| {
             let (a, b) = (&agents[a], &agents[b]);
             a.state
@@ -888,7 +917,8 @@ impl App {
             return;
         }
         let (id, since) = (agent.id.clone(), agent.since);
-        self.seen.insert(id.clone(), since);
+        let read_at = self.epoch().unwrap_or_default();
+        self.seen.insert(id.clone(), (since, read_at));
         if let Some(i) = self.snapshot.agents.iter().position(|a| a.id == id) {
             self.snapshot.agents[i].state = State::Seen;
         }
@@ -1081,6 +1111,12 @@ impl App {
             Display::Off
         };
         if self.display != Some(wanted) {
+            // Waking from dark shows the most urgent card.
+            if self.display == Some(Display::Off) && !self.order.is_empty() {
+                self.deck = 0;
+                self.fill_slots();
+                self.update_focus();
+            }
             self.display = Some(wanted);
             sys.display(wanted);
         }
@@ -1127,4 +1163,171 @@ impl Sys for NullSys {
     fn save_prefs(&mut self, _: &Prefs) {}
     fn wifi(&mut self, _: WifiCmd) {}
     fn camera(&mut self, _: bool) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+
+    use super::*;
+    use crate::model::VERSION;
+    use crate::ui::{Bind, Ease, Key, Property, UiResult};
+
+    struct NullUi;
+
+    impl Ui for NullUi {
+        fn set_text(&mut self, _: Bind, _: &str) -> UiResult {
+            Ok(())
+        }
+        fn set_visible(&mut self, _: Bind, _: bool) -> UiResult {
+            Ok(())
+        }
+        fn set_color(&mut self, _: Bind, _: u32) -> UiResult {
+            Ok(())
+        }
+        fn animate_color(&mut self, _: Bind, _: u32, _: u32, _: u32, _: Ease) -> UiResult {
+            Ok(())
+        }
+        fn set_value(&mut self, _: Key, _: i32) -> UiResult {
+            Ok(())
+        }
+        fn animate_value(&mut self, _: Key, _: i32, _: i32, _: u32, _: Ease) -> UiResult {
+            Ok(())
+        }
+        fn set_i32(&mut self, _: Key, _: Property, _: i32) -> UiResult {
+            Ok(())
+        }
+        fn set_property_color(&mut self, _: Key, _: Property, _: u32) -> UiResult {
+            Ok(())
+        }
+        fn animate_color_to(&mut self, _: Key, _: u32, _: u32, _: Ease) -> UiResult {
+            Ok(())
+        }
+        fn set_page(&mut self, _: Key, _: u16, _: bool) -> UiResult {
+            Ok(())
+        }
+        fn set_drawer(&mut self, _: Key, _: bool, _: bool) -> UiResult {
+            Ok(())
+        }
+    }
+
+    /// Records the screen and LED effects; drops the rest.
+    #[derive(Default)]
+    struct Effects {
+        display: Option<Display>,
+        glows: usize,
+    }
+
+    impl Sys for Effects {
+        fn link(&mut self, _: Out) {}
+        fn haptic(&mut self, _: Haptic) {}
+        fn chime(&mut self, _: Chime) {}
+        fn glow(&mut self, _: Glow) {
+            self.glows += 1;
+        }
+        fn display(&mut self, display: Display) {
+            self.display = Some(display);
+        }
+        fn save_config(&mut self, _: Option<&Config>) {}
+        fn save_prefs(&mut self, _: &Prefs) {}
+        fn wifi(&mut self, _: WifiCmd) {}
+        fn camera(&mut self, _: bool) {}
+    }
+
+    const T: i64 = 1_793_583_660_000;
+    const MIN: u64 = 60_000;
+
+    fn agent(id: &str, state: State, minutes_ago: i64) -> Agent {
+        Agent {
+            id: id.into(),
+            state,
+            since: Some(T - minutes_ago * MIN as i64),
+            ..Default::default()
+        }
+    }
+
+    fn board(agents: Vec<Agent>) -> (App, NullUi, Effects) {
+        let (mut app, mut ui, mut sys) = (App::new(0, "test"), NullUi, Effects::default());
+        let fleet = Snapshot {
+            v: VERSION,
+            now: T,
+            agents,
+            ..Default::default()
+        };
+        app.apply(fleet, &mut sys);
+        app.poll(0, &mut ui, &mut sys);
+        (app, ui, sys)
+    }
+
+    fn at(app: &mut App, ui: &mut NullUi, sys: &mut Effects, ms: u64) -> Option<Display> {
+        app.poll(ms, ui, sys);
+        sys.display
+    }
+
+    #[test]
+    fn without_the_module_the_screen_dims_then_sleeps_and_never_glows() {
+        let (mut app, mut ui, mut sys) = board(vec![agent("a", State::Work, 1)]);
+        assert_eq!(sys.display, Some(Display::On(80)));
+        assert_eq!(
+            at(&mut app, &mut ui, &mut sys, 2 * MIN),
+            Some(Display::On(DIM_PERCENT))
+        );
+        assert_eq!(
+            at(&mut app, &mut ui, &mut sys, 10 * MIN),
+            Some(Display::Off)
+        );
+        app.handle(10 * MIN + 5, Event::Touch, &mut ui, &mut sys);
+        assert_eq!(sys.display, Some(Display::On(80)));
+        assert_eq!(sys.glows, 0);
+    }
+
+    #[test]
+    fn with_the_module_the_screen_follows_presence_and_the_leds_glow() {
+        let (mut app, mut ui, mut sys) = board(vec![agent("a", State::Work, 1)]);
+        app.handle(0, Event::Module(true), &mut ui, &mut sys);
+        app.handle(0, Event::Presence(true), &mut ui, &mut sys);
+        assert_eq!(
+            at(&mut app, &mut ui, &mut sys, 20 * MIN),
+            Some(Display::On(80))
+        );
+        app.handle(20 * MIN, Event::Presence(false), &mut ui, &mut sys);
+        assert_eq!(
+            at(&mut app, &mut ui, &mut sys, 22 * MIN),
+            Some(Display::On(80))
+        );
+        assert_eq!(
+            at(&mut app, &mut ui, &mut sys, 23 * MIN),
+            Some(Display::Off)
+        );
+        assert!(sys.glows > 0);
+    }
+
+    #[test]
+    fn waking_from_dark_shows_the_most_urgent_card() {
+        let (mut app, mut ui, mut sys) = board(vec![
+            agent("working", State::Work, 1),
+            agent("failed", State::Fail, 2),
+        ]);
+        app.deck = 1;
+        assert_eq!(
+            at(&mut app, &mut ui, &mut sys, 10 * MIN),
+            Some(Display::Off)
+        );
+        app.handle(10 * MIN + 5, Event::Touch, &mut ui, &mut sys);
+        assert_eq!(app.current_agent().map(|a| a.id.as_str()), Some("failed"));
+    }
+
+    #[test]
+    fn read_cards_leave_the_deck_after_an_hour() {
+        let (mut app, mut ui, mut sys) = board(vec![
+            agent("read", State::Seen, 50),
+            agent("working", State::Work, 1),
+        ]);
+        assert_eq!(app.order.len(), 2);
+        app.poll(9 * MIN, &mut ui, &mut sys);
+        assert_eq!(app.order.len(), 2);
+        app.poll(11 * MIN, &mut ui, &mut sys);
+        assert_eq!(app.order.len(), 1);
+        assert_eq!(app.current_agent().map(|a| a.id.as_str()), Some("working"));
+    }
 }
