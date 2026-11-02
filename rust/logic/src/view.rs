@@ -273,7 +273,7 @@ fn home(app: &App, p: &mut Painter, ui: &mut impl Ui) {
 
     // The lamp: color = urgency, level = the tightest quota left, sparks = running agents.
     let key = gsp::GSP_OBJ_KEY_LAMP;
-    p.property_color(ui, key, gsp::GSP_PROP_KEY_FG_COLOR, lamp);
+    p.property_color(ui, key, gsp::GSP_PROP_KEY_FG_COLOR, app.lamp_color(lamp));
     let level = app
         .snapshot
         .fuel

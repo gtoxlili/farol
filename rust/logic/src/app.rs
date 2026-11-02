@@ -6,6 +6,7 @@
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::cell::Cell;
 
 use gsp_sys as gsp;
 
@@ -47,6 +48,41 @@ const DND_MS: u64 = 3_600_000;
 const SEEN_KEEP_MS: i64 = 3_600_000;
 /// The deck order is re-checked this often (read cards leaving it).
 const ORDER_REFRESH_MS: u64 = 60_000;
+/// A change of urgency glides the lamp to its new color this long. GSP cannot
+/// tween the orb's color, so the logic steps it every [`FADE_STEP_MS`].
+const LAMP_FADE_MS: u64 = 600;
+const FADE_STEP_MS: u64 = 33;
+
+/// A color glide on the logic's clock.
+#[derive(Clone, Copy)]
+pub(crate) struct Fade {
+    from: u32,
+    to: u32,
+    start: u64,
+}
+
+impl Fade {
+    fn active(&self, now: u64) -> bool {
+        self.from != self.to && now < self.start + LAMP_FADE_MS
+    }
+
+    /// The color at `now`, cubic ease-in-out per channel.
+    fn at(&self, now: u64) -> u32 {
+        let t = now.saturating_sub(self.start).min(LAMP_FADE_MS) as f32 / LAMP_FADE_MS as f32;
+        let e = if t < 0.5 {
+            4.0 * t * t * t
+        } else {
+            let u = 2.0 - 2.0 * t;
+            1.0 - u * u * u / 2.0
+        };
+        let channel = |shift: u32| {
+            let (a, b) = ((self.from >> shift) & 0xFF, (self.to >> shift) & 0xFF);
+            let v = a as f32 + (b as f32 - a as f32) * e;
+            ((v + 0.5) as u32).min(0xFF) << shift
+        };
+        channel(16) | channel(8) | channel(0)
+    }
+}
 /// A one-line message on a card (an action failed) stays this long.
 const NOTE_MS: u64 = 6_000;
 
@@ -142,6 +178,8 @@ pub struct App {
     pub(crate) painter: Painter,
     pub(crate) host: String,
     demo: Option<Demo>,
+    /// The lamp's color glide; the view advances it while drawing.
+    pub(crate) lamp_fade: Cell<Option<Fade>>,
     /// Phase of the "connecting" Wi-Fi arcs, advanced by `poll`.
     pub(crate) wifi_phase: u8,
     last_second: u64,
@@ -191,6 +229,7 @@ impl App {
             painter: Painter::new(),
             host: String::new(),
             demo: None,
+            lamp_fade: Cell::new(None),
             wifi_phase: 0,
             last_second: now_ms / 1000,
         };
@@ -346,6 +385,9 @@ impl App {
     pub fn next_deadline_ms(&self) -> u64 {
         let mut next = (self.now / 1000 + 1) * 1000;
         next = next.min(self.session.next_deadline());
+        if self.lamp_fade.get().is_some_and(|f| f.active(self.now)) {
+            next = next.min(self.now + FADE_STEP_MS);
+        }
         if let Some(hold) = &self.hold {
             let at = if hold.shown {
                 hold.at + HOLD_SHOW_MS + HOLD_STOP_MS
@@ -1045,6 +1087,26 @@ impl App {
     }
 
     /// Epoch ms now, from the plugin's clock.
+    /// The lamp color to show now while it glides to `target`.
+    pub(crate) fn lamp_color(&self, target: u32) -> u32 {
+        let now = self.now;
+        let fade = match self.lamp_fade.get() {
+            Some(f) if f.to == target => f,
+            Some(f) => Fade {
+                from: f.at(now),
+                to: target,
+                start: now,
+            },
+            None => Fade {
+                from: target,
+                to: target,
+                start: now,
+            },
+        };
+        self.lamp_fade.set(Some(fade));
+        fade.at(now)
+    }
+
     pub(crate) fn epoch(&self) -> Option<i64> {
         self.clock
             .map(|(epoch, at)| epoch + (self.now as i64 - at as i64))
@@ -1315,6 +1377,21 @@ mod tests {
         );
         app.handle(10 * MIN + 5, Event::Touch, &mut ui, &mut sys);
         assert_eq!(app.current_agent().map(|a| a.id.as_str()), Some("failed"));
+    }
+
+    #[test]
+    fn the_lamp_glides_to_a_new_urgency_color() {
+        let app = App::new(0, "test");
+        assert_eq!(app.lamp_color(0xFF0000), 0xFF0000);
+        let mut app = app;
+        app.now = 1_000;
+        assert_eq!(app.lamp_color(0x0000FF), 0xFF0000);
+        app.now = 1_300;
+        let mid = app.lamp_color(0x0000FF);
+        assert!(mid != 0xFF0000 && mid != 0x0000FF, "{mid:06x}");
+        assert_eq!(app.next_deadline_ms(), 1_300 + FADE_STEP_MS);
+        app.now = 1_600;
+        assert_eq!(app.lamp_color(0x0000FF), 0x0000FF);
     }
 
     #[test]
