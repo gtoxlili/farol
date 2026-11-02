@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="tile" cx="50%" cy="44%" r="72%">
+      <stop offset="0" stop-color="#1D1813"/>
+      <stop offset="1" stop-color="#080706"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="224.0" x2="0" y2="800.0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9A5C17"/>
+      <stop offset="0.45" stop-color="#E5942C"/>
+      <stop offset="0.8" stop-color="#FFC157"/>
+      <stop offset="1" stop-color="#FFE7B5"/>
+    </linearGradient>
+    <radialGradient id="inside" cx="50%" cy="50%" r="50%">
+      <stop offset="0.55" stop-color="#FFB13B" stop-opacity="0"/>
+      <stop offset="1" stop-color="#FFB13B" stop-opacity="0.10"/>
+    </radialGradient>
+    <radialGradient id="spark" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#FFF6E2"/>
+      <stop offset="0.3" stop-color="#FFD48A" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#FFB13B" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="wide" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="56"/></filter>
+    <filter id="pool" x="-60%" y="-200%" width="220%" height="500%"><feGaussianBlur stdDeviation="34"/></filter>
+    <clipPath id="clip"><rect width="1024" height="1024" rx="228"/></clipPath>
+  </defs>
+  <g clip-path="url(#clip)">
+    <rect width="1024" height="1024" fill="url(#tile)"/>
+    <circle cx="512.0" cy="512.0" r="288" fill="url(#inside)"/>
+    <circle cx="512.0" cy="512.0" r="288" fill="none" stroke="url(#ring)" stroke-width="101.2" filter="url(#wide)" opacity="0.6"/>
+    <circle cx="512.0" cy="512.0" r="288" fill="none" stroke="url(#ring)" stroke-width="59.800000000000004" filter="url(#soft)" opacity="0.85"/>
+    <ellipse cx="512.0" cy="806.0" rx="200" ry="44" fill="#FFB13B" opacity="0.75" filter="url(#pool)"/>
+    <ellipse cx="512.0" cy="798.0" rx="120" ry="22" fill="#FFE2A6" opacity="0.8" filter="url(#soft)"/>
+    <circle cx="512.0" cy="512.0" r="288" fill="none" stroke="url(#ring)" stroke-width="46"/>
+    <circle cx="726.0" cy="744.0" r="46" fill="url(#spark)"/>
+    <circle cx="726.0" cy="744.0" r="9" fill="#FFF8EA"/>
+  </g>
+  <rect x="1" y="1" width="1022" height="1022" rx="227" fill="none" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="2"/>
+</svg>
