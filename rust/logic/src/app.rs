@@ -160,6 +160,8 @@ pub(crate) struct Press {
 #[derive(Clone, Debug)]
 pub(crate) struct Hold {
     pub agent: String,
+    /// The turn on screen when the hold began: only that turn is stopped.
+    pub turn: Option<String>,
     pub at: u64,
     pub shown: bool,
 }
@@ -471,10 +473,14 @@ impl App {
                 ));
             }
             if now_ms >= hold.at + HOLD_SHOW_MS + HOLD_STOP_MS {
-                let agent = self.hold.take().map(|h| h.agent).unwrap_or_default();
+                let (agent, turn) = self
+                    .hold
+                    .take()
+                    .map(|h| (h.agent, h.turn))
+                    .unwrap_or_default();
                 // Marked before sending: the demo answers within send().
                 self.stopped_here.insert(agent.clone());
-                if self.send(&agent, ActKind::Stop, None, None, sys) {
+                if self.send(&agent, ActKind::Stop, None, None, turn, sys) {
                     self.feel(Haptic::Confirm, sys);
                 } else {
                     self.stopped_here.remove(&agent);
@@ -1318,6 +1324,7 @@ impl App {
             ActKind::Answer,
             Some(ask.request_id.clone()),
             Some(option as u8),
+            None,
             sys,
         ) {
             self.sent.insert(id, (ask.request_id, option));
@@ -1332,7 +1339,7 @@ impl App {
         if agent.state != State::Work {
             return;
         }
-        let id = agent.id.clone();
+        let (id, turn) = (agent.id.clone(), agent.turn.clone());
         if !agent.stoppable {
             return;
         }
@@ -1342,6 +1349,7 @@ impl App {
         }
         self.hold = Some(Hold {
             agent: id,
+            turn,
             at: self.now,
             shown: false,
         });
@@ -1361,7 +1369,7 @@ impl App {
         if let Some(i) = self.snapshot.agents.iter().position(|a| a.id == id) {
             self.snapshot.agents[i].state = State::Seen;
         }
-        self.send(&id, ActKind::Seen, None, None, sys);
+        self.send(&id, ActKind::Seen, None, None, None, sys);
         self.feel(Haptic::Tick, sys);
         self.sort();
         if let Some(pos) = self.position_of(&id) {
@@ -1377,6 +1385,7 @@ impl App {
         kind: ActKind,
         request_id: Option<String>,
         choice: Option<u8>,
+        turn: Option<String>,
         sys: &mut impl Sys,
     ) -> bool {
         let act = Act {
@@ -1385,6 +1394,7 @@ impl App {
             kind,
             request_id,
             choice,
+            turn,
         };
         self.next_token = self.next_token.wrapping_add(1);
         let token = self.next_token;

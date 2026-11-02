@@ -765,6 +765,7 @@ mod tests {
             kind: ActKind::Answer,
             request_id: Some("r".into()),
             choice: Some(0),
+            turn: None,
         };
         assert!(s.act(&act, 9));
         let frame = &sent(&mut s)[0]["message"];
