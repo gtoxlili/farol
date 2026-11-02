@@ -8,3 +8,7 @@ CONFIG_ESP_IRIS_HEALTH_TIMEOUT_MS=45000
 # redraws them every frame. Cache 512 rasterized glyphs (<= 40 px; about 800 KB
 # of A8 pixels in PSRAM) instead of GSP's default 32.
 CONFIG_ESP_GSP_FREETYPE_CACHE_GLYPHS=512
+
+# The first frame and page changes write a few hundred setters at once; GSP's
+# default queue of 24 overflowed on the board (ESP_GSP_ERR_TIMEOUT).
+CONFIG_ESP_GSP_QUEUE_DEPTH=128
