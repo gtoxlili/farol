@@ -57,6 +57,7 @@ static struct {
     bool running;            /* a session task exists */
     uint16_t bind;
     app_camera_code_cb_t on_code;
+    app_camera_failed_cb_t on_failed;
     void *ctx;
 } s_cam;
 
@@ -95,6 +96,18 @@ static bool session_wanted(void)
     const bool want = s_cam.want;
     xSemaphoreGive(s_cam.lock);
     return want;
+}
+
+/* Tells the subscriber a start failed (any task; the callback must not block). */
+static void report_failed(void)
+{
+    xSemaphoreTake(s_cam.lock, portMAX_DELAY);
+    app_camera_failed_cb_t on_failed = s_cam.on_failed;
+    void *ctx = s_cam.ctx;
+    xSemaphoreGive(s_cam.lock);
+    if (on_failed != NULL) {
+        on_failed(ctx);
+    }
 }
 
 /* ------------------------------------------------------------- geometry */
@@ -416,6 +429,10 @@ static void camera_task(void *arg)
         const bool opened = session_open(s) == ESP_OK;
         if (opened) {
             session_stream(s);
+        } else {
+            /* No module claimed, sensor not detected, or the stream did not
+             * start: one report per failed start. */
+            report_failed();
         }
         const int64_t lasted = esp_timer_get_time() - s->started_us;
         if (s->qr != NULL) {
@@ -453,11 +470,12 @@ esp_err_t app_camera_init(esp_gsp_handle_t ui)
     return ESP_OK;
 }
 
-esp_err_t app_camera_subscribe(app_camera_code_cb_t on_code, void *ctx)
+esp_err_t app_camera_subscribe(app_camera_code_cb_t on_code, app_camera_failed_cb_t on_failed, void *ctx)
 {
     ESP_RETURN_ON_FALSE(s_cam.lock != NULL, ESP_ERR_INVALID_STATE, TAG, "not initialized");
     xSemaphoreTake(s_cam.lock, portMAX_DELAY);
     s_cam.on_code = on_code;
+    s_cam.on_failed = on_failed;
     s_cam.ctx = ctx;
     xSemaphoreGive(s_cam.lock);
     return ESP_OK;
@@ -480,6 +498,10 @@ esp_err_t app_camera_start(uint16_t preview_bind)
         }
     }
     xSemaphoreGive(s_cam.lock);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "no memory for the camera task");
+        report_failed();
+    }
     return err;
 }
 

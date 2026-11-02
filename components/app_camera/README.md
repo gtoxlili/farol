@@ -69,9 +69,12 @@ The task:
    releases the camera and the slot, and exits — or opens a new session if a
    start arrived meanwhile.
 
-If the module is missing or fails to open, the error is logged and the task
-exits; the next `app_camera_start()` tries again. The logic is not told (no
-event for it in `logic::sys`).
+If the start fails (no module claimed in the left slot, sensor not detected,
+stream not started, or no memory for the task), the error is logged, the
+subscribed `on_failed` callback runs once (the platform posts
+`Event::NoCamera`), and the task exits; the next `app_camera_start()` tries
+again. A normal stop reports nothing, and neither does a capture failure after
+the stream ran (it is logged and the session ends).
 
 The decoder (`cam_qr.c`) runs quirc on the `app_cam_qr` task (core 1, priority
 2, 16 KB stack in PSRAM), tries a mirrored read when error correction fails,
