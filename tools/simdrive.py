@@ -136,6 +136,8 @@ def flow_home(s: Sim) -> None:
     s.drag(60, 300, 420, 300)
     s.drag(60, 300, 420, 300)
     s.expect("two swipes right reach usage", s.page("screens") == 0)
+    bars = sum(s.visible(f"ub{i}") for i in range(12))
+    s.expect("usage shows all twelve windows", bars == 12)
     s.shot("5-usage")
     s.drag(420, 300, 60, 300)
     s.drag(240, 6, 240, 380)
@@ -193,6 +195,44 @@ def flow_cancel(s: Sim) -> None:
     s.frames(20)
     s.expect("letting go early cancels the stop", not s.visible("ov_hold"))
     s.shot("1-still-running")
+
+
+SEEN_BUTTON = (398, 186 + 240 + 20)  # the done card's "Mark read"
+
+
+def rail(s: Sim) -> int:
+    """Cards in the deck: the rail dots on screen (unused ones sit at y = 480)."""
+    return sum(s.call("get_property", {"name": f"rail{i}", "property": "y"})["value"] < 480
+               for i in range(8))
+
+
+def any_visible(s: Sim, suffix: str) -> bool:
+    return any(s.visible(f"c{i}_{suffix}") for i in range(3))
+
+
+def flow_read(s: Sim) -> None:
+    """Mark read: the button acknowledges, the card leaves, the deck settles on
+    the next card with a note, and the card stays out while the demo still
+    reports it."""
+    s.drag(420, 300, 60, 300)
+    s.drag(240, 380, 240, 100)
+    before = rail(s)
+    s.expect("the second card is a finished one", any_visible(s, "done"))
+    s.shot("1-done")
+    s.call("feed_pointer", {"x": SEEN_BUTTON[0], "y": SEEN_BUTTON[1], "pressed": True})
+    s.frames(3)
+    s.call("feed_pointer", {"x": SEEN_BUTTON[0], "y": SEEN_BUTTON[1], "pressed": False})
+    s.frames(4)
+    s.expect("the button acknowledges at once", any_visible(s, "done_seen_ok"))
+    s.shot("2-ack")
+    s.ms(700)
+    s.expect("the card left the deck", rail(s) == before - 1)
+    s.expect("the deck settled on the next card", s.page("screens") == 2 and any_visible(s, "run"))
+    s.expect("the acknowledgement is gone", not any_visible(s, "done_seen_ok"))
+    s.shot("3-next-with-note")
+    s.ms(6000)
+    s.expect("it stays out while the plugin still reports it", rail(s) == before - 1)
+    s.shot("4-later")
 
 
 def flow_welcome(s: Sim) -> None:
@@ -345,6 +385,8 @@ FLOWS = {
     "wifi": (flow_wifi, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "link": (flow_link, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "pulse": (flow_pulse, {"FAROL_SIM": "demo", "FAROL_SIM_T": "69000"}),
+    "read": (flow_read, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
+    "read_en": (flow_read, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000", "FAROL_SIM_LANG": "en"}),
     "compose": (flow_compose, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "english": (flow_english, {"FAROL_SIM": "demo", "FAROL_SIM_T": "13000", "FAROL_SIM_LANG": "en"}),
     "welcome_en": (flow_welcome_en, {"FAROL_SIM": "welcome", "FAROL_SIM_LANG": "en"}),

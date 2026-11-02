@@ -46,20 +46,57 @@ pub struct Card {
     pub run_hint: Bind,
     pub done: Bind,
     pub err: Bind,
-    pub body: Bind,
-    pub body_key: Key,
+    pub reply: Reply,
     pub cost: Bind,
+    /// The "Mark read" button's acknowledgement.
+    pub seen_ok: Bind,
 }
 
+/// A label the logic moves: its key (for x and y) and its text.
 #[derive(Clone, Copy)]
-pub struct UsageCell {
+pub struct Run {
+    pub key: Key,
+    pub text: Bind,
+}
+
+/// A rect the logic moves and sizes (y, h) and shows.
+#[derive(Clone, Copy)]
+pub struct Band {
+    pub key: Key,
     pub vis: Bind,
-    /// One Arc per color: work, call, fail.
-    pub arcs: [Key; 3],
-    pub arc_vis: [Bind; 3],
-    pub pct: Bind,
+}
+
+/// The labels a finished card sets its reply with (text::markdown): per label
+/// set (the second half a line lower), one multi-line label per ink (strong,
+/// normal, quiet); the code label, its panel and a quote's rule.
+#[derive(Clone, Copy)]
+pub struct Reply {
+    /// The container all of it sits in (its y: below the error line or not).
+    pub key: Key,
+    pub labels: [[Run; 3]; 2],
+    pub code: Run,
+    pub panel: Band,
+    pub rule: Band,
+}
+
+/// One column of the usage page: multi-line labels on one grid.
+#[derive(Clone, Copy)]
+pub struct UsageColumn {
+    pub head: Bind,
     pub name: Bind,
+    pub pct: Bind,
     pub reset: Bind,
+}
+
+/// A row's bar: the track the logic places and shows (key, vis), and its
+/// fill, as wide as the track, slid left by the part not used (fill, x) and
+/// colored (color).
+#[derive(Clone, Copy)]
+pub struct UsageBar {
+    pub key: Key,
+    pub vis: Bind,
+    pub fill: Key,
+    pub color: Bind,
 }
 
 #[derive(Clone, Copy)]
@@ -155,9 +192,53 @@ pub const CARDS: [Card; 3] = [
         run_hint: gsp::GSP_BIND_C0_RUN_HINT as Bind,
         done: gsp::GSP_BIND_C0_DONE_VIS as Bind,
         err: gsp::GSP_BIND_C0_DONE_ERR as Bind,
-        body: gsp::GSP_BIND_C0_DONE_BODY as Bind,
-        body_key: gsp::GSP_OBJ_KEY_C0_DONE_BODY,
+        reply: Reply {
+            key: gsp::GSP_OBJ_KEY_C0_DONE_REPLY,
+            labels: [
+                [
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C0_DONE_AS,
+                        text: gsp::GSP_BIND_C0_DONE_AS as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C0_DONE_AN,
+                        text: gsp::GSP_BIND_C0_DONE_AN as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C0_DONE_AQ,
+                        text: gsp::GSP_BIND_C0_DONE_AQ as Bind,
+                    },
+                ],
+                [
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C0_DONE_BS,
+                        text: gsp::GSP_BIND_C0_DONE_BS as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C0_DONE_BN,
+                        text: gsp::GSP_BIND_C0_DONE_BN as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C0_DONE_BQ,
+                        text: gsp::GSP_BIND_C0_DONE_BQ as Bind,
+                    },
+                ],
+            ],
+            code: Run {
+                key: gsp::GSP_OBJ_KEY_C0_DONE_CODE,
+                text: gsp::GSP_BIND_C0_DONE_CODE as Bind,
+            },
+            panel: Band {
+                key: gsp::GSP_OBJ_KEY_C0_DONE_PANEL,
+                vis: gsp::GSP_BIND_C0_DONE_PANEL_VIS as Bind,
+            },
+            rule: Band {
+                key: gsp::GSP_OBJ_KEY_C0_DONE_RULE,
+                vis: gsp::GSP_BIND_C0_DONE_RULE_VIS as Bind,
+            },
+        },
         cost: gsp::GSP_BIND_C0_DONE_COST as Bind,
+        seen_ok: gsp::GSP_BIND_C0_DONE_SEEN_OK_VIS as Bind,
     },
     Card {
         dot: gsp::GSP_BIND_C1_DOT as Bind,
@@ -236,9 +317,53 @@ pub const CARDS: [Card; 3] = [
         run_hint: gsp::GSP_BIND_C1_RUN_HINT as Bind,
         done: gsp::GSP_BIND_C1_DONE_VIS as Bind,
         err: gsp::GSP_BIND_C1_DONE_ERR as Bind,
-        body: gsp::GSP_BIND_C1_DONE_BODY as Bind,
-        body_key: gsp::GSP_OBJ_KEY_C1_DONE_BODY,
+        reply: Reply {
+            key: gsp::GSP_OBJ_KEY_C1_DONE_REPLY,
+            labels: [
+                [
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C1_DONE_AS,
+                        text: gsp::GSP_BIND_C1_DONE_AS as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C1_DONE_AN,
+                        text: gsp::GSP_BIND_C1_DONE_AN as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C1_DONE_AQ,
+                        text: gsp::GSP_BIND_C1_DONE_AQ as Bind,
+                    },
+                ],
+                [
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C1_DONE_BS,
+                        text: gsp::GSP_BIND_C1_DONE_BS as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C1_DONE_BN,
+                        text: gsp::GSP_BIND_C1_DONE_BN as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C1_DONE_BQ,
+                        text: gsp::GSP_BIND_C1_DONE_BQ as Bind,
+                    },
+                ],
+            ],
+            code: Run {
+                key: gsp::GSP_OBJ_KEY_C1_DONE_CODE,
+                text: gsp::GSP_BIND_C1_DONE_CODE as Bind,
+            },
+            panel: Band {
+                key: gsp::GSP_OBJ_KEY_C1_DONE_PANEL,
+                vis: gsp::GSP_BIND_C1_DONE_PANEL_VIS as Bind,
+            },
+            rule: Band {
+                key: gsp::GSP_OBJ_KEY_C1_DONE_RULE,
+                vis: gsp::GSP_BIND_C1_DONE_RULE_VIS as Bind,
+            },
+        },
         cost: gsp::GSP_BIND_C1_DONE_COST as Bind,
+        seen_ok: gsp::GSP_BIND_C1_DONE_SEEN_OK_VIS as Bind,
     },
     Card {
         dot: gsp::GSP_BIND_C2_DOT as Bind,
@@ -317,76 +442,142 @@ pub const CARDS: [Card; 3] = [
         run_hint: gsp::GSP_BIND_C2_RUN_HINT as Bind,
         done: gsp::GSP_BIND_C2_DONE_VIS as Bind,
         err: gsp::GSP_BIND_C2_DONE_ERR as Bind,
-        body: gsp::GSP_BIND_C2_DONE_BODY as Bind,
-        body_key: gsp::GSP_OBJ_KEY_C2_DONE_BODY,
+        reply: Reply {
+            key: gsp::GSP_OBJ_KEY_C2_DONE_REPLY,
+            labels: [
+                [
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C2_DONE_AS,
+                        text: gsp::GSP_BIND_C2_DONE_AS as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C2_DONE_AN,
+                        text: gsp::GSP_BIND_C2_DONE_AN as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C2_DONE_AQ,
+                        text: gsp::GSP_BIND_C2_DONE_AQ as Bind,
+                    },
+                ],
+                [
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C2_DONE_BS,
+                        text: gsp::GSP_BIND_C2_DONE_BS as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C2_DONE_BN,
+                        text: gsp::GSP_BIND_C2_DONE_BN as Bind,
+                    },
+                    Run {
+                        key: gsp::GSP_OBJ_KEY_C2_DONE_BQ,
+                        text: gsp::GSP_BIND_C2_DONE_BQ as Bind,
+                    },
+                ],
+            ],
+            code: Run {
+                key: gsp::GSP_OBJ_KEY_C2_DONE_CODE,
+                text: gsp::GSP_BIND_C2_DONE_CODE as Bind,
+            },
+            panel: Band {
+                key: gsp::GSP_OBJ_KEY_C2_DONE_PANEL,
+                vis: gsp::GSP_BIND_C2_DONE_PANEL_VIS as Bind,
+            },
+            rule: Band {
+                key: gsp::GSP_OBJ_KEY_C2_DONE_RULE,
+                vis: gsp::GSP_BIND_C2_DONE_RULE_VIS as Bind,
+            },
+        },
         cost: gsp::GSP_BIND_C2_DONE_COST as Bind,
+        seen_ok: gsp::GSP_BIND_C2_DONE_SEEN_OK_VIS as Bind,
     },
 ];
 
-pub const USAGE: [UsageCell; 4] = [
-    UsageCell {
-        vis: gsp::GSP_BIND_U0_VIS as Bind,
-        arcs: [
-            gsp::GSP_OBJ_KEY_U0_ARC_WORK,
-            gsp::GSP_OBJ_KEY_U0_ARC_CALL,
-            gsp::GSP_OBJ_KEY_U0_ARC_FAIL,
-        ],
-        arc_vis: [
-            gsp::GSP_BIND_U0_ARC_WORK_VIS as Bind,
-            gsp::GSP_BIND_U0_ARC_CALL_VIS as Bind,
-            gsp::GSP_BIND_U0_ARC_FAIL_VIS as Bind,
-        ],
-        pct: gsp::GSP_BIND_U0_PCT as Bind,
-        name: gsp::GSP_BIND_U0_NAME as Bind,
-        reset: gsp::GSP_BIND_U0_RESET as Bind,
+pub const USAGE_COLUMNS: [UsageColumn; 2] = [
+    UsageColumn {
+        head: gsp::GSP_BIND_UC0_HEAD as Bind,
+        name: gsp::GSP_BIND_UC0_NAME as Bind,
+        pct: gsp::GSP_BIND_UC0_PCT as Bind,
+        reset: gsp::GSP_BIND_UC0_RESET as Bind,
     },
-    UsageCell {
-        vis: gsp::GSP_BIND_U1_VIS as Bind,
-        arcs: [
-            gsp::GSP_OBJ_KEY_U1_ARC_WORK,
-            gsp::GSP_OBJ_KEY_U1_ARC_CALL,
-            gsp::GSP_OBJ_KEY_U1_ARC_FAIL,
-        ],
-        arc_vis: [
-            gsp::GSP_BIND_U1_ARC_WORK_VIS as Bind,
-            gsp::GSP_BIND_U1_ARC_CALL_VIS as Bind,
-            gsp::GSP_BIND_U1_ARC_FAIL_VIS as Bind,
-        ],
-        pct: gsp::GSP_BIND_U1_PCT as Bind,
-        name: gsp::GSP_BIND_U1_NAME as Bind,
-        reset: gsp::GSP_BIND_U1_RESET as Bind,
+    UsageColumn {
+        head: gsp::GSP_BIND_UC1_HEAD as Bind,
+        name: gsp::GSP_BIND_UC1_NAME as Bind,
+        pct: gsp::GSP_BIND_UC1_PCT as Bind,
+        reset: gsp::GSP_BIND_UC1_RESET as Bind,
     },
-    UsageCell {
-        vis: gsp::GSP_BIND_U2_VIS as Bind,
-        arcs: [
-            gsp::GSP_OBJ_KEY_U2_ARC_WORK,
-            gsp::GSP_OBJ_KEY_U2_ARC_CALL,
-            gsp::GSP_OBJ_KEY_U2_ARC_FAIL,
-        ],
-        arc_vis: [
-            gsp::GSP_BIND_U2_ARC_WORK_VIS as Bind,
-            gsp::GSP_BIND_U2_ARC_CALL_VIS as Bind,
-            gsp::GSP_BIND_U2_ARC_FAIL_VIS as Bind,
-        ],
-        pct: gsp::GSP_BIND_U2_PCT as Bind,
-        name: gsp::GSP_BIND_U2_NAME as Bind,
-        reset: gsp::GSP_BIND_U2_RESET as Bind,
+];
+pub const USAGE_BARS: [UsageBar; 12] = [
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB0,
+        vis: gsp::GSP_BIND_UB0_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB0_FILL,
+        color: gsp::GSP_BIND_UB0_FILL as Bind,
     },
-    UsageCell {
-        vis: gsp::GSP_BIND_U3_VIS as Bind,
-        arcs: [
-            gsp::GSP_OBJ_KEY_U3_ARC_WORK,
-            gsp::GSP_OBJ_KEY_U3_ARC_CALL,
-            gsp::GSP_OBJ_KEY_U3_ARC_FAIL,
-        ],
-        arc_vis: [
-            gsp::GSP_BIND_U3_ARC_WORK_VIS as Bind,
-            gsp::GSP_BIND_U3_ARC_CALL_VIS as Bind,
-            gsp::GSP_BIND_U3_ARC_FAIL_VIS as Bind,
-        ],
-        pct: gsp::GSP_BIND_U3_PCT as Bind,
-        name: gsp::GSP_BIND_U3_NAME as Bind,
-        reset: gsp::GSP_BIND_U3_RESET as Bind,
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB1,
+        vis: gsp::GSP_BIND_UB1_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB1_FILL,
+        color: gsp::GSP_BIND_UB1_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB2,
+        vis: gsp::GSP_BIND_UB2_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB2_FILL,
+        color: gsp::GSP_BIND_UB2_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB3,
+        vis: gsp::GSP_BIND_UB3_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB3_FILL,
+        color: gsp::GSP_BIND_UB3_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB4,
+        vis: gsp::GSP_BIND_UB4_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB4_FILL,
+        color: gsp::GSP_BIND_UB4_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB5,
+        vis: gsp::GSP_BIND_UB5_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB5_FILL,
+        color: gsp::GSP_BIND_UB5_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB6,
+        vis: gsp::GSP_BIND_UB6_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB6_FILL,
+        color: gsp::GSP_BIND_UB6_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB7,
+        vis: gsp::GSP_BIND_UB7_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB7_FILL,
+        color: gsp::GSP_BIND_UB7_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB8,
+        vis: gsp::GSP_BIND_UB8_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB8_FILL,
+        color: gsp::GSP_BIND_UB8_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB9,
+        vis: gsp::GSP_BIND_UB9_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB9_FILL,
+        color: gsp::GSP_BIND_UB9_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB10,
+        vis: gsp::GSP_BIND_UB10_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB10_FILL,
+        color: gsp::GSP_BIND_UB10_FILL as Bind,
+    },
+    UsageBar {
+        key: gsp::GSP_OBJ_KEY_UB11,
+        vis: gsp::GSP_BIND_UB11_VIS as Bind,
+        fill: gsp::GSP_OBJ_KEY_UB11_FILL,
+        color: gsp::GSP_BIND_UB11_FILL as Bind,
     },
 ];
 
@@ -551,7 +742,7 @@ pub const SAVED_ROWS: [Bind; 4] = [
 
 /// Every translated label (`tr(...)` in the generator): its bind, then the
 /// text in Chinese and in English. The scene starts in Chinese.
-pub const TEXTS: [(Bind, &str, &str); 86] = [
+pub const TEXTS: [(Bind, &str, &str); 89] = [
     (gsp::GSP_BIND_TX0 as Bind, "额度", "Usage"),
     (
         gsp::GSP_BIND_TX1 as Bind,
@@ -564,146 +755,149 @@ pub const TEXTS: [(Bind, &str, &str); 86] = [
     (gsp::GSP_BIND_TX5 as Bind, "已发送", "Sent"),
     (gsp::GSP_BIND_TX6 as Bind, "本轮", "This turn"),
     (gsp::GSP_BIND_TX7 as Bind, "已读", "Mark read"),
-    (gsp::GSP_BIND_TX8 as Bind, "已发送", "Sent"),
+    (gsp::GSP_BIND_TX8 as Bind, "✓ 已读", "✓ Read"),
     (gsp::GSP_BIND_TX9 as Bind, "已发送", "Sent"),
     (gsp::GSP_BIND_TX10 as Bind, "已发送", "Sent"),
     (gsp::GSP_BIND_TX11 as Bind, "已发送", "Sent"),
-    (gsp::GSP_BIND_TX12 as Bind, "本轮", "This turn"),
-    (gsp::GSP_BIND_TX13 as Bind, "已读", "Mark read"),
-    (gsp::GSP_BIND_TX14 as Bind, "已发送", "Sent"),
-    (gsp::GSP_BIND_TX15 as Bind, "已发送", "Sent"),
+    (gsp::GSP_BIND_TX12 as Bind, "已发送", "Sent"),
+    (gsp::GSP_BIND_TX13 as Bind, "本轮", "This turn"),
+    (gsp::GSP_BIND_TX14 as Bind, "已读", "Mark read"),
+    (gsp::GSP_BIND_TX15 as Bind, "✓ 已读", "✓ Read"),
     (gsp::GSP_BIND_TX16 as Bind, "已发送", "Sent"),
     (gsp::GSP_BIND_TX17 as Bind, "已发送", "Sent"),
-    (gsp::GSP_BIND_TX18 as Bind, "本轮", "This turn"),
-    (gsp::GSP_BIND_TX19 as Bind, "已读", "Mark read"),
-    (gsp::GSP_BIND_TX20 as Bind, "还没有 agent", "No agents yet"),
+    (gsp::GSP_BIND_TX18 as Bind, "已发送", "Sent"),
+    (gsp::GSP_BIND_TX19 as Bind, "已发送", "Sent"),
+    (gsp::GSP_BIND_TX20 as Bind, "本轮", "This turn"),
+    (gsp::GSP_BIND_TX21 as Bind, "已读", "Mark read"),
+    (gsp::GSP_BIND_TX22 as Bind, "✓ 已读", "✓ Read"),
+    (gsp::GSP_BIND_TX23 as Bind, "还没有 agent", "No agents yet"),
     (
-        gsp::GSP_BIND_TX21 as Bind,
+        gsp::GSP_BIND_TX24 as Bind,
         "配对码在 Paseo 的 设置 › 你的 Host › 配对设备",
         "Pairing code: Paseo › Settings › your host › Pair device",
     ),
     (
-        gsp::GSP_BIND_TX22 as Bind,
+        gsp::GSP_BIND_TX25 as Bind,
         "本地网络或 VPN 里也可以直接连接",
         "On a local network or VPN, connect directly",
     ),
-    (gsp::GSP_BIND_TX23 as Bind, "扫描二维码", "Scan QR code"),
-    (gsp::GSP_BIND_TX24 as Bind, "直接连接", "Direct connection"),
-    (gsp::GSP_BIND_TX25 as Bind, "没有连上 Wi-Fi", "No Wi-Fi"),
-    (gsp::GSP_BIND_TX26 as Bind, "扫码加入", "Scan to join"),
-    (gsp::GSP_BIND_TX27 as Bind, "选择网络", "Choose network"),
+    (gsp::GSP_BIND_TX26 as Bind, "扫描二维码", "Scan QR code"),
+    (gsp::GSP_BIND_TX27 as Bind, "直接连接", "Direct connection"),
+    (gsp::GSP_BIND_TX28 as Bind, "没有连上 Wi-Fi", "No Wi-Fi"),
+    (gsp::GSP_BIND_TX29 as Bind, "扫码加入", "Scan to join"),
+    (gsp::GSP_BIND_TX30 as Bind, "选择网络", "Choose network"),
     (
-        gsp::GSP_BIND_TX28 as Bind,
+        gsp::GSP_BIND_TX31 as Bind,
         "手机的 Wi-Fi 设置里可以出示网络二维码",
         "Your phone's Wi-Fi settings can show a network code",
     ),
     (
-        gsp::GSP_BIND_TX29 as Bind,
+        gsp::GSP_BIND_TX32 as Bind,
         "连不上 Paseo",
         "Can't reach Paseo",
     ),
-    (gsp::GSP_BIND_TX30 as Bind, "立即重试", "Retry now"),
-    (gsp::GSP_BIND_TX31 as Bind, "重新连接", "Reconnect"),
+    (gsp::GSP_BIND_TX33 as Bind, "立即重试", "Retry now"),
+    (gsp::GSP_BIND_TX34 as Bind, "重新连接", "Reconnect"),
     (
-        gsp::GSP_BIND_TX32 as Bind,
+        gsp::GSP_BIND_TX35 as Bind,
         "连接后，Paseo 的 Farol 设置里会出现这块板子。",
         "Once connected, the board shows in Paseo's Farol settings.",
     ),
     (
-        gsp::GSP_BIND_TX33 as Bind,
+        gsp::GSP_BIND_TX36 as Bind,
         "要断开，就在板子的控制中心里忘记这台 Paseo。",
         "To disconnect, forget this Paseo in the control centre.",
     ),
-    (gsp::GSP_BIND_TX34 as Bind, "取消", "Cancel"),
-    (gsp::GSP_BIND_TX35 as Bind, "连接", "Connect"),
+    (gsp::GSP_BIND_TX37 as Bind, "取消", "Cancel"),
+    (gsp::GSP_BIND_TX38 as Bind, "连接", "Connect"),
     (
-        gsp::GSP_BIND_TX36 as Bind,
+        gsp::GSP_BIND_TX39 as Bind,
         "对准 Paseo 的配对二维码，或手机分享的 Wi-Fi 码",
         "Point at Paseo's pairing code or a phone's Wi-Fi code",
     ),
-    (gsp::GSP_BIND_TX37 as Bind, "直接连接", "Direct connection"),
-    (gsp::GSP_BIND_TX38 as Bind, "取消", "Cancel"),
-    (gsp::GSP_BIND_TX39 as Bind, "连接 Paseo", "Connect Paseo"),
-    (gsp::GSP_BIND_TX40 as Bind, "取消", "Cancel"),
-    (gsp::GSP_BIND_TX41 as Bind, "扫描二维码", "Scan QR code"),
+    (gsp::GSP_BIND_TX40 as Bind, "直接连接", "Direct connection"),
+    (gsp::GSP_BIND_TX41 as Bind, "取消", "Cancel"),
+    (gsp::GSP_BIND_TX42 as Bind, "连接 Paseo", "Connect Paseo"),
+    (gsp::GSP_BIND_TX43 as Bind, "取消", "Cancel"),
+    (gsp::GSP_BIND_TX44 as Bind, "扫描二维码", "Scan QR code"),
     (
-        gsp::GSP_BIND_TX42 as Bind,
+        gsp::GSP_BIND_TX45 as Bind,
         "加密 relay 连接。",
         "Encrypted relay connection.",
     ),
-    (gsp::GSP_BIND_TX43 as Bind, "直接连接", "Direct connection"),
+    (gsp::GSP_BIND_TX46 as Bind, "直接连接", "Direct connection"),
     (
-        gsp::GSP_BIND_TX44 as Bind,
+        gsp::GSP_BIND_TX47 as Bind,
         "本地网络或 VPN。",
         "Local network or VPN.",
     ),
     (
-        gsp::GSP_BIND_TX45 as Bind,
+        gsp::GSP_BIND_TX48 as Bind,
         "配对码在 Paseo 的 设置 › 你的 Host › 配对设备",
         "Pairing code: Paseo › Settings › your host › Pair device",
     ),
     (
-        gsp::GSP_BIND_TX46 as Bind,
+        gsp::GSP_BIND_TX49 as Bind,
         "第一次显示时，Paseo 会先问你是否启用中继",
         "The first time, Paseo asks to turn on its relay",
     ),
-    (gsp::GSP_BIND_TX47 as Bind, "直接连接", "Direct connection"),
-    (gsp::GSP_BIND_TX48 as Bind, "取消", "Cancel"),
-    (gsp::GSP_BIND_TX49 as Bind, "不使用 SSL", "No SSL"),
+    (gsp::GSP_BIND_TX50 as Bind, "直接连接", "Direct connection"),
+    (gsp::GSP_BIND_TX51 as Bind, "取消", "Cancel"),
+    (gsp::GSP_BIND_TX52 as Bind, "不使用 SSL", "No SSL"),
     (
-        gsp::GSP_BIND_TX50 as Bind,
+        gsp::GSP_BIND_TX53 as Bind,
         "本地网络或 VPN 里直接连 daemon",
         "Straight to the daemon on a LAN or VPN",
     ),
-    (gsp::GSP_BIND_TX51 as Bind, "使用 SSL", "Use SSL"),
+    (gsp::GSP_BIND_TX54 as Bind, "使用 SSL", "Use SSL"),
     (
-        gsp::GSP_BIND_TX52 as Bind,
+        gsp::GSP_BIND_TX55 as Bind,
         "daemon 前面有 HTTPS 反向代理",
         "Behind an HTTPS reverse proxy",
     ),
     (
-        gsp::GSP_BIND_TX53 as Bind,
+        gsp::GSP_BIND_TX56 as Bind,
         "使用 SSL 时，证书要由公开的 CA 签发",
         "With SSL, the certificate must come from a public CA",
     ),
-    (gsp::GSP_BIND_TX54 as Bind, "取消", "Cancel"),
-    (gsp::GSP_BIND_TX55 as Bind, "键盘", "Keyboard"),
-    (gsp::GSP_BIND_TX56 as Bind, "新会话", "New session"),
-    (gsp::GSP_BIND_TX57 as Bind, "键盘", "Keyboard"),
-    (gsp::GSP_BIND_TX58 as Bind, "取消", "Cancel"),
-    (gsp::GSP_BIND_TX59 as Bind, "选择网络", "Choose network"),
-    (gsp::GSP_BIND_TX60 as Bind, "取消", "Cancel"),
-    (gsp::GSP_BIND_TX61 as Bind, "重新扫描", "Rescan"),
-    (gsp::GSP_BIND_TX62 as Bind, "返回", "Back"),
-    (gsp::GSP_BIND_TX63 as Bind, "已保存的网络", "Saved networks"),
-    (gsp::GSP_BIND_TX64 as Bind, "选择网络", "Choose network"),
-    (gsp::GSP_BIND_TX65 as Bind, "扫码加入", "Scan to join"),
-    (gsp::GSP_BIND_TX66 as Bind, "返回", "Back"),
-    (gsp::GSP_BIND_TX67 as Bind, "重新连接", "Reconnect"),
-    (gsp::GSP_BIND_TX68 as Bind, "停止", "Stop"),
-    (gsp::GSP_BIND_TX69 as Bind, "继续按住", "Keep holding"),
+    (gsp::GSP_BIND_TX57 as Bind, "取消", "Cancel"),
+    (gsp::GSP_BIND_TX58 as Bind, "键盘", "Keyboard"),
+    (gsp::GSP_BIND_TX59 as Bind, "新会话", "New session"),
+    (gsp::GSP_BIND_TX60 as Bind, "键盘", "Keyboard"),
+    (gsp::GSP_BIND_TX61 as Bind, "取消", "Cancel"),
+    (gsp::GSP_BIND_TX62 as Bind, "选择网络", "Choose network"),
+    (gsp::GSP_BIND_TX63 as Bind, "取消", "Cancel"),
+    (gsp::GSP_BIND_TX64 as Bind, "重新扫描", "Rescan"),
+    (gsp::GSP_BIND_TX65 as Bind, "返回", "Back"),
+    (gsp::GSP_BIND_TX66 as Bind, "已保存的网络", "Saved networks"),
+    (gsp::GSP_BIND_TX67 as Bind, "选择网络", "Choose network"),
+    (gsp::GSP_BIND_TX68 as Bind, "扫码加入", "Scan to join"),
+    (gsp::GSP_BIND_TX69 as Bind, "返回", "Back"),
+    (gsp::GSP_BIND_TX70 as Bind, "重新连接", "Reconnect"),
+    (gsp::GSP_BIND_TX71 as Bind, "停止", "Stop"),
+    (gsp::GSP_BIND_TX72 as Bind, "继续按住", "Keep holding"),
     (
-        gsp::GSP_BIND_TX70 as Bind,
+        gsp::GSP_BIND_TX73 as Bind,
         "松手就取消。停止只打断这一轮，",
         "Let go to cancel. Stopping ends only this turn;",
     ),
     (
-        gsp::GSP_BIND_TX71 as Bind,
+        gsp::GSP_BIND_TX74 as Bind,
         "agent 和它的上下文都还在。",
         "the agent and its context stay.",
     ),
-    (gsp::GSP_BIND_TX72 as Bind, "勿扰", "Quiet"),
-    (gsp::GSP_BIND_TX73 as Bind, "关", "Off"),
-    (gsp::GSP_BIND_TX74 as Bind, "勿扰", "Quiet"),
-    (gsp::GSP_BIND_TX75 as Bind, "开", "On"),
-    (gsp::GSP_BIND_TX76 as Bind, "声音", "Sound"),
-    (gsp::GSP_BIND_TX77 as Bind, "关", "Off"),
-    (gsp::GSP_BIND_TX78 as Bind, "声音", "Sound"),
-    (gsp::GSP_BIND_TX79 as Bind, "开", "On"),
-    (gsp::GSP_BIND_TX80 as Bind, "振动", "Haptics"),
-    (gsp::GSP_BIND_TX81 as Bind, "关", "Off"),
-    (gsp::GSP_BIND_TX82 as Bind, "振动", "Haptics"),
-    (gsp::GSP_BIND_TX83 as Bind, "开", "On"),
-    (gsp::GSP_BIND_TX84 as Bind, "自动", "Auto"),
-    (gsp::GSP_BIND_TX85 as Bind, "关于 ›", "About ›"),
+    (gsp::GSP_BIND_TX75 as Bind, "勿扰", "Quiet"),
+    (gsp::GSP_BIND_TX76 as Bind, "关", "Off"),
+    (gsp::GSP_BIND_TX77 as Bind, "勿扰", "Quiet"),
+    (gsp::GSP_BIND_TX78 as Bind, "开", "On"),
+    (gsp::GSP_BIND_TX79 as Bind, "声音", "Sound"),
+    (gsp::GSP_BIND_TX80 as Bind, "关", "Off"),
+    (gsp::GSP_BIND_TX81 as Bind, "声音", "Sound"),
+    (gsp::GSP_BIND_TX82 as Bind, "开", "On"),
+    (gsp::GSP_BIND_TX83 as Bind, "振动", "Haptics"),
+    (gsp::GSP_BIND_TX84 as Bind, "关", "Off"),
+    (gsp::GSP_BIND_TX85 as Bind, "振动", "Haptics"),
+    (gsp::GSP_BIND_TX86 as Bind, "开", "On"),
+    (gsp::GSP_BIND_TX87 as Bind, "自动", "Auto"),
+    (gsp::GSP_BIND_TX88 as Bind, "关于 ›", "About ›"),
 ];

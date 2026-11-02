@@ -162,6 +162,9 @@ impl Demo {
         let (lap, t) = self.phase(now);
         let epoch = self.epoch + self.elapsed(now) as i64;
         let lap_start = epoch - t as i64;
+        // When the demo started: the finished samples keep their `since`, so a
+        // card marked read stays read.
+        let opened = self.epoch + self.offset as i64;
         let mut agents = Vec::new();
 
         // farol: works, then asks which orb style; answering sends it back to work.
@@ -282,17 +285,23 @@ impl Demo {
         };
         agents.push(runtime);
 
+        // A real reply from a Paseo agent, in Farol markdown.
         agents.push(Agent {
             state: State::Done,
-            since: Some(epoch - 6 * MINUTE),
-            body: l.pick("查到了：定时出粮和「早饭」自动化都在 7:00 触发，两次出粮间隔不到一分钟，粮道还没清空就又推了一次。建议停掉其中一个，或者把自动化挪到 7:05。", "Found it: the feeding schedule and the Breakfast automation both fire at 7:00, under a minute apart, so the chute is pushed again before it clears. Turn one off, or move the automation to 7:05.").into(),
+            since: Some(opened - 6 * MINUTE),
+            body: l.pick(BTC_ZH, BTC_EN).into(),
             ctx: Some(23),
             cost: Some("$0.42".into()),
-            ..base("feeder", l.pick("查喂食器的出粮记录为什么总是堵", "Find out why the pet feeder keeps jamming"), "notes", "sonnet 5.5")
+            ..base(
+                "btc",
+                l.pick("比特币现在多少钱", "What is Bitcoin at right now"),
+                "notes",
+                "sonnet 5.5",
+            )
         });
         agents.push(Agent {
             state: State::Fail,
-            since: Some(epoch - 2 * MINUTE),
+            since: Some(opened - 2 * MINUTE),
             error: Some("usage limit reached · resets 15:00".into()),
             body: l
                 .pick(
@@ -312,7 +321,7 @@ impl Demo {
         });
         agents.push(Agent {
             state: State::Seen,
-            since: Some(epoch - 20 * MINUTE),
+            since: Some(opened - 20 * MINUTE),
             body: l
                 .pick(
                     "已经把 README 的安装步骤按新的 CLI 重写了一遍。",
@@ -345,7 +354,16 @@ impl Demo {
             });
         }
 
-        let left = 35u8.saturating_sub((t * 10 / LOOP_MS) as u8);
+        let left = 45u8.saturating_sub((t * 10 / LOOP_MS) as u8);
+        let window = |group: &str, name: &str, used: u8, resets: Option<i64>| Window {
+            label: alloc::format!("{group} · {name}"),
+            group: Some(group.into()),
+            name: Some(name.into()),
+            used,
+            resets,
+        };
+        const HOUR: i64 = 60 * MINUTE;
+        const DAY: i64 = 24 * HOUR;
         Snapshot {
             v: crate::model::VERSION,
             rev: self.rev,
@@ -361,35 +379,47 @@ impl Demo {
                 profile: "Opus 5.5".into(),
             }),
             agents,
+            // The user's daemon: twelve windows across four providers.
             usage: vec![
-                Window {
-                    label: l.pick("Claude · 本窗", "Claude · session").into(),
-                    used: 100 - left,
-                    resets: Some(epoch + 72 * MINUTE),
-                },
-                Window {
-                    label: l.pick("Claude · 本周", "Claude · week").into(),
-                    used: 15,
-                    resets: Some(epoch + 4 * 24 * 60 * MINUTE),
-                },
-                Window {
-                    label: l.pick("Codex · 本周", "Codex · week").into(),
-                    used: 64,
-                    resets: Some(epoch + 52 * 60 * MINUTE),
-                },
-                Window {
-                    label: l.pick("Gemini Argon · 周", "Gemini Argon · week").into(),
-                    used: 99,
-                    resets: Some(epoch + 121 * 60 * MINUTE),
-                },
+                window("Claude", "Session", 100 - left, Some(epoch + 72 * MINUTE)),
+                window("Claude", "Weekly", 33, Some(epoch + 4 * DAY)),
+                window("Claude", "Weekly · Fable", 0, Some(epoch + 4 * DAY)),
+                window("Codex", "5-hour", 1, Some(epoch + 3 * HOUR + 10 * MINUTE)),
+                window("Codex", "Weekly", 69, Some(epoch + 52 * HOUR)),
+                window("Antigravity", "Gemini · 5h", 0, None),
+                window("Antigravity", "Gemini · Weekly", 0, None),
+                window("Antigravity", "Claude & GPT · 5h", 0, None),
+                window(
+                    "Antigravity",
+                    "Claude & GPT · Weekly",
+                    8,
+                    Some(epoch + 5 * DAY),
+                ),
+                window(
+                    "Antigravity",
+                    "Gemini 4 Argon · Weekly",
+                    99,
+                    Some(epoch + 121 * HOUR),
+                ),
+                window("GLM Coding Plan", "5-hour", 0, None),
+                window(
+                    "GLM Coding Plan",
+                    "MCP calls · Monthly",
+                    2,
+                    Some(epoch + 12 * DAY),
+                ),
             ],
             fuel: Some(Fuel {
-                label: l.pick("Claude · 本窗", "Claude · session").into(),
+                label: "Claude · Session".into(),
                 left,
             }),
         }
     }
 }
+
+/// A real reply from the user's daemon (and its English equivalent).
+const BTC_ZH: &str = "比特币现在约 **76,878 USDT**（Binance BTCUSDT 现货）。\n\n- **24 小时涨跌：** −1,017 USDT（−1.31%）\n- **24 小时区间：** 最低 76,705，最高 78,878\n- **24 小时成交量：** 约 12,570 BTC，成交额约 9.79 亿 USDT\n- **盘口：** 买一 76,878.00，卖一 76,878.01\n\n现价离今天的最低点很近，只高出约 173。";
+const BTC_EN: &str = "Bitcoin is at about **76,878 USDT** (Binance BTCUSDT spot).\n\n- **24h change:** −1,017 USDT (−1.31%)\n- **24h range:** low 76,705, high 78,878\n- **24h volume:** about 12,570 BTC, about 979M USDT traded\n- **Order book:** bid 76,878.00, ask 76,878.01\n\nThe price is close to today's low, only about 173 above it.";
 
 fn base(id: &str, title: &str, project: &str, model: &str) -> Agent {
     Agent {

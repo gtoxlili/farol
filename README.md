@@ -61,7 +61,7 @@ Farol is a desk lamp for your [Paseo](https://paseo.sh) agents. It runs on an ES
 | Cards | Swipe up or down | The next agent, most urgent first |
 | A question | Hold an option for 0.5 s | Sends that answer |
 | A running card | Hold for 1.2 s | Stops this turn. Let go early to cancel. |
-| A finished card | Tap Mark read | Greys it out. It leaves the deck an hour later. |
+| A finished card | Tap Mark read | The button checks, the card leaves the deck and the next card says how many are left. After the last card the board goes back to the lamp. A card comes back when its agent starts something new. |
 | AI key | Click | The most urgent card. Click again to go back to the lamp. |
 | AI key | Hold | Talk. Let go, check the text, hold Send. |
 | The board | Turn face down | Do not disturb while it lies there |

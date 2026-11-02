@@ -49,7 +49,7 @@ GEIST_FACES = {
 # Latin text plus the punctuation and symbols the UI and agent titles commonly carry.
 LATIN = (
     [chr(c) for c in range(0x20, 0x7F)]
-    + list("·•…–—‘’“”′″°×÷±→←↑↓›‹«»€£¥©®™§¶†‡№")
+    + list("·•…–—‘’“”′″°×÷±−→←↑↓›‹«»€£¥©®™§¶†‡№✓\u2002")
 )
 # CJK punctuation and fullwidth forms (all one em in Noto Sans SC).
 CJK_PUNCT = [chr(c) for c in range(0x3000, 0x3040)] + [chr(c) for c in range(0xFF01, 0xFF5F)]

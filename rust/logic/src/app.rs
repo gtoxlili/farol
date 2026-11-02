@@ -54,6 +54,13 @@ const DIM_PERCENT: u8 = 25;
 const DND_MS: u64 = 3_600_000;
 /// A read card stays in the deck, greyed, this long after it was read.
 const SEEN_KEEP_MS: i64 = 3_600_000;
+/// "Mark read": the button shows its check this long, then the card leaves.
+const ACK_MS: u64 = 280;
+/// The card is gone by this long after it started leaving, even when no page
+/// settles (the deck was not in front, or an event was missed).
+const LEAVE_MS: u64 = 800;
+/// How long the line saying what marking read did stays.
+const READ_NOTE_MS: u64 = 3_500;
 /// The deck order is re-checked this often (read cards leaving it).
 const ORDER_REFRESH_MS: u64 = 60_000;
 /// The scan page suggests another angle after this long without a code.
@@ -196,7 +203,18 @@ struct Pending {
     kind: ActKind,
 }
 
-/// A transient line on one agent's card.
+/// A card marked read on the board, on its way out of the deck.
+#[derive(Clone, Debug)]
+pub(crate) struct Leaving {
+    pub agent: String,
+    /// When the button was tapped (monotonic ms).
+    at: u64,
+    /// The deck (or the screen) was asked to move on.
+    moved: bool,
+}
+
+/// A transient line on one agent's card (an empty `agent`: the scan page or,
+/// after the last card was read, the home page).
 #[derive(Clone, Debug)]
 pub(crate) struct Note {
     pub agent: String,
@@ -216,8 +234,9 @@ pub struct App {
     /// Indices into `snapshot.agents`, most urgent first.
     pub(crate) order: Vec<usize>,
     /// Agents the user marked read on the board: id -> (`since` at the time,
-    /// epoch ms of the mark).
+    /// epoch ms of the mark). They stay out of the deck until `since` changes.
     seen: BTreeMap<String, (Option<i64>, i64)>,
+    pub(crate) leaving: Option<Leaving>,
     pub(crate) screen: u16,
     /// Position in `order` of the card on screen.
     pub(crate) deck: usize,
@@ -314,6 +333,7 @@ impl App {
             has_snapshot: false,
             order: Vec::new(),
             seen: BTreeMap::new(),
+            leaving: None,
             screen: HOME,
             deck: 0,
             slot: 0,
@@ -395,6 +415,7 @@ impl App {
         self.has_snapshot = false;
         self.order.clear();
         self.seen.clear();
+        self.leaving = None;
         self.sent.clear();
         self.stopped_here.clear();
         self.pending.clear();
@@ -544,6 +565,7 @@ impl App {
         if self.note.as_ref().is_some_and(|n| now_ms >= n.until) {
             self.note = None;
         }
+        self.advance_leaving(ui);
         if self.net.state == NetState::Connecting {
             self.wifi_phase = ((now_ms / 400) % 4) as u8;
         }
@@ -586,6 +608,12 @@ impl App {
         }
         if self.lamp_fade.get().is_some_and(|f| f.active(self.now)) {
             next = next.min(self.now + FADE_STEP_MS);
+        }
+        if let Some(lv) = &self.leaving {
+            next = next.min(lv.at + ACK_MS + if lv.moved { LEAVE_MS } else { 0 });
+        }
+        if let Some(note) = &self.note {
+            next = next.min(note.until);
         }
         if let Some(hold) = &self.hold {
             let at = if hold.shown {
@@ -821,6 +849,9 @@ impl App {
             self.screen = value;
             self.painter.note_page(key, value);
             self.update_focus();
+            if self.leaving.as_ref().is_some_and(|lv| lv.moved) {
+                self.finish_leaving();
+            }
         } else if key == gsp::GSP_OBJ_KEY_CARDS {
             self.painter.note_page(key, value);
             let n = self.order.len();
@@ -835,7 +866,11 @@ impl App {
                 self.press = None;
                 self.hold = None;
                 self.fill_slots();
-                self.feel(Haptic::Tick, sys);
+                if self.leaving.as_ref().is_some_and(|lv| lv.moved) {
+                    self.finish_leaving();
+                } else {
+                    self.feel(Haptic::Tick, sys);
+                }
                 self.update_focus();
             }
         }
@@ -932,12 +967,12 @@ impl App {
                 .iter()
                 .any(|a| &a.id == id && a.since == *since)
         });
-        for agent in &mut snapshot.agents {
-            if matches!(agent.state, State::Done | State::Fail) && self.seen.contains_key(&agent.id)
-            {
-                agent.state = State::Seen;
-            }
-        }
+        // Read on the board: out of the deck (the card on its way out stays
+        // until it has left).
+        let leaving = self.leaving.as_ref().map(|lv| lv.agent.as_str());
+        snapshot
+            .agents
+            .retain(|a| !self.seen.contains_key(&a.id) || leaving == Some(a.id.as_str()));
         // An answer sent from the board stays shown until the ask changes.
         self.sent.retain(|id, (request, _)| {
             snapshot
@@ -1210,7 +1245,12 @@ impl App {
         let _ = sys;
     }
 
+    /// "Mark read": the button acknowledges at once, the card leaves the
+    /// deck a beat later (`advance_leaving`), and a note says what is left.
     fn mark_seen(&mut self, sys: &mut impl Sys) {
+        if self.leaving.is_some() {
+            return;
+        }
         let Some(agent) = self.current_agent() else {
             return;
         };
@@ -1220,16 +1260,76 @@ impl App {
         let (id, since) = (agent.id.clone(), agent.since);
         let read_at = self.epoch().unwrap_or_default();
         self.seen.insert(id.clone(), (since, read_at));
-        if let Some(i) = self.snapshot.agents.iter().position(|a| a.id == id) {
-            self.snapshot.agents[i].state = State::Seen;
-        }
         self.send(&id, ActKind::Seen, None, None, None, sys);
-        self.feel(Haptic::Tick, sys);
-        self.sort();
-        if let Some(pos) = self.position_of(&id) {
-            self.deck = pos;
+        self.feel(Haptic::Confirm, sys);
+        self.press = None;
+        self.hold = None;
+        self.leaving = Some(Leaving {
+            agent: id,
+            at: self.now,
+            moved: false,
+        });
+    }
+
+    /// After the acknowledgement: the deck slides to the next card, or, when
+    /// this was the last one, the board goes back to the lamp.
+    fn advance_leaving(&mut self, ui: &mut impl Ui) {
+        let Some((at, moved)) = self.leaving.as_ref().map(|lv| (lv.at, lv.moved)) else {
+            return;
+        };
+        if !moved && self.now >= at + ACK_MS {
+            let on_deck = self.screen == DECK
+                && self
+                    .current_agent()
+                    .zip(self.leaving.as_ref())
+                    .is_some_and(|(a, lv)| a.id == lv.agent);
+            if let Some(lv) = &mut self.leaving {
+                lv.moved = true;
+            }
+            if !on_deck {
+                self.finish_leaving();
+            } else if self.order.len() > 1 {
+                let page = (self.slot + 1) % SLOTS as u16;
+                self.painter
+                    .run(ui.set_page(gsp::GSP_OBJ_KEY_CARDS, page, true));
+            } else {
+                self.painter.page(ui, gsp::GSP_OBJ_KEY_SCREENS, HOME, true);
+            }
+            return;
         }
-        self.fill_slots();
+        if moved && self.now >= at + ACK_MS + LEAVE_MS {
+            self.finish_leaving();
+        }
+    }
+
+    /// Takes the read card out of the deck and says what is left.
+    fn finish_leaving(&mut self) {
+        let Some(lv) = self.leaving.take() else {
+            return;
+        };
+        let current = self
+            .current_agent()
+            .map(|a| a.id.clone())
+            .filter(|id| *id != lv.agent);
+        self.snapshot.agents.retain(|a| a.id != lv.agent);
+        self.refresh_order(current);
+        let l = self.lang();
+        let left = self.order.len();
+        let (agent, text) = match self.current_agent() {
+            Some(a) => (
+                a.id.clone(),
+                crate::tr!(l, "已读 · 还剩 {} 张", "Marked read · {} left", left),
+            ),
+            None => (
+                String::new(),
+                String::from(l.pick("都看完了", "All caught up")),
+            ),
+        };
+        self.note = Some(Note {
+            agent,
+            text,
+            until: self.now + READ_NOTE_MS,
+        });
     }
 
     /// Sends an action; false (with a note) when it could not go out.
@@ -2186,6 +2286,102 @@ mod tests {
         press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_KB_KEY);
         app.handle(3, Event::Net(online), &mut ui, &mut sys);
         assert!(!matches!(&app.overlay, Overlay::Input { .. }));
+    }
+
+    fn snapshot_of(agents: Vec<Agent>) -> Snapshot {
+        Snapshot {
+            v: VERSION,
+            now: T,
+            agents,
+            ..Default::default()
+        }
+    }
+
+    fn ids(app: &App) -> Vec<&str> {
+        (0..app.order.len())
+            .map(|i| app.agent_at(i).unwrap().id.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn a_card_marked_read_acknowledges_slides_to_the_next_and_stays_out() {
+        let fleet = || {
+            vec![
+                agent("a", State::Done, 1),
+                agent("b", State::Done, 2),
+                agent("c", State::Work, 3),
+            ]
+        };
+        let (mut app, mut ui, mut sys) = board(fleet());
+        app.screen = DECK;
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_SEEN);
+        // The button acknowledges at once; the card is still there.
+        assert_eq!(app.leaving.as_ref().map(|l| l.agent.as_str()), Some("a"));
+        assert_eq!(ids(&app), ["a", "b", "c"]);
+        app.poll(ACK_MS + 1, &mut ui, &mut sys);
+        assert!(app.leaving.as_ref().is_some_and(|l| l.moved));
+        let next = (app.slot + 1) % SLOTS as u16;
+        app.handle(
+            ACK_MS + 300,
+            Event::Settled {
+                key: gsp::GSP_OBJ_KEY_CARDS,
+                value: next,
+            },
+            &mut ui,
+            &mut sys,
+        );
+        assert!(app.leaving.is_none());
+        assert_eq!(ids(&app), ["b", "c"]);
+        assert_eq!(app.current_agent().unwrap().id, "b");
+        let note = app.note.as_ref().unwrap();
+        assert_eq!(
+            (note.agent.as_str(), note.text.as_str()),
+            ("b", "已读 · 还剩 2 张")
+        );
+        // An older plugin keeps reporting it: it stays out of the deck...
+        app.apply(snapshot_of(fleet()), &mut sys);
+        assert_eq!(ids(&app), ["b", "c"]);
+        // ...until the agent moves on.
+        let mut again = fleet();
+        again[0].since = Some(T);
+        app.apply(snapshot_of(again), &mut sys);
+        assert_eq!(ids(&app), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn marking_the_last_card_read_returns_to_the_lamp() {
+        let (mut app, mut ui, mut sys) = board(vec![agent("a", State::Fail, 1)]);
+        app.screen = DECK;
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_SEEN);
+        app.poll(ACK_MS + 1, &mut ui, &mut sys);
+        app.handle(
+            ACK_MS + 400,
+            Event::Settled {
+                key: gsp::GSP_OBJ_KEY_SCREENS,
+                value: HOME,
+            },
+            &mut ui,
+            &mut sys,
+        );
+        assert_eq!(app.screen, HOME);
+        assert!(app.order.is_empty());
+        let note = app.note.as_ref().unwrap();
+        assert_eq!((note.agent.as_str(), note.text.as_str()), ("", "都看完了"));
+        // The note fades on its own.
+        app.poll(ACK_MS + 400 + READ_NOTE_MS, &mut ui, &mut sys);
+        assert!(app.note.is_none());
+    }
+
+    #[test]
+    fn a_missed_settle_still_takes_the_card_out() {
+        let (mut app, mut ui, mut sys) =
+            board(vec![agent("a", State::Done, 1), agent("b", State::Done, 2)]);
+        app.screen = DECK;
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_SEEN);
+        app.poll(ACK_MS + 1, &mut ui, &mut sys);
+        app.poll(ACK_MS + LEAVE_MS + 1, &mut ui, &mut sys);
+        assert!(app.leaving.is_none());
+        assert_eq!(ids(&app), ["b"]);
     }
 
     #[test]

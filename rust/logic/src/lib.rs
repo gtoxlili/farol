@@ -33,6 +33,7 @@ mod scene;
 pub mod sys;
 pub mod text;
 pub mod ui;
+mod usage;
 mod view;
 
 pub use app::{App, Overlay};

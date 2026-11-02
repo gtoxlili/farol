@@ -4,6 +4,7 @@
 
 use alloc::format;
 use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 
 use gsp_sys as gsp;
 
@@ -12,11 +13,13 @@ use crate::lang::Lang;
 use crate::model::VERSION;
 use crate::model::{Agent, AskKind, State};
 use crate::paseo::Down;
-use crate::scene::{self, Card, Variant};
+use crate::scene::{self, Card, Reply, Variant};
 use crate::sys::NetState;
+use crate::text::markdown::{self, Frame, Layout};
 use crate::text::{self, time};
 use crate::tr;
 use crate::ui::{Painter, Ui};
+use crate::usage;
 
 /// Colors, 0xRRGGBB; the same tokens as tools/ui/gen_scene.py.
 pub mod palette {
@@ -287,6 +290,12 @@ fn home(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     };
     p.text(ui, bind(gsp::GSP_BIND_HOME_WHO), &who_line);
     p.text(ui, bind(gsp::GSP_BIND_HOME_WHAT), &what_line);
+    // A note for no card (the last card was just read) shows under the lamp.
+    let hint = app
+        .note
+        .as_ref()
+        .filter(|n| n.agent.is_empty())
+        .map_or(hint, |n| n.text.as_str());
     p.text(ui, bind(gsp::GSP_BIND_HOME_HINT), hint);
 
     // The lamp: color = urgency, level = the tightest quota left, sparks = running agents.
@@ -374,6 +383,7 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
         p.visible(ui, card.ask, false);
         p.visible(ui, card.run, false);
         p.visible(ui, card.done, false);
+        p.visible(ui, card.seen_ok, false);
         return;
     };
     let now = app.epoch();
@@ -508,10 +518,12 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
     } else {
         p.visible(ui, card.alive, false);
     }
+    if !finished_state(a) {
+        p.visible(ui, card.seen_ok, false);
+    }
 
     // Finished, failed, seen.
-    let finished = matches!(a.state, State::Done | State::Fail | State::Seen)
-        || (a.state == State::Call && a.ask.is_none());
+    let finished = finished_state(a);
     p.visible(ui, card.done, finished);
     if finished {
         let err = if a.state == State::Fail {
@@ -520,14 +532,15 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
             ""
         };
         p.text(ui, card.err, &text::fit(err, 400, 17));
-        let lines = if err.is_empty() { 6 } else { 5 };
-        p.property(
-            ui,
-            card.body_key,
-            gsp::GSP_PROP_KEY_Y,
-            if err.is_empty() { 12 } else { 52 },
-        );
-        p.text(ui, card.body, &text::wrap(&a.body, 420, 19, lines));
+        let top = if err.is_empty() {
+            REPLY_TOP
+        } else {
+            REPLY_TOP_ERR
+        };
+        let layout = markdown::layout(&a.body, &reply_frame(top));
+        reply(p, ui, &card.reply, &layout, top);
+        let leaving = app.leaving.as_ref().is_some_and(|lv| lv.agent == a.id);
+        p.visible(ui, card.seen_ok, leaving);
         let mut cost = String::new();
         if let Some(c) = &a.cost {
             cost.push_str(c);
@@ -548,7 +561,62 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
     }
 }
 
+// ---------------------------------------------------------------- reply
+
+/// Where a finished card's reply starts in its group, without and with the
+/// error line, and where it must end (above the cost line and the button).
+const REPLY_TOP: i32 = 12;
+const REPLY_TOP_ERR: i32 = 52;
+const REPLY_BOTTOM: i32 = 236;
+const REPLY_W: u32 = 420;
+
+fn finished_state(a: &Agent) -> bool {
+    matches!(a.state, State::Done | State::Fail | State::Seen)
+        || (a.state == State::Call && a.ask.is_none())
+}
+
+fn reply_frame(top: i32) -> Frame {
+    Frame {
+        width: REPLY_W,
+        height: REPLY_BOTTOM - top,
+    }
+}
+
+/// Sets a card's reply labels from its layout.
+fn reply(p: &mut Painter, ui: &mut impl Ui, r: &Reply, l: &Layout, top: i32) {
+    p.property(ui, r.key, gsp::GSP_PROP_KEY_Y, top);
+    for (labels, texts) in r.labels.iter().zip(l.labels()) {
+        for (label, text) in labels.iter().zip(&texts) {
+            p.text(ui, label.text, text);
+        }
+    }
+    match &l.code {
+        Some(code) => {
+            p.property(ui, r.code.key, gsp::GSP_PROP_KEY_Y, code.y);
+            p.text(ui, r.code.text, &code.lines.join("\n"));
+        }
+        None => p.text(ui, r.code.text, ""),
+    }
+    for (rect, band) in [(&r.panel, l.panel), (&r.rule, l.rule)] {
+        p.visible(ui, rect.vis, band.is_some());
+        if let Some(b) = band {
+            p.property(ui, rect.key, gsp::GSP_PROP_KEY_Y, b.y);
+            p.property(ui, rect.key, gsp::GSP_PROP_KEY_H, b.h.max(1));
+        }
+    }
+}
+
 // ---------------------------------------------------------------- usage
+
+/// Width of a full usage bar, px, and where it sits on a row's second line
+/// (tools/ui/gen_scene.py USAGE_BAR_W).
+const USAGE_BAR_W: i32 = 104;
+const USAGE_BAR_DY: i32 = 10;
+/// Sizes of the usage page's header, name and percentage text.
+const USAGE_HEAD_PX: u32 = 14;
+const USAGE_NAME_PX: u32 = 14;
+/// Room for a window's name before the percentages' tab stop.
+const USAGE_NAME_W: u32 = 144;
 
 fn usage(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     let l = app.lang();
@@ -558,33 +626,56 @@ fn usage(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         tr!(l, "{} 更新", "Updated {}", time::clock(epoch, app.tz))
     });
     p.text(ui, bind(gsp::GSP_BIND_USAGE_UPDATED), &updated);
-    for (i, cell) in scene::USAGE.iter().enumerate() {
-        let Some(w) = windows.get(i) else {
-            p.visible(ui, cell.vis, false);
+    let plan = usage::plan(windows, scene::USAGE_BARS.len());
+    // Each column's labels, line by line.
+    let lines = usage::LINES as usize;
+    let mut cols: [[Vec<String>; 4]; 2] = Default::default();
+    for col in &mut cols {
+        for label in col.iter_mut() {
+            label.resize(lines, String::new());
+        }
+    }
+    for h in &plan.heads {
+        cols[h.col][0][h.line as usize] = text::fit(&h.text, usage::COLUMN_W, USAGE_HEAD_PX);
+    }
+    for (k, bar) in scene::USAGE_BARS.iter().enumerate() {
+        let Some(row) = plan.rows.get(k) else {
+            p.visible(ui, bar.vis, false);
             continue;
         };
-        p.visible(ui, cell.vis, true);
-        let tone = if w.used >= 95 {
-            2
-        } else if w.used >= 80 {
-            1
-        } else {
-            0
-        };
-        for (k, (arc, vis)) in cell.arcs.iter().zip(cell.arc_vis).enumerate() {
-            p.visible(ui, vis, k == tone);
-            if k == tone {
-                p.glide_value(ui, *arc, i32::from(w.used.min(100)), 700);
-            }
+        let w = &windows[row.window];
+        let used = w.used.min(100);
+        let at = row.line as usize;
+        cols[row.col][1][at] = text::fit_keeping_tail(&row.name, " · ", USAGE_NAME_W, USAGE_NAME_PX);
+        cols[row.col][2][at] = alloc::format!("{used}%");
+        if let (Some(now), Some(resets)) = (app.epoch(), w.resets) {
+            cols[row.col][3][at + 1] = time::reset(now, resets, app.tz, l);
         }
-        p.text(ui, cell.pct, &w.used.min(100).to_string());
-        p.text(ui, cell.name, &text::fit(&w.label, 192, 15));
-        let reset = match (app.epoch(), w.resets) {
-            (Some(now), Some(at)) => time::reset(now, at, app.tz, l),
-            _ => String::new(),
-        };
-        p.text(ui, cell.reset, &reset);
+        p.visible(ui, bar.vis, true);
+        p.property(ui, bar.key, gsp::GSP_PROP_KEY_X, usage::COLUMNS[row.col]);
+        p.property(
+            ui,
+            bar.key,
+            gsp::GSP_PROP_KEY_Y,
+            usage::TOP + (row.line + 1) * usage::PITCH + USAGE_BAR_DY,
+        );
+        let fill = i32::from(used) * USAGE_BAR_W / 100;
+        p.property(ui, bar.fill, gsp::GSP_PROP_KEY_X, fill - USAGE_BAR_W);
+        p.color(ui, bar.color, usage::warmth(used));
     }
+    for (column, labels) in scene::USAGE_COLUMNS.iter().zip(&cols) {
+        let binds = [column.head, column.name, column.pct, column.reset];
+        for (bind, lines) in binds.into_iter().zip(labels) {
+            let text = lines.join("\n");
+            p.text(ui, bind, text.trim_end_matches('\n'));
+        }
+    }
+    let more = if plan.hidden > 0 {
+        tr!(l, "+{} 项", "+{} more", plan.hidden)
+    } else {
+        String::new()
+    };
+    p.text(ui, bind(gsp::GSP_BIND_USAGE_MORE), &more);
 }
 
 // ---------------------------------------------------------------- control centre

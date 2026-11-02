@@ -6,6 +6,7 @@
 //! `tools/fonts/build_fonts.py`), and the labels receive text with `\n`.
 //! [`time`] formats clocks, ages and countdowns in Chinese.
 
+pub mod markdown;
 mod metrics;
 pub mod time;
 
@@ -13,14 +14,24 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 /// Width of `ch` at `size` px in the UI font (Noto Sans SC), in 1/64 px.
-fn advance(ch: char, size: u32) -> u32 {
+///
+/// As GSP draws a bound label: printable ASCII (and the en space the reply
+/// pads with) comes from glyphs baked into the bundle, which advance by whole
+/// pixels; everything else from the runtime font (FreeType), which advances
+/// by fractional widths.
+pub(crate) fn advance(ch: char, size: u32) -> u32 {
     let cp = ch as u32;
     let units = match metrics::NOTOSANSSC.binary_search_by_key(&cp, |&(c, _)| c) {
         Ok(i) => u32::from(metrics::NOTOSANSSC[i].1),
         // Ideographs, kana and anything unknown: one em.
         Err(_) => u32::from(metrics::NOTOSANSSC_UPEM),
     };
-    units * size * 64 / u32::from(metrics::NOTOSANSSC_UPEM)
+    let exact = units * size * 64 / u32::from(metrics::NOTOSANSSC_UPEM);
+    if (0x20..0x7F).contains(&cp) || ch == '\u{2002}' {
+        (exact + 32) / 64 * 64
+    } else {
+        exact
+    }
 }
 
 /// Width of `text` at `size` px, in whole pixels (rounded up).
@@ -67,63 +78,118 @@ fn units(text: &str) -> Vec<&str> {
     out
 }
 
-/// Greedy break into lines no wider than `limit` (1/64 px).
-fn greedy(text: &str, size: u32, limit: u32) -> Vec<String> {
-    let measure = |s: &str| s.chars().map(|c| advance(c, size)).sum::<u32>();
-    let mut lines: Vec<String> = Vec::new();
-    for paragraph in text.split('\n') {
-        let mut line = String::new();
-        let mut used = 0u32;
-        for unit in units(paragraph) {
-            let w = measure(unit);
+/// One visual line of styled text: runs of `(text, style)`, adjacent runs of
+/// the same style merged.
+pub(crate) type Line<S> = Vec<(String, S)>;
+
+fn push<S: Copy + PartialEq>(line: &mut Line<S>, text: &str, style: S) {
+    match line.last_mut() {
+        Some((last, s)) if *s == style => last.push_str(text),
+        _ => line.push((String::from(text), style)),
+    }
+}
+
+fn is_blank<S>(line: &Line<S>) -> bool {
+    line.iter().all(|(t, _)| t.is_empty())
+}
+
+fn trim_line<S>(mut line: Line<S>) -> Line<S> {
+    while let Some((last, _)) = line.last_mut() {
+        let kept = last.trim_end().len();
+        last.truncate(kept);
+        if last.is_empty() {
+            line.pop();
+        } else {
+            break;
+        }
+    }
+    line
+}
+
+/// Width of `text` at `size` px, in 1/64 px.
+pub(crate) fn measure(text: &str, size: u32) -> u32 {
+    text.chars().map(|c| advance(c, size)).sum()
+}
+
+/// Greedy break of styled text into lines no wider than `limit` (1/64 px).
+/// `\n` forces a break. Words never break across lines unless wider than a
+/// whole line; closing punctuation hangs, opening punctuation moves down.
+pub(crate) fn break_lines<S: Copy + PartialEq>(
+    pieces: &[(&str, S)],
+    size: u32,
+    limit: u32,
+) -> Vec<Line<S>> {
+    let mut lines: Vec<Line<S>> = Vec::new();
+    let mut line: Line<S> = Vec::new();
+    let mut used = 0u32;
+    for &(text, style) in pieces {
+        for unit in units(text) {
+            if unit == "\n" {
+                lines.push(trim_line(core::mem::take(&mut line)));
+                used = 0;
+                continue;
+            }
+            let w = measure(unit, size);
             let space = unit.chars().all(char::is_whitespace);
-            if line.is_empty() && space {
+            if is_blank(&line) && space {
                 continue;
             }
             if used + w <= limit {
-                line.push_str(unit);
+                push(&mut line, unit, style);
                 used += w;
                 continue;
             }
             if space {
-                lines.push(String::from(line.trim_end()));
-                line.clear();
+                lines.push(trim_line(core::mem::take(&mut line)));
                 used = 0;
                 continue;
             }
             let first = unit.chars().next().unwrap_or(' ');
-            if no_line_start(first) && !line.is_empty() {
+            if no_line_start(first) && !is_blank(&line) {
                 // Hang closing punctuation rather than start a line with it.
-                line.push_str(unit);
+                push(&mut line, unit, style);
                 used += w;
                 continue;
             }
             if w > limit {
                 // Wider than any line: break inside the word.
+                let mut buf = [0u8; 4];
                 for ch in unit.chars() {
                     let cw = advance(ch, size);
-                    if used + cw > limit && !line.is_empty() {
+                    if used + cw > limit && !is_blank(&line) {
                         lines.push(core::mem::take(&mut line));
                         used = 0;
                     }
-                    line.push(ch);
+                    push(&mut line, ch.encode_utf8(&mut buf), style);
                     used += cw;
                 }
                 continue;
             }
             // Break before this unit; a dangling opener moves down with it.
-            let mut carry = String::new();
-            if let Some(last) = line.chars().last().filter(|&c| no_line_end(c)) {
-                line.pop();
-                carry.push(last);
+            let mut carry: Line<S> = Vec::new();
+            if let Some((last, s)) = line.last_mut()
+                && let Some(ch) = last.chars().last().filter(|&c| no_line_end(c))
+            {
+                last.pop();
+                let mut buf = [0u8; 4];
+                carry.push((String::from(&*ch.encode_utf8(&mut buf)), *s));
             }
-            lines.push(String::from(line.trim_end()));
+            lines.push(trim_line(core::mem::take(&mut line)));
             line = carry;
-            line.push_str(unit);
-            used = measure(&line);
+            push(&mut line, unit, style);
+            used = line.iter().map(|(t, _)| measure(t, size)).sum();
         }
-        lines.push(String::from(line.trim_end()));
     }
+    lines.push(trim_line(line));
+    lines
+}
+
+/// Greedy break into lines no wider than `limit` (1/64 px).
+fn greedy(text: &str, size: u32, limit: u32) -> Vec<String> {
+    let mut lines: Vec<String> = break_lines(&[(text, ())], size, limit)
+        .into_iter()
+        .map(|line| line.into_iter().map(|(t, ())| t).collect())
+        .collect();
     while lines.len() > 1 && lines.last().is_some_and(String::is_empty) {
         lines.pop();
     }
@@ -171,6 +237,37 @@ pub fn fit(text: &str, width_px: u32, size_px: u32) -> String {
     wrap(&collapse(text).replace('\n', " "), width_px, size_px, 1)
 }
 
+/// Like [`fit`], but when `text` has to be cut and contains `sep`, the part
+/// after the last `sep` stays whole and the part before it is cut with `…`:
+/// "Claude & GPT · Weekly" becomes "Claude & G… · Weekly", so names that
+/// differ only at the end stay apart.
+pub fn fit_keeping_tail(text: &str, sep: &str, width_px: u32, size_px: u32) -> String {
+    let one = collapse(text).replace('\n', " ");
+    if width(&one, size_px) <= width_px {
+        return one;
+    }
+    let Some(at) = one.rfind(sep) else {
+        return fit(&one, width_px, size_px);
+    };
+    let (head, tail) = one.split_at(at);
+    let reserved = width(tail, size_px) + width("…", size_px);
+    if reserved >= width_px {
+        return fit(&one, width_px, size_px);
+    }
+    let mut kept = String::new();
+    for ch in head.chars() {
+        kept.push(ch);
+        if width(&kept, size_px) + reserved > width_px {
+            kept.pop();
+            break;
+        }
+    }
+    let mut out = String::from(kept.trim_end());
+    out.push('…');
+    out.push_str(tail);
+    out
+}
+
 /// Collapses runs of whitespace (keeping single line breaks) and trims.
 fn collapse(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
@@ -200,6 +297,16 @@ fn collapse(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn fit_keeping_tail_cuts_the_head_and_keeps_the_period() {
+        let cut = fit_keeping_tail("Claude & GPT · Weekly", " · ", 144, 14);
+        assert!(cut.ends_with("… · Weekly"), "{cut}");
+        assert!(width(&cut, 14) <= 144, "{cut}");
+        assert_eq!(fit_keeping_tail("Gemini · 5h", " · ", 144, 14), "Gemini · 5h");
+        let plain = fit_keeping_tail("A very long window name without a separator", " · ", 144, 14);
+        assert!(plain.ends_with('…') && width(&plain, 14) <= 144, "{plain}");
+    }
     use super::*;
 
     fn lines(s: &str) -> Vec<&str> {

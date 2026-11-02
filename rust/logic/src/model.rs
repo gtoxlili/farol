@@ -105,6 +105,13 @@ pub struct Agent {
 pub struct Window {
     /// "Claude · 本窗".
     pub label: String,
+    /// The provider the window belongs to ("Claude"); absent from older
+    /// plugins, where `label` carries it before " · ".
+    #[serde(default)]
+    pub group: Option<String>,
+    /// The window's own name ("Session"); absent from older plugins.
+    #[serde(default)]
+    pub name: Option<String>,
     /// Percent used.
     pub used: u8,
     /// Epoch ms the window resets.
@@ -311,6 +318,19 @@ mod tests {
         .unwrap();
         assert_eq!(s.agents[0].state, State::Seen);
         assert!(s.usage.is_empty());
+    }
+
+    #[test]
+    fn usage_windows_take_an_optional_group_and_name() {
+        let s: Snapshot = serde_json::from_str(
+            r#"{"v":1,"rev":1,"now":0,"usage":[
+                {"label":"Claude · Session","used":55},
+                {"label":"GLM · 5-hour","group":"GLM Coding Plan","name":"5-hour","used":0}]}"#,
+        )
+        .unwrap();
+        assert_eq!(s.usage[0].group, None);
+        assert_eq!(s.usage[1].group.as_deref(), Some("GLM Coding Plan"));
+        assert_eq!(s.usage[1].name.as_deref(), Some("5-hour"));
     }
 
     #[test]

@@ -54,6 +54,10 @@ VOICE_DEEP = "#5B4FD0"  # the send bar filling
 VOICE_DIM = "#3A3358"
 CLEAR = "#00000000"
 VIEWFINDER = "#141516"  # the scan page's empty viewfinder
+QUIET = "#6A6863"  # the reply's quotes, bullets and numbers (between INK2 and INK3)
+CODE = "#C4C1B9"   # code lines in a reply
+PANEL = "#161615"  # the code panel behind them
+TRACK = "#1A1A18"  # empty part of a bar or ring
 
 PREVIEW = 360  # camera preview side, px (app_camera's APP_CAMERA_PREVIEW_SIDE)
 SCAN_PREVIEW_PNG = "images/scan_preview.png"
@@ -70,7 +74,24 @@ DIGITS = "0123456789"
 CARDS = 3          # recycled card pages in the deck
 OPTIONS = 4        # answer options per card
 FLEET_DOTS = 8     # status dots on the home page and the deck rail
-USAGE_CELLS = 4
+# The reply on a finished card (rust/logic/src/text/markdown.rs): two label sets,
+# the second half a line (of 29 px) lower, each with a multi-line label per ink.
+MD_SETS = {"a": 0, "b": 14}
+MD_INKS = {"s": INK1, "n": INK2, "q": QUIET}
+MD_SIZE = 19
+# Baked glyphs advance by whole pixels, so the en space the logic pads with is
+# baked next to printable ASCII (what a bound label bakes by default).
+MD_CHARSET = "".join(chr(c) for c in range(0x20, 0x7F)) + "\u2002"
+# The usage page (rust/logic/src/usage.rs): two columns of multi-line labels on a
+# 22 px grid (GSP's pitch for Noto 14 and Geist Medium 16), and a bar per row.
+USAGE_COLS = (28, 252)
+USAGE_TOP = 84
+USAGE_LINES = 17
+USAGE_PITCH = 22
+USAGE_ROWS = 12
+USAGE_COL_W = 200
+USAGE_BAR_W = 104
+USAGE_PCT_X = 152  # the percentages' tab stop in a column
 WIFI_ROWS = 6      # networks listed on the "choose a network" page
 SAVED_ROWS = 4     # saved networks listed on the network details page
 DRIFT = 3          # burn-in drift room, px each way (the logic moves +-2)
@@ -109,7 +130,7 @@ def under(parent: str | None, obj: dict) -> dict:
 
 def label(parent, x, y, w, h, text="", *, font=NOTO, size=18, color=INK1, align="left",
           name=None, bind=False, charset=None, ellipsis=False, hidden=False, dyn_y=None,
-          input=False):
+          dyn_x=None, input=False):
     if isinstance(text, Tr):
         if bind:
             raise ValueError("a translated label is bound through TEXTS")
@@ -130,6 +151,8 @@ def label(parent, x, y, w, h, text="", *, font=NOTO, size=18, color=INK1, align=
         obj["overflow"] = "ellipsis"
     if hidden:
         obj["hidden"] = True
+    if dyn_x is not None:
+        obj["x"] = {"default": x, "min": dyn_x[0], "max": dyn_x[1]}
     if dyn_y is not None:
         obj["y"] = {"default": y, "min": dyn_y[0], "max": dyn_y[1]}
     return under(parent, obj)
@@ -137,7 +160,7 @@ def label(parent, x, y, w, h, text="", *, font=NOTO, size=18, color=INK1, align=
 
 def rect(parent, x, y, w, h, color, *, radius=0, name=None, border=None, border_w=1,
          visible_bind=False, color_bind=False, hidden=False, dyn_x=None, dyn_y=None, dyn_w=None,
-         opacity=None):
+         dyn_h=None, opacity=None):
     obj = {"type": "rect", "x": x, "y": y, "w": w, "h": h, "bg_color": color, "radius": radius}
     if name:
         obj["name"] = name
@@ -150,6 +173,8 @@ def rect(parent, x, y, w, h, color, *, radius=0, name=None, border=None, border_
         obj["y"] = {"default": y, "min": dyn_y[0], "max": dyn_y[1]}
     if dyn_w is not None:
         obj["w"] = {"default": w, "min": dyn_w[0], "max": dyn_w[1]}
+    if dyn_h is not None:
+        obj["h"] = {"default": h, "min": dyn_h[0], "max": dyn_h[1]}
     if opacity is not None:
         obj["opacity"] = opacity
     if hidden:
@@ -190,8 +215,12 @@ def visibility(obj: dict) -> None:
     obj["bind_target"] = "visible"
 
 
-def group(parent, name, x, y, w, h, *, hidden=False, vis=True, bg=None, drift=False):
+def group(parent, name, x, y, w, h, *, hidden=False, vis=True, bg=None, drift=False, movable=False):
     obj = {"type": "container", "name": name, "x": x, "y": y, "w": w, "h": h}
+    if movable:
+        # The logic places it anywhere on its page.
+        obj["x"] = {"default": x, "min": 0, "max": W}
+        obj["y"] = {"default": y, "min": 0, "max": H}
     if drift:
         # Burn-in guard: the logic slides the whole group a pixel or two each minute.
         obj["x"] = {"default": x, "min": x - DRIFT, "max": x + DRIFT}
@@ -257,24 +286,33 @@ def usage_page(parent):
     label(parent, 28, 44, 200, 26, tr("额度", "Usage"), size=18, color=INK2)
     label(parent, 252, 46, 200, 22, "", size=14, color=INK3, align="right", name="usage_updated",
           bind=True, ellipsis=True)
-    cells = [(36, 80), (252, 80), (36, 274), (252, 274)]
-    for i, (x, y) in enumerate(cells):
-        cell = f"u{i}"
-        group(parent, cell, x, y, 192, 184)
-        # An Arc's bind slot carries its value, so each color is its own Arc.
-        for tone, fg in (("work", WORK), ("call", CALL), ("fail", FAIL)):
-            arc = under(cell, {"type": "arc", "name": f"{cell}_arc_{tone}", "x": 26, "y": 0, "w": 140,
-                               "h": 140, "min": 0, "max": 100, "value": 0, "start_angle": 225,
-                               "sweep": 270, "thickness": 5, "bg_color": "#1A1A18", "fg_color": fg,
-                               "hidden": tone != "work"})
-            visibility(arc)
-        label(cell, 26, 42, 140, 52, "0", font=G_XL, size=42, align="center", name=f"{cell}_pct",
-              bind=True, charset=DIGITS)
-        label(cell, 26, 92, 140, 20, "%", font=G_L, size=14, color=INK3, align="center")
-        label(cell, 0, 138, 192, 24, "", size=15, align="center", name=f"{cell}_name", bind=True,
-              ellipsis=True)
-        label(cell, 0, 160, 192, 22, "", size=13, color=INK3, align="center", name=f"{cell}_reset",
-              bind=True, ellipsis=True)
+    # Every window, grouped by provider in two columns (rust/logic/src/usage.rs).
+    # Each column is four multi-line labels on one grid: provider headers, window
+    # names, percentages and reset countdowns; the logic writes blank lines between.
+    # (Noto 14 and Geist Medium 16 both have a 22 px pitch in GSP. Dynamic
+    # multi-line text must be left-aligned, so the numbers start at a tab stop.)
+    h = USAGE_LINES * USAGE_PITCH
+    for c, x in enumerate(USAGE_COLS):
+        label(parent, x, USAGE_TOP, USAGE_COL_W, h, "", size=14, name=f"uc{c}_head", bind=True)
+        label(parent, x, USAGE_TOP, USAGE_PCT_X, h, "", size=14, color=INK2, name=f"uc{c}_name",
+              bind=True)
+        label(parent, x + USAGE_PCT_X, USAGE_TOP, USAGE_COL_W - USAGE_PCT_X, h, "", font=G_M,
+              size=16, name=f"uc{c}_pct", bind=True, charset=DIGITS + "%")
+        label(parent, x + USAGE_BAR_W + 8, USAGE_TOP, USAGE_COL_W - USAGE_BAR_W - 8, h, "",
+              size=14, color=INK3, name=f"uc{c}_reset", bind=True)
+    # A bar per row, on the row's second line. The fill slides in from the left
+    # of its track as the window fills, and its color warms. (GSP 1.9.0's runtime
+    # refuses a rect or container with both a dynamic width and a color bind, so
+    # the track clips a full-width fill instead.)
+    for i in range(USAGE_ROWS):
+        t = f"ub{i}"
+        track = group(parent, t, 28, USAGE_TOP, USAGE_BAR_W, 3, hidden=True, movable=True, bg=TRACK)
+        track["radius"] = 1
+        track["clip_children"] = True
+        rect(t, -USAGE_BAR_W, 0, USAGE_BAR_W, 3, WORK, radius=1, name=f"{t}_fill",
+             dyn_x=(-USAGE_BAR_W, 0), color_bind=True)
+    label(parent, USAGE_COLS[1], USAGE_TOP + (USAGE_LINES - 1) * USAGE_PITCH, USAGE_COL_W,
+          USAGE_PITCH, "", size=14, color=INK3, align="right", name="usage_more", bind=True)
     # A translated label's bind is its text, so a container carries the visibility.
     group(parent, "usage_empty", 40, 220, 400, 30, hidden=True)
     label("usage_empty", 0, 0, 400, 30, tr("还没有额度数据", "No usage data yet"), size=17, color=INK3, align="center")
@@ -379,15 +417,35 @@ def card_page(parent, i):
     label(r, 28, 264, 420, 22, "", size=14, color=INK3, align="center", name=f"{r}_hint",
           bind=True)
 
-    # done / failed
+    # done / failed: the reply as runs of text, code lines on a panel, quote rules
+    # (rust/logic/src/text/markdown.rs places them; panels and rules paint first).
     d = f"{c}_done"
     group(parent, d, 0, 186, 456, 294, hidden=True)
     label(d, 28, 14, 400, 26, "", font=MONO, size=17, color=FAIL, name=f"{d}_err", bind=True,
           ellipsis=True)
-    label(d, 28, 12, 420, 190, "", size=19, name=f"{d}_body", bind=True, dyn_y=(0, 120))
-    label(d, 28, 228, 300, 22, "", font=MONO, size=14, color=INK3, name=f"{d}_cost", bind=True,
+    # The reply: one container the logic moves down when the error line shows.
+    reply = f"{d}_reply"
+    group(d, reply, 0, 12, 456, 240, vis=False)
+    objects[-1]["y"] = {"default": 12, "min": 0, "max": 60}
+    rect(reply, 28, 0, 420, 20, PANEL, radius=10, name=f"{d}_panel", dyn_y=(0, 240),
+         dyn_h=(1, 240), hidden=True, visible_bind=True)
+    rect(reply, 30, 0, 3, 20, EDGE, radius=1, name=f"{d}_rule", dyn_y=(0, 240), dyn_h=(1, 240),
+         hidden=True, visible_bind=True)
+    label(reply, 40, 0, 396, 230, "", font=MONO, size=15, color=CODE, name=f"{d}_code",
+          bind=True, dyn_y=(0, 240))
+    # Wider than the reply (420) so GSP never wraps a line the logic measured.
+    for set_name, dy in MD_SETS.items():
+        for ink, color in MD_INKS.items():
+            label(reply, 28, dy, 440, 240, "", size=MD_SIZE, color=color,
+                  name=f"{d}_{set_name}{ink}", bind=True, charset=MD_CHARSET)
+    label(d, 28, 250, 300, 22, "", font=MONO, size=14, color=INK3, name=f"{d}_cost", bind=True,
           ellipsis=True)
-    button(d, f"{d}_seen", 348, 218, 100, 40, text=tr("已读", "Mark read"), size=16, radius=20, callback="seen")
+    button(d, f"{d}_seen", 348, 240, 100, 40, text=tr("已读", "Mark read"), size=16, radius=20,
+           callback="seen")
+    # The tap's acknowledgement: the button fills with a check for a beat.
+    ok = group(f"{d}_seen", f"{d}_seen_ok", 0, 0, 100, 40, hidden=True, bg=INK1)
+    ok["radius"] = 20
+    label(f"{d}_seen_ok", 0, 8, 100, 24, tr("✓ 已读", "✓ Read"), size=16, color=BG, align="center")
 
 
 def deck_page(parent):
@@ -888,6 +946,14 @@ def variants(name: str) -> str:
     return f"[{items}]"
 
 
+def run(name: str) -> str:
+    return f"Run {{ key: {k(name)}, text: {b(name)} }}"
+
+
+def band(name: str) -> str:
+    return f"Band {{ key: {k(name)}, vis: {b(name + '_vis')} }}"
+
+
 def rust_tables() -> str:
     cards = []
     for i in range(CARDS):
@@ -903,6 +969,8 @@ def rust_tables() -> str:
                 fill_text: {b(o + '_ft')},
                 ring: {b(o + '_ring_vis')},
             }},""")
+        reply_labels = ", ".join("[" + ", ".join(run(f"{c}_done_{st}{ink}") for ink in MD_INKS) + "]"
+                                 for st in MD_SETS)
         cards.append(f"""    Card {{
         dot: {b(c + '_dot')},
         word: {variants(c + '_word')},
@@ -924,21 +992,24 @@ def rust_tables() -> str:
         run_hint: {b(c + '_run_hint')},
         done: {b(c + '_done_vis')},
         err: {b(c + '_done_err')},
-        body: {b(c + '_done_body')},
-        body_key: {k(c + '_done_body')},
+        reply: Reply {{
+            key: {k(c + '_done_reply')},
+            labels: [{reply_labels}],
+            code: {run(c + '_done_code')},
+            panel: {band(c + '_done_panel')},
+            rule: {band(c + '_done_rule')},
+        }},
         cost: {b(c + '_done_cost')},
+        seen_ok: {b(c + '_done_seen_ok_vis')},
     }},""")
-    usage = []
-    for i in range(USAGE_CELLS):
-        u = f"u{i}"
-        usage.append(f"""    UsageCell {{
-        vis: {b(u + '_vis')},
-        arcs: [{k(u + '_arc_work')}, {k(u + '_arc_call')}, {k(u + '_arc_fail')}],
-        arc_vis: [{b(u + '_arc_work_vis')}, {b(u + '_arc_call_vis')}, {b(u + '_arc_fail_vis')}],
-        pct: {b(u + '_pct')},
-        name: {b(u + '_name')},
-        reset: {b(u + '_reset')},
-    }},""")
+    columns = "\n".join(
+        f"    UsageColumn {{ head: {b(f'uc{c}_head')}, name: {b(f'uc{c}_name')}, "
+        f"pct: {b(f'uc{c}_pct')}, reset: {b(f'uc{c}_reset')} }},"
+        for c in range(len(USAGE_COLS)))
+    bars = "\n".join(
+        f"    UsageBar {{ key: {k(f'ub{i}')}, vis: {b(f'ub{i}_vis')}, fill: {k(f'ub{i}_fill')}, "
+        f"color: {b(f'ub{i}_fill')} }},"
+        for i in range(USAGE_ROWS))
     home_dots = ", ".join(f"Dot {{ key: {k(f'home_dot{i}')}, color: {b(f'home_dot{i}')} }}"
                           for i in range(FLEET_DOTS))
     rail_dots = ", ".join(f"Dot {{ key: {k(f'rail{i}')}, color: {b(f'rail{i}')} }}"
@@ -996,20 +1067,57 @@ pub struct Card {{
     pub run_hint: Bind,
     pub done: Bind,
     pub err: Bind,
-    pub body: Bind,
-    pub body_key: Key,
+    pub reply: Reply,
     pub cost: Bind,
+    /// The "Mark read" button's acknowledgement.
+    pub seen_ok: Bind,
 }}
 
+/// A label the logic moves: its key (for x and y) and its text.
 #[derive(Clone, Copy)]
-pub struct UsageCell {{
+pub struct Run {{
+    pub key: Key,
+    pub text: Bind,
+}}
+
+/// A rect the logic moves and sizes (y, h) and shows.
+#[derive(Clone, Copy)]
+pub struct Band {{
+    pub key: Key,
     pub vis: Bind,
-    /// One Arc per color: work, call, fail.
-    pub arcs: [Key; 3],
-    pub arc_vis: [Bind; 3],
-    pub pct: Bind,
+}}
+
+/// The labels a finished card sets its reply with (text::markdown): per label
+/// set (the second half a line lower), one multi-line label per ink (strong,
+/// normal, quiet); the code label, its panel and a quote's rule.
+#[derive(Clone, Copy)]
+pub struct Reply {{
+    /// The container all of it sits in (its y: below the error line or not).
+    pub key: Key,
+    pub labels: [[Run; {len(MD_INKS)}]; {len(MD_SETS)}],
+    pub code: Run,
+    pub panel: Band,
+    pub rule: Band,
+}}
+
+/// One column of the usage page: multi-line labels on one grid.
+#[derive(Clone, Copy)]
+pub struct UsageColumn {{
+    pub head: Bind,
     pub name: Bind,
+    pub pct: Bind,
     pub reset: Bind,
+}}
+
+/// A row's bar: the track the logic places and shows (key, vis), and its
+/// fill, as wide as the track, slid left by the part not used (fill, x) and
+/// colored (color).
+#[derive(Clone, Copy)]
+pub struct UsageBar {{
+    pub key: Key,
+    pub vis: Bind,
+    pub fill: Key,
+    pub color: Bind,
 }}
 
 #[derive(Clone, Copy)]
@@ -1031,8 +1139,11 @@ pub const CARDS: [Card; {CARDS}] = [
 {chr(10).join(cards)}
 ];
 
-pub const USAGE: [UsageCell; {USAGE_CELLS}] = [
-{chr(10).join(usage)}
+pub const USAGE_COLUMNS: [UsageColumn; {len(USAGE_COLS)}] = [
+{columns}
+];
+pub const USAGE_BARS: [UsageBar; {USAGE_ROWS}] = [
+{bars}
 ];
 
 pub const HOME_DOTS: [Dot; {FLEET_DOTS}] = [{home_dots}];
