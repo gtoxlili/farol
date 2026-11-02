@@ -138,9 +138,12 @@ impl LogicTask {
             if now >= self.app.next_deadline_ms() {
                 self.app.poll(now, &mut self.ui, &mut self.board);
             }
-            if let Some(code) = self.app.take_first_rejection() {
+            if let Some(r) = self.app.take_first_rejection() {
                 let message = alloc::format!(
-                    "GSP rejected a setter (0x{code:x}); further rejections are only counted"
+                    "GSP rejected a setter (0x{:x}, {} {}); retried, further rejections are only counted",
+                    r.code,
+                    r.what,
+                    r.target
                 );
                 idf::log_line(idf::LogLevel::Warn, c"logic", &message);
             }

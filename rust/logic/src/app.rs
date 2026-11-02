@@ -67,6 +67,8 @@ const DRIFT_PATH: [(i32, i32); 8] = [
     (-1, 1),
 ];
 const DRIFT_GLIDE_MS: u32 = 2_000;
+/// After GSP refused writes (its queue was full), render again this soon.
+const RENDER_RETRY_MS: u64 = 30;
 /// Interaction-module LED brightness until Paseo says otherwise.
 const LED_DEFAULT: u8 = 60;
 /// A change of urgency glides the lamp to its new color this long. GSP cannot
@@ -256,6 +258,8 @@ pub struct App {
     pub(crate) lamp_fade: Cell<Option<Fade>>,
     /// A running agent started a new tool call since the last frame.
     ripple: bool,
+    /// The last render had writes GSP refused; render again soon.
+    render_retry: bool,
     /// Phase of the "connecting" Wi-Fi arcs, advanced by `poll`.
     pub(crate) wifi_phase: u8,
     last_second: u64,
@@ -321,6 +325,7 @@ impl App {
             demo: None,
             lamp_fade: Cell::new(None),
             ripple: false,
+            render_retry: false,
             wifi_phase: 0,
             last_second: now_ms / 1000,
         };
@@ -363,7 +368,7 @@ impl App {
         self.painter.rejections()
     }
 
-    pub fn take_first_rejection(&mut self) -> Option<gsp::esp_gsp_err_t> {
+    pub fn take_first_rejection(&mut self) -> Option<crate::ui::Rejection> {
         self.painter.take_first_rejection()
     }
 
@@ -503,6 +508,9 @@ impl App {
         if self.overlay == Overlay::Scan {
             next = next.min(self.scan_since + SCAN_HINT_MS);
         }
+        if self.render_retry {
+            next = next.min(self.now + RENDER_RETRY_MS);
+        }
         if self.lamp_fade.get().is_some_and(|f| f.active(self.now)) {
             next = next.min(self.now + FADE_STEP_MS);
         }
@@ -550,6 +558,9 @@ impl App {
             ));
         }
         self.render(ui);
+        // GSP's command queue was full: render again shortly instead of
+        // leaving part of the screen stale until the next second.
+        self.render_retry = self.painter.take_failed();
     }
 
     fn pump_session(&mut self, sys: &mut impl Sys) {
