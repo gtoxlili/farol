@@ -10,6 +10,7 @@
 #include "app_net.h"
 #include "esp_gsp_esp_lcd.h"
 #include "esp_iris.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -117,5 +118,8 @@ void app_main(void)
     ESP_ERROR_CHECK(app_bench_start(application.ui, application.display.presenter, &bench_hooks));
 #endif
     /* CONFIG_ESP_MAIN_TASK_STACK_SIZE is sized from this line. */
-    ESP_LOGI(TAG, "ready (main stack unused %u B)", (unsigned)uxTaskGetStackHighWaterMark(NULL));
+    ESP_LOGI(TAG, "ready (main stack unused %u B, internal free %u B, min %u B)",
+             (unsigned)uxTaskGetStackHighWaterMark(NULL),
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
 }
