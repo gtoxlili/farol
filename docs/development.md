@@ -46,7 +46,7 @@ python tools/simdrive.py                 # scripted flows with checks and screen
 python tools/media.py                    # docs/media, in Chinese and English
 ```
 
-`FAROL_SIM_LANG=en` shows the simulator in English. `tools/media.py` also copies the English overview and clips to `plugin/assets/`, which the plugin's store listing uses (`media` in `plugin/paseo-plugin.json`). The settings-page screenshots (`docs/media/*/plugin-settings.png`) come from the Paseo web app against the isolated dev daemon below. After you edit `tools/ui/gen_scene.py`, run `python tools/dev.py scene`. It regenerates the scene, its headers and the Rust bindings.
+`python tools/icon.py` draws the icon (`docs/media/icon.svg`, `plugin/assets/icon.png`). `plugin/assets/demo.webp` is a silent recording of a real board, shown in the READMEs and the store listing. `FAROL_SIM_LANG=en` shows the simulator in English. `tools/media.py` also copies the English overview and clips to `plugin/assets/`, which the plugin's store listing uses (`media` in `plugin/paseo-plugin.json`). The settings-page screenshots (`docs/media/*/plugin-settings.png`) come from the Paseo web app against the isolated dev daemon below. After you edit `tools/ui/gen_scene.py`, run `python tools/dev.py scene`. It regenerates the scene, its headers and the Rust bindings.
 
 ## Tests
 

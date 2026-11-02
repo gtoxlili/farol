@@ -1,15 +1,21 @@
-# Farol
+<p align="center"><img src="docs/media/icon.svg" width="112" alt=""></p>
 
-[English](README.md)
+<h1 align="center">Farol</h1>
+
+<p align="center">替你看着 Paseo agent 的桌面灯 · <a href="README.md">English</a></p>
 
 Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里的 agent，跑在 ESP-Mosaico 开发板上。看一眼就知道 agent 们怎么样了。不打开 App 也能回答和停止它们，还能开新会话。
 
-![光、提问卡、运行中的一轮和新会话](docs/media/zh/overview.png)
+<p align="center"><img src="plugin/assets/demo.webp" width="480" alt="真机演示：按住 AI 键提问，按住发送，新会话一直跑到给出答案"></p>
+
+<p align="center">真机演示：用语音提问，按住发送，会话一直跑到给出答案。</p>
 
 - 灯光反映所有 agent 的状态。都在干活时是冷色、慢慢呼吸，有 agent 等你时变琥珀色，一轮失败时变红。光的高低跟着你最紧的那份额度走。
 - 灯后面是一叠卡片，一个 agent 一张。按住选项就能回答问题、权限请求或计划，按住运行中的卡片能停止这一轮。
 - 按住 AI 键说话，就能开始一段新会话。Paseo 自己的语音输入把你说的话变成第一条消息，也可以打字。
 - 板子和插件都有中文和英文，跟着 Paseo App 的语言走。
+
+![光、提问卡、运行中的一轮和新会话](docs/media/zh/overview.png)
 
 ## 需要什么
 
@@ -64,15 +70,15 @@ Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里�
 
 ### 回答问题
 
-<img src="docs/media/zh/answer.gif" width="360" alt="点亮着琥珀色的灯，按住一个选项，agent 接着干活"> · [MP4](docs/media/zh/answer.mp4)
+<img src="docs/media/zh/answer.gif" width="360" alt="点亮着琥珀色的灯，按住一个选项，agent 接着干活">
 
 ### 停止一轮
 
-<img src="docs/media/zh/stop.gif" width="360" alt="按住运行中的卡片，直到圆环走满"> · [MP4](docs/media/zh/stop.mp4)
+<img src="docs/media/zh/stop.gif" width="360" alt="按住运行中的卡片，直到圆环走满">
 
 ### 用语音开会话
 
-<img src="docs/media/zh/voice.gif" width="360" alt="灯变成紫色在听，文字变成卡片，按住发送开始新会话"> · [MP4](docs/media/zh/voice.mp4)
+<img src="docs/media/zh/voice.gif" width="360" alt="灯变成紫色在听，文字变成卡片，按住发送开始新会话">
 
 按住 AI 键说话，灯会变成紫色，跟着你的声音起伏。松开后 Paseo 把话转成文字，文字显示成这个新会话将来的卡片。按住“发送”直到条填满，新会话的卡片就打开了。想重说，就再按住 AI 键。
 

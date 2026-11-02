@@ -8,9 +8,9 @@ agents (rust/logic/src/demo.rs), once in Chinese and once in English:
     python tools/media.py shots      screenshots only
 
 Clips need ffmpeg; the overview needs ImageMagick. Output goes to
-docs/media/<zh|en>/: <name>.png, and <clip>.gif (shown in the READMEs) with
-<clip>.mp4 next to it. The English overview and clips are also copied to
-plugin/assets for the plugin's store listing.
+docs/media/<zh|en>/: <name>.png and <clip>.gif, shown in the READMEs. The
+English overview goes to plugin/assets for the plugin's store listing, and the
+English voice and answer clips go there as MP4.
 """
 from __future__ import annotations
 
@@ -26,6 +26,9 @@ from simdrive import Sim, option_y, to_running  # noqa: E402
 MEDIA = simdrive.APP / "docs/media"
 LANGS = ("zh", "en")
 CLIP_FPS = 20
+ASSETS = simdrive.APP / "plugin/assets"
+# Clips the plugin's store listing shows as video.
+LISTING_CLIPS = ("voice", "answer")
 LAMP = (240, 206)
 MIC = (240, 224)  # the compose page's lamp
 SEND = (240, 404)  # the hold-to-send bar
@@ -58,9 +61,10 @@ class Clip:
     def save(self, out: Path) -> None:
         frames = str(self.frames_dir / "%04d.png")
         rate = ["-framerate", str(CLIP_FPS), "-i", frames]
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *rate, "-c:v", "libx264",
-                        "-pix_fmt", "yuv420p", "-crf", "22", "-movflags", "+faststart",
-                        str(out / f"{self.name}.mp4")], check=True)
+        if out.name == "en" and self.name in LISTING_CLIPS:
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *rate, "-c:v", "libx264",
+                            "-pix_fmt", "yuv420p", "-crf", "22", "-movflags", "+faststart",
+                            str(ASSETS / f"{self.name}.mp4")], check=True)
         palette = ("scale=360:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];"
                    "[b][p]paletteuse=dither=bayer:bayer_scale=4")
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *rate, "-vf", palette,
@@ -176,10 +180,9 @@ def overview(out: Path) -> None:
 def listing(out: Path) -> None:
     """The plugin's store listing (plugin/paseo-plugin.json `media`) ships its own
     copies. plugin-settings.png is a Paseo screenshot, taken by hand."""
-    assets = simdrive.APP / "plugin/assets"
-    for name in ("overview.png", "plugin-settings.png", "voice.mp4", "answer.mp4"):
+    for name in ("overview.png", "plugin-settings.png"):
         if (out / name).exists():
-            shutil.copy2(out / name, assets / name)
+            shutil.copy2(out / name, ASSETS / name)
 
 
 def main() -> int:

@@ -1,15 +1,21 @@
-# Farol
+<p align="center"><img src="docs/media/icon.svg" width="112" alt=""></p>
 
-[中文](README_CN.md)
+<h1 align="center">Farol</h1>
+
+<p align="center">A desk lamp for your Paseo agents · <a href="README_CN.md">中文</a></p>
 
 Farol is a desk lamp for your [Paseo](https://paseo.sh) agents. It runs on an ESP-Mosaico board. You see how your agents are doing at a glance, and you can answer them, stop them and start new ones without opening the app.
 
-![The lamp, a question, a running turn and a new session](docs/media/en/overview.png)
+<p align="center"><img src="plugin/assets/demo.webp" width="480" alt="A real board: hold the AI key and ask a question, hold Send, and the new session runs to its answer"></p>
+
+<p align="center">A real board, set to Chinese: ask by voice, hold Send, and the session runs to its answer.</p>
 
 - The light shows the state of all your agents. It breathes cool while they work, turns amber when one waits for you and red when a turn fails. Its height follows your tightest usage quota.
 - Behind the lamp is a deck of cards, one per agent. Hold an option to answer a question, a permission request or a plan. Hold a running card to stop the turn.
 - Hold the AI key and speak to start a new session. Paseo's own dictation turns your voice into the first prompt. You can also type it.
 - The board and the plugin speak Chinese or English and follow the Paseo app.
+
+![The lamp, a question, a running turn and a new session](docs/media/en/overview.png)
 
 ## What you need
 
@@ -64,15 +70,15 @@ A tap never changes an agent. Only a hold does.
 
 ### Answer a question
 
-<img src="docs/media/en/answer.gif" width="360" alt="Tap the amber lamp, hold an option, the agent works again"> · [MP4](docs/media/en/answer.mp4)
+<img src="docs/media/en/answer.gif" width="360" alt="Tap the amber lamp, hold an option, the agent works again">
 
 ### Stop a turn
 
-<img src="docs/media/en/stop.gif" width="360" alt="Hold a running card until the ring closes"> · [MP4](docs/media/en/stop.mp4)
+<img src="docs/media/en/stop.gif" width="360" alt="Hold a running card until the ring closes">
 
 ### Start a session by voice
 
-<img src="docs/media/en/voice.gif" width="360" alt="The lamp turns violet and listens, the words become the card, holding Send starts the session"> · [MP4](docs/media/en/voice.mp4)
+<img src="docs/media/en/voice.gif" width="360" alt="The lamp turns violet and listens, the words become the card, holding Send starts the session">
 
 Hold the AI key and talk. The lamp turns violet and rises and falls with your voice. Let go, and Paseo turns the words into text. The text shows as the card the session will be. Hold Send until the bar fills, and the new session's card opens. To redo, hold the AI key again.
 
