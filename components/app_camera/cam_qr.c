@@ -75,12 +75,19 @@ static bool remember(cam_qr_t *qr, const uint8_t *payload, size_t length)
 static const char *kind(const uint8_t *payload, size_t length)
 {
     static const char wifi[] = "WIFI:";
-    static const char farol[] = "farol://";
+    static const char relay[] = "relay://";
+    static const char offer[] = "#offer=";
     if (length >= sizeof(wifi) - 1 && memcmp(payload, wifi, sizeof(wifi) - 1) == 0) {
         return "Wi-Fi";
     }
-    if (length >= sizeof(farol) - 1 && memcmp(payload, farol, sizeof(farol) - 1) == 0) {
-        return "Farol";
+    if (length >= sizeof(relay) - 1 && memcmp(payload, relay, sizeof(relay) - 1) == 0) {
+        return "Paseo relay";
+    }
+    /* Paseo's pairing QR: https://app.paseo.sh/#offer=... */
+    for (size_t i = 0; i + sizeof(offer) - 1 <= length; i++) {
+        if (memcmp(payload + i, offer, sizeof(offer) - 1) == 0) {
+            return "Paseo pairing";
+        }
     }
     return "other";
 }

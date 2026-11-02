@@ -12,7 +12,8 @@ then rebuild and regenerate the Rust bindings (`cargo xtask gen-gsp`).
 Layout of the scene (paint order = list order, later objects on top):
   screens       horizontal PageFlow: usage | home | deck
     deck/cards  vertical cyclic PageFlow of three recycled agent cards
-  ov_status     full-screen status pages (welcome, no Wi-Fi, no Paseo, pair, scan)
+  ov_status     full-screen status pages (welcome, no Wi-Fi, no Paseo, connect, pair,
+                scan, SSL choice, keyboard input, Wi-Fi and Paseo details)
   ov_hold       hold-to-stop overlay
   banner        "Paseo unreachable" strip under the status bar
   cc            control centre Drawer from the top edge
@@ -402,12 +403,14 @@ def status_pages():
     label(g, 120, 166, 240, 40, "Farol", font=G_XL, size=34, align="center")
     label(g, 120, 206, 240, 22, "", font=MONO, size=14, color=INK3, align="center",
           name="st_welcome_name", bind=True)
-    label(g, 28, 330, 424, 26, "在 Paseo 打开 设置 › 插件 › Farol › 添加设备", size=16,
+    label(g, 28, 318, 424, 24, "配对码在 Paseo 的 设置 › 你的 Host › 配对设备", size=15,
           color=INK2, align="center")
-    button(g, "st_welcome_scan", 40, 372, 196, 52, text="扫码配对", size=18, bg=INK1, fg=BG,
+    label(g, 28, 342, 424, 22, "本地网络或 VPN 里也可以直接连接", size=14, color=INK3,
+          align="center")
+    button(g, "st_welcome_scan", 40, 380, 196, 52, text="扫描二维码", size=18, bg=INK1, fg=BG,
            border=None, callback="scan_open")
-    button(g, "st_welcome_manual", 244, 372, 196, 52, text="手动输入", size=18,
-           callback="manual_open")
+    button(g, "st_welcome_direct", 244, 380, 196, 52, text="直接连接", size=18,
+           callback="direct_open")
 
     g = "st_nowifi"
     group(p, g, 0, 0, W, H, hidden=True)
@@ -435,7 +438,8 @@ def status_pages():
           bind=True, ellipsis=True)
     button(g, "st_np_retry_btn", 40, 362, 196, 52, text="立即重试", size=18, bg=INK1, fg=BG,
            border=None, callback="retry")
-    button(g, "st_np_repair", 244, 362, 196, 52, text="重新扫码", size=18, callback="repair")
+    button(g, "st_np_repair", 244, 362, 196, 52, text="重新连接", size=18,
+           callback="connect_open")
     label(g, 28, 432, 424, 22, "", size=14, color=INK3, align="center", name="st_np_foot",
           bind=True, ellipsis=True)
 
@@ -475,15 +479,17 @@ def status_pages():
         rect(g, x, y, w, h, INK1, radius=2)
     under(g, {"type": "effect", "name": "scan_sweep", "x": 64, "y": 250, "w": 352, "h": 4,
               "effect": "shimmer", "fg_color": CALL, "bg_color": "#26282C", "period_ms": 1400})
-    label(g, 28, 42, 424, 24, "对准 Farol 的连接码，或手机分享的 Wi-Fi 码", size=15, color=INK2,
-          align="center")
+    label(g, 28, 42, 424, 24, "对准 Paseo 的配对二维码，或手机分享的 Wi-Fi 码", size=15,
+          color=INK2, align="center")
     label(g, 60, 220, 360, 60, "", size=15, color=INK2, align="center", name="scan_note",
           bind=True)
-    button(g, "scan_manual", 52, 440, 140, 36, text="手动输入", size=16, bg=CLEAR, border=None,
-           callback="manual_open")
+    button(g, "scan_direct", 52, 440, 140, 36, text="直接连接", size=16, bg=CLEAR, border=None,
+           callback="direct_open")
     button(g, "scan_cancel", 300, 440, 128, 36, text="取消", size=16, bg=CLEAR, fg=INK2,
            border=None, callback="scan_cancel")
 
+    connect_page(p)
+    tls_page(p)
     input_page(p)
     wifi_page(p)
     net_details_page(p)
@@ -497,10 +503,46 @@ def page_header(g, prefix, title, close_text, close_callback, *, bind_title=Fals
            border=None, pressed_dim=24, callback=close_callback)
 
 
+def choice(g, name, y, title, hint, callback, *, primary=False):
+    """A wide two-line button: what it does, and when to pick it."""
+    button(g, name, 24, y, 432, 92, bg=INK1 if primary else TILE, border=None, radius=20,
+           pressed_dim=32, callback=callback)
+    label(name, 24, 18, 384, 30, title, size=22, color=BG if primary else INK1)
+    label(name, 24, 52, 384, 22, hint, size=15, color=INK3 if primary else INK2)
+
+
+def connect_page(p):
+    """The two ways the Paseo app offers to add a host (添加连接)."""
+    g = "st_connect"
+    group(p, g, 0, 0, W, H, hidden=True)
+    page_header(g, "cn", "连接 Paseo", "取消", "cn_cancel")
+    choice(g, "cn_scan", 104, "扫描二维码", "加密 relay 连接。", "scan_open", primary=True)
+    choice(g, "cn_direct", 210, "直接连接", "本地网络或 VPN。", "direct_open")
+    label(g, 28, 330, 424, 24, "配对码在 Paseo 的 设置 › 你的 Host › 配对设备", size=15,
+          color=INK2, align="center")
+    label(g, 28, 356, 424, 22, "第一次显示时，Paseo 会先问你是否启用中继", size=14, color=INK3,
+          align="center")
+
+
+def tls_page(p):
+    """Direct connection, step 3 of 4: SSL or not, as the app's 使用 SSL switch."""
+    g = "st_tls"
+    group(p, g, 0, 0, W, H, hidden=True)
+    page_header(g, "tl", "直接连接", "取消", "tl_cancel")
+    label(g, 24, 80, 432, 20, "", size=13, color=INK3, name="tl_caption", bind=True,
+          ellipsis=True)
+    choice(g, "tl_plain", 112, "不使用 SSL", "本地网络或 VPN 里直接连 daemon", "tls_off",
+           primary=True)
+    choice(g, "tl_secure", 218, "使用 SSL", "daemon 前面有 HTTPS 反向代理", "tls_on")
+    label(g, 28, 336, 424, 22, "使用 SSL 时，证书要由公开的 CA 签发", size=14, color=INK3,
+          align="center")
+
+
 def input_page(p):
-    """Manual entry: one field and the on-screen keyboard. The logic attaches the
-    keyboard to `in_text` for each step (Paseo address, then password; or a
-    Wi-Fi password) and reads the text back on OK."""
+    """Typed entry: one field and the on-screen keyboard. The logic attaches the
+    keyboard to `in_text` for each step (direct connection: host, port,
+    password; a daemon password Paseo asked for; a Wi-Fi password) and reads
+    the text back on OK."""
     g = "st_input"
     group(p, g, 0, 0, W, H, hidden=True)
     page_header(g, "in", "", "取消", "in_cancel", bind_title=True)
@@ -570,7 +612,7 @@ def link_details_page(p):
     label(g, 24, 162, 432, 22, "", size=15, color=INK2, name="lk_state", bind=True, ellipsis=True)
     label(g, 24, 186, 432, 22, "", size=15, color=INK3, name="lk_device", bind=True,
           ellipsis=True)
-    button(g, "lk_rescan", 40, 380, 196, 52, text="重新扫码", size=18, callback="scan_open")
+    button(g, "lk_rescan", 40, 380, 196, 52, text="重新连接", size=18, callback="connect_open")
     button(g, "lk_forget", 244, 380, 196, 52, size=18, callback="lk_forget")
     label("lk_forget", 0, 12, 196, 26, "", size=18, color=FAIL, align="center",
           name="lk_forget_t", bind=True)

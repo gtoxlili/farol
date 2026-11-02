@@ -1,13 +1,13 @@
 //! The board's side of [`logic::sys::Sys`]: the build flavour, ESP-IDF
 //! storage, identity and diagnostics.
 //!
-//! Prototypes: `app_logic.h` (this repo), `nvs.h`, `esp_mac.h`,
+//! Prototypes: `app_logic.h` (this repo), `nvs.h`, `esp_mac.h`, `esp_random.h`,
 //! `esp_heap_caps.h`, FreeRTOS `task.h` (pinned IDF 7b9cc1ac).
 //!
 //! Saved state lives in the application's `nvs` partition, namespace
-//! [`NAMESPACE`]: `prefs` (fixed bytes) and `paseo` (the address and the
-//! daemon password, length-prefixed). The password is stored as the user typed
-//! or scanned it; NVS is not encrypted on this board.
+//! [`NAMESPACE`]: `prefs` (fixed bytes) and `paseo` ([`Config::encode`]: the
+//! direct connection or the relay pairing, and the daemon password). The
+//! password is stored as the user typed it; NVS is not encrypted on this board.
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -31,13 +31,14 @@ const MALLOC_CAP_INTERNAL: u32 = 1 << 11;
 const NAMESPACE: &CStr = c"farol";
 const KEY_PREFS: &CStr = c"prefs";
 const KEY_PASEO: &CStr = c"paseo";
-/// Leading byte of each saved record; bump when the layout changes.
+/// Leading byte of the prefs record; bump when its layout changes.
 const RECORD_VERSION: u8 = 1;
-/// A saved address and password never exceed this.
+/// A saved connection and password never exceed this.
 const PASEO_RECORD_MAX: usize = 1024;
 
 unsafe extern "C" {
     fn app_logic_demo_build() -> bool;
+    fn esp_fill_random(buf: *mut c_void, len: usize);
 
     fn nvs_open(namespace: *const c_char, mode: c_int, handle: *mut u32) -> EspErr;
     fn nvs_get_blob(
@@ -171,37 +172,11 @@ fn decode_prefs(bytes: &[u8]) -> Option<Prefs> {
     }
 }
 
-fn push_field(out: &mut Vec<u8>, text: &str) {
-    let length = u16::try_from(text.len()).unwrap_or(u16::MAX);
-    out.extend_from_slice(&length.to_le_bytes());
-    out.extend_from_slice(&text.as_bytes()[..usize::from(length)]);
-}
-
-fn take_field<'a>(bytes: &mut &'a [u8]) -> Option<&'a str> {
-    let (length, rest) = bytes.split_first_chunk::<2>()?;
-    let length = usize::from(u16::from_le_bytes(*length));
-    let (field, rest) = rest.split_at_checked(length)?;
-    *bytes = rest;
-    core::str::from_utf8(field).ok()
-}
-
-fn encode_config(c: &Config) -> Vec<u8> {
-    let mut out = alloc::vec![RECORD_VERSION];
-    push_field(&mut out, &c.url);
-    push_field(&mut out, &c.password);
-    out
-}
-
-fn decode_config(bytes: &[u8]) -> Option<Config> {
-    let (&RECORD_VERSION, mut rest) = bytes.split_first()? else {
-        return None;
-    };
-    let url = take_field(&mut rest)?;
-    let password = take_field(&mut rest)?;
-    (rest.is_empty() && !url.is_empty()).then(|| Config {
-        url: url.into(),
-        password: password.into(),
-    })
+/// Bytes from the hardware RNG. With Wi-Fi running (the relay needs it) they
+/// are true random numbers, as ESP-IDF documents for `esp_fill_random`.
+pub fn random(out: &mut [u8]) {
+    // SAFETY: `out` is a valid, writable buffer of `out.len()` bytes.
+    unsafe { esp_fill_random(out.as_mut_ptr().cast(), out.len()) }
 }
 
 /// What was saved, for [`logic::sys::Event::Restored`]; defaults when nothing was.
@@ -217,7 +192,7 @@ pub fn load() -> (Option<Config>, Prefs) {
     let config = nvs
         .get(KEY_PASEO, PASEO_RECORD_MAX)
         .as_deref()
-        .and_then(decode_config);
+        .and_then(Config::decode);
     (config, prefs)
 }
 
@@ -229,7 +204,7 @@ pub fn save_prefs(prefs: &Prefs) {
 
 pub fn save_config(config: Option<&Config>) {
     if let Some(nvs) = Nvs::open(true) {
-        nvs.put(KEY_PASEO, config.map(encode_config).as_deref());
+        nvs.put(KEY_PASEO, config.map(Config::encode).as_deref());
     }
 }
 

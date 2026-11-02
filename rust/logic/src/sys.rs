@@ -214,4 +214,7 @@ pub trait Sys {
     fn save_prefs(&mut self, prefs: &Prefs);
     fn wifi(&mut self, cmd: WifiCmd);
     fn camera(&mut self, on: bool);
+    /// Fills `out` from a cryptographic random source: the keys of each
+    /// relay connection ([`crate::relay`]).
+    fn random(&mut self, out: &mut [u8]);
 }

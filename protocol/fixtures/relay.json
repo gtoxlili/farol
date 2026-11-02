@@ -1,0 +1,38 @@
+{
+  "paseo": "0.14.0",
+  "daemonKeyB64": "SJJqBiScET4FNMYLY9oVKf1hyehJ7W1NfRgJG2K82Es=",
+  "boardEphemeralSecret": "8a6f892a44f9f5e01f527f08b0a596ab1c512587bbbc560bc69db75cf37560f2",
+  "boardRoutingSecret": "675b22f6e956e1ef8d22240c64bd1454af21b96333fc9d4ca883db97c4ce9efa",
+  "handshake": {
+    "helloText": "{\"type\":\"e2ee_hello\",\"key\":\"tIK0fgMYAlNbskjjSWpvJZNdE2nmHbdOtuf+rTFZJRA=\",\"capabilities\":{\"binaryCiphertext\":false},\"protected\":{\"v\":1,\"message\":\"n/rtpTRB4AXzVUKNL8u3F4zJ6Oc1xUKTbgIdqiMiigYIzE3pSlt9pENfghHYb5NFG1M=\"}}",
+    "msg1": "n/rtpTRB4AXzVUKNL8u3F4zJ6Oc1xUKTbgIdqiMiigYIzE3pSlt9pENfghHYb5NFG1M=",
+    "readyText": "{\"type\":\"e2ee_ready\",\"protected\":{\"v\":1,\"message\":\"6jcgS/Syc2pk+sx+3x1OYX90s9/4Kzaoa5cOK+etCkUsFxqJI7frtNhvb7pg5E8n8cA=\"}}",
+    "sendKey": "76aa1f99ce960529340496c3c374ff09573e8fc4e9026816714b30259f39e3fb",
+    "receiveKey": "2bd18ba6e67d4bb460143269e725967fa1a3e6d0be74ae1e51476b1d10d1afa3"
+  },
+  "boardToDaemon": {
+    "plaintext": "{\"type\":\"hello\",\"clientId\":\"farol-3a1f\",\"clientType\":\"cli\",\"protocolVersion\":1}",
+    "frame": "AGU04pWTOruDyBIdSOvP7+KEuGgQ8A13WSLVfhwWRvGFx/iea2WuEuJfUUDk3dklJB/TAk58iqfwSmYg+fG6y2A0veMQf+QHWNBeCuW/IeOF8E7zxB9m0gZZFxfFL5fqD39R6D/SwA=="
+  },
+  "daemonToBoard": [
+    {
+      "plaintext": "{\"type\":\"session\",\"message\":{\"type\":\"status\",\"payload\":{\"status\":\"server_info\",\"serverId\":\"srv_AAAAAAAAAAAA\",\"hostname\":\"studio\",\"version\":\"0.14.0\"}}}",
+      "frame": "AKwZBwT3ObMcyoEypm09ZEVMuHNC35KEwXbctqpH+PD85e3EbmlbH1ebocwGYGgYc/RM2nglhaKimg6BAVHeBfWtjLPGvHclpFGGQHJXDdCZ9/GILLx92caGrgHXLy0QKZWFynDImHwLg/SYOGKut4RShTMcW04wXacYSsTPcZxvKyueVoMo7Ko+e8+9V+PRximg5dR6ih1yB16X8rXIR3COddVnOJrwe2HOIyjI"
+    },
+    {
+      "plaintext": "{\"type\":\"pong\"}",
+      "frame": "ACWDa7LOtvaT8SM0SGsAIkWtwB2Nrga0CVcHB3X+/KBpunrfDDXj"
+    }
+  ],
+  "links": {
+    "offerUrl": "https://app.paseo.sh/#offer=eyJ2IjoyLCJzZXJ2ZXJJZCI6InNydl9BQUFBQUFBQUFBQUEiLCJkYWVtb25QdWJsaWNLZXlCNjQiOiJTSkpxQmlTY0VUNEZOTVlMWTlvVktmMWh5ZWhKN1cxTmZSZ0pHMks4MkVzPSIsInJlbGF5Ijp7ImVuZHBvaW50IjoicmVsYXkucGFzZW8uc2g6NDQzIiwidXNlVGxzIjp0cnVlfX0",
+    "pinnedUrl": "https://app.paseo.sh/#offer=eyJ2IjoyLCJzZXJ2ZXJJZCI6InNydl9BQUFBQUFBQUFBQUEiLCJkYWVtb25QdWJsaWNLZXlCNjQiOiJTSkpxQmlTY0VUNEZOTVlMWTlvVktmMWh5ZWhKN1cxTmZSZ0pHMks4MkVzPSIsInJlbGF5Ijp7ImVuZHBvaW50IjoicmVsYXkucGFzZW8uc2g6NDQzIiwidXNlVGxzIjp0cnVlfSwibWluaW11bVNlY3VyaXR5TW9kZSI6InByb3RlY3RlZCJ9",
+    "relayUri": "relay://relay.paseo.sh:443/srv_AAAAAAAAAAAA?key=SJJqBiScET4FNMYLY9oVKf1hyehJ7W1NfRgJG2K82Es%3D&ssl=true&security=protected&password=pa+ss%2Bword%26%3D",
+    "connectUrl": "https://app.paseo.sh/#connect=relay%3A%2F%2Frelay.paseo.sh%3A443%2Fsrv_AAAAAAAAAAAA%3Fkey%3DSJJqBiScET4FNMYLY9oVKf1hyehJ7W1NfRgJG2K82Es%253D%26ssl%3Dtrue%26security%3Dprotected%26password%3Dpa%2Bss%252Bword%2526%253D",
+    "plainUri": "relay://192.168.1.20:8080/srv_AAAAAAAAAAAA?key=SJJqBiScET4FNMYLY9oVKf1hyehJ7W1NfRgJG2K82Es%3D",
+    "serverId": "srv_AAAAAAAAAAAA",
+    "relayEndpoint": "relay.paseo.sh:443",
+    "relayWebSocketUrl": "wss://relay.paseo.sh/ws?serverId=srv_AAAAAAAAAAAA&role=client&v=2",
+    "password": "pa ss+word&="
+  }
+}
