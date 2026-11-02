@@ -35,6 +35,45 @@ static bool bench_reset_scene(void)
 }
 #endif
 
+/* Panel commands stop GSP's frames first (app_display_guard_t); app_feedback's
+ * task is the only caller, so the pause token needs no lock. */
+#define PANEL_PAUSE_TIMEOUT_MS 500
+#define PANEL_RESUME_ATTEMPTS 3
+static esp_gsp_esp_lcd_pause_t *s_frames_paused;
+static esp_gsp_handle_t *s_ui;
+
+static void frames_resume(void *ctx)
+{
+    (void)ctx;
+    for (int attempt = 0; s_frames_paused && attempt < PANEL_RESUME_ATTEMPTS; ++attempt) {
+        esp_gsp_handle_t ui = NULL;
+        const esp_err_t err = esp_gsp_esp_lcd_resume_paused(s_frames_paused, &ui);
+        if (err == ESP_OK) {
+            s_frames_paused = NULL;
+            if (ui != *s_ui) {
+                ESP_LOGW(TAG, "UI resumed with another handle");
+            }
+            return;
+        }
+        ESP_LOGW(TAG, "UI resume failed (%s)", esp_err_to_name(err));
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+static bool frames_pause(void *ctx)
+{
+    (void)ctx;
+    const esp_err_t err = esp_gsp_esp_lcd_pause(*s_ui, PANEL_PAUSE_TIMEOUT_MS, &s_frames_paused);
+    if (err == ESP_OK) {
+        return true;
+    }
+    if (err == ESP_ERR_NOT_FINISHED) {
+        frames_resume(NULL); /* the token is valid but frames may still run */
+    }
+    ESP_LOGW(TAG, "UI pause failed (%s); panel command skipped", esp_err_to_name(err));
+    return false;
+}
+
 /* The composition root retains owned handles; all live until reboot. */
 static struct {
     app_display_t display;
@@ -100,6 +139,11 @@ void app_main(void)
     ESP_ERROR_CHECK(iris_screen_mirror_init());
     ESP_ERROR_CHECK(esp_gsp_esp_lcd_start(&config, &display, &application.ui));
     ESP_ERROR_CHECK(iris_screen_mirror_attach(application.ui));
+    s_ui = &application.ui;
+    app_display_set_guard(&(app_display_guard_t) {
+        .pause = frames_pause,
+        .resume = frames_resume,
+    });
     /* The scan page's camera preview pushes frames to this UI. Without it the
      * logic's camera requests fail and are logged; the rest runs on. */
     err = app_camera_init(application.ui);

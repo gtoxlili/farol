@@ -492,7 +492,9 @@ impl App {
                 let current = self.current_agent().map(|a| a.id.clone());
                 self.refresh_order(current);
             }
-            self.drift(ui);
+            if self.display != Some(Display::Off) {
+                self.drift(ui);
+            }
         }
         if self.overlay == Overlay::Scan && now_ms >= self.scan_since + SCAN_HINT_MS {
             self.scan_since = now_ms;
@@ -543,7 +545,15 @@ impl App {
         self.update_overlay();
         self.apply_power(sys);
         self.apply_glow(sys);
-        if core::mem::take(&mut self.pulse_start) {
+        let pulse = core::mem::take(&mut self.pulse_start);
+        let ripple = core::mem::take(&mut self.ripple);
+        // A dark screen has its frames stopped (app_display pauses GSP): no scene
+        // writes until it wakes; the painter's cache still describes the panel.
+        if self.display == Some(Display::Off) {
+            self.render_retry = false;
+            return;
+        }
+        if pulse {
             self.painter.run(ui.animate_i32(
                 gsp::GSP_OBJ_KEY_LAMP_PULSE,
                 gsp::GSP_PROP_KEY_PHASE,
@@ -556,7 +566,7 @@ impl App {
         if core::mem::take(&mut self.keyboard_again) {
             self.attach_keyboard(ui);
         }
-        if core::mem::take(&mut self.ripple) {
+        if ripple {
             self.painter.run(ui.set_i32(
                 gsp::GSP_OBJ_KEY_LAMP,
                 gsp::GSP_PROP_KEY_RIPPLE,
@@ -1707,31 +1717,41 @@ mod tests {
     #[derive(Default)]
     struct NullUi {
         typed: String,
+        /// Scene writes made so far.
+        writes: usize,
     }
 
     impl Ui for NullUi {
         fn set_text(&mut self, _: Bind, _: &str) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn set_visible(&mut self, _: Bind, _: bool) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn set_color(&mut self, _: Bind, _: u32) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn animate_color(&mut self, _: Bind, _: u32, _: u32, _: u32, _: Ease) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn set_value(&mut self, _: Key, _: i32) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn animate_value(&mut self, _: Key, _: i32, _: i32, _: u32, _: Ease) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn set_i32(&mut self, _: Key, _: Property, _: i32) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn set_property_color(&mut self, _: Key, _: Property, _: u32) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn animate_i32(
@@ -1743,18 +1763,22 @@ mod tests {
             _: u32,
             _: Ease,
         ) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn keyboard_attach(&mut self, _: u16, _: Bind) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn keyboard_text(&mut self) -> Result<String, gsp::esp_gsp_err_t> {
             Ok(self.typed.clone())
         }
         fn set_page(&mut self, _: Key, _: u16, _: bool) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
         fn set_drawer(&mut self, _: Key, _: bool, _: bool) -> UiResult {
+            self.writes += 1;
             Ok(())
         }
     }
@@ -1850,6 +1874,20 @@ mod tests {
             Some(Display::Off)
         );
         assert!(sys.glows > 0);
+    }
+
+    #[test]
+    fn a_dark_screen_gets_no_scene_writes_until_it_wakes() {
+        let (mut app, mut ui, mut sys) = board(vec![agent("a", State::Work, 1)]);
+        assert_eq!(
+            at(&mut app, &mut ui, &mut sys, 10 * MIN),
+            Some(Display::Off)
+        );
+        let before = ui.writes;
+        app.poll(12 * MIN, &mut ui, &mut sys);
+        assert_eq!(ui.writes, before);
+        app.handle(12 * MIN + 5, Event::Touch, &mut ui, &mut sys);
+        assert!(ui.writes > before);
     }
 
     #[test]
