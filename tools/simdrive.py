@@ -108,6 +108,12 @@ class Sim:
     def page(self, name: str) -> int:
         return int(self.call("component_get_motion", {"name": name})["state"]["value"])
 
+    def key(self, *keys: str) -> None:
+        """Taps on-screen keyboard keys by name, e.g. "lower_key_0_1"."""
+        for k in keys:
+            self.call("tap_object", {"name": f"kb_{k}"})
+            self.frames(6)
+
     def expect(self, what: str, ok: bool) -> None:
         print(f"  {'ok  ' if ok else 'FAIL'} {what}")
         if not ok:
@@ -198,12 +204,90 @@ def flow_welcome(s: Sim) -> None:
     s.shot("2-scan")
 
 
+# Lower-case letters on the keyboard's first layer (row_column).
+LETTERS = {"a": "1_0", "b": "2_5", "c": "2_3", "g": "1_4", "n": "2_6", "o": "0_8", "r": "0_3",
+           "w": "0_1", "x": "2_2"}
+OK_KEY = "lower_key_3_2"
+
+
+def type_word(s: Sim, word: str) -> None:
+    s.key(*(f"lower_key_{LETTERS[ch]}" for ch in word))
+
+
+def flow_manual(s: Sim) -> None:
+    s.tap(342, 398)
+    s.frames(20)
+    s.expect("manual entry opens the keyboard page", s.visible("st_input"))
+    type_word(s, "abc")
+    s.shot("1-address")
+    s.key(OK_KEY)
+    s.frames(10)
+    type_word(s, "x")
+    s.shot("2-password")
+    s.key(OK_KEY)
+    s.frames(20)
+    s.expect("two steps lead to the confirm page", s.visible("st_pair"))
+    s.shot("3-confirm")
+
+
+def flow_wifi(s: Sim) -> None:
+    s.drag(240, 6, 240, 380)
+    s.frames(20)
+    s.tap(120, 115)
+    s.frames(20)
+    s.expect("the Wi-Fi tile opens network details", s.visible("st_netinfo"))
+    s.shot("1-details")
+    s.tap(138, 406)
+    s.frames(20)
+    s.expect("choose a network lists the scan", s.visible("st_wifi") and s.visible("wf_row1"))
+    s.shot("2-list")
+    s.tap(240, 175)
+    s.frames(20)
+    s.expect("a protected network asks for its password", s.visible("st_input"))
+    type_word(s, "wrong")
+    s.key(OK_KEY)
+    s.frames(20)
+    s.expect("a wrong password stays on the page", s.visible("st_input"))
+    s.shot("3-wrong-password")
+
+
+def flow_link(s: Sim) -> None:
+    s.drag(240, 6, 240, 380)
+    s.frames(20)
+    s.tap(350, 115)
+    s.frames(20)
+    s.expect("the Paseo tile opens connection details", s.visible("st_link"))
+    s.shot("1-link")
+    s.tap(342, 406)
+    s.frames(10)
+    s.shot("2-forget-armed")
+
+
+def flow_pulse(s: Sim) -> None:
+    # The demo's "runtime" agent finishes 70 s into the script; this run starts at 69 s.
+    seen = False
+    for _ in range(60):
+        if s.visible("lamp_pulse"):
+            seen = True
+            break
+        s.ms(50)
+    s.expect("a finished turn plays the pulse", seen)
+    s.ms(250)
+    s.shot("1-pulse")
+    s.ms(1000)
+    s.expect("the pulse plays once", not s.visible("lamp_pulse"))
+
+
 FLOWS = {
     "home": (flow_home, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "answer": (flow_answer, {"FAROL_SIM": "demo", "FAROL_SIM_T": "13000"}),
     "stop": (flow_stop, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "cancel": (flow_cancel, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "welcome": (flow_welcome, {"FAROL_SIM": "welcome"}),
+    "manual": (flow_manual, {"FAROL_SIM": "welcome"}),
+    "wifi": (flow_wifi, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
+    "link": (flow_link, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
+    "pulse": (flow_pulse, {"FAROL_SIM": "demo", "FAROL_SIM_T": "69000"}),
 }
 
 

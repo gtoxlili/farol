@@ -68,6 +68,15 @@ pub struct Dot {
     pub color: Bind,
 }
 
+/// One network row on the "choose a network" page; `bars` are color binds.
+#[derive(Clone, Copy)]
+pub struct WifiRow {
+    pub vis: Bind,
+    pub name: Bind,
+    pub meta: Bind,
+    pub bars: [Bind; 3],
+}
+
 pub const CARDS: [Card; 3] = [
     Card {
         dot: gsp::GSP_BIND_C0_DOT as Bind,
@@ -470,4 +479,72 @@ pub const HOME_WORD: [Variant; VARIANTS] = [
         vis: gsp::GSP_BIND_HOME_WORD_DIM_VIS as Bind,
         text: gsp::GSP_BIND_HOME_WORD_DIM_T as Bind,
     },
+];
+pub const WIFI_ROWS: [WifiRow; 6] = [
+    WifiRow {
+        vis: gsp::GSP_BIND_WF_ROW0_VIS as Bind,
+        name: gsp::GSP_BIND_WF_NAME0 as Bind,
+        meta: gsp::GSP_BIND_WF_META0 as Bind,
+        bars: [
+            gsp::GSP_BIND_WF_SIG0_0 as Bind,
+            gsp::GSP_BIND_WF_SIG0_1 as Bind,
+            gsp::GSP_BIND_WF_SIG0_2 as Bind,
+        ],
+    },
+    WifiRow {
+        vis: gsp::GSP_BIND_WF_ROW1_VIS as Bind,
+        name: gsp::GSP_BIND_WF_NAME1 as Bind,
+        meta: gsp::GSP_BIND_WF_META1 as Bind,
+        bars: [
+            gsp::GSP_BIND_WF_SIG1_0 as Bind,
+            gsp::GSP_BIND_WF_SIG1_1 as Bind,
+            gsp::GSP_BIND_WF_SIG1_2 as Bind,
+        ],
+    },
+    WifiRow {
+        vis: gsp::GSP_BIND_WF_ROW2_VIS as Bind,
+        name: gsp::GSP_BIND_WF_NAME2 as Bind,
+        meta: gsp::GSP_BIND_WF_META2 as Bind,
+        bars: [
+            gsp::GSP_BIND_WF_SIG2_0 as Bind,
+            gsp::GSP_BIND_WF_SIG2_1 as Bind,
+            gsp::GSP_BIND_WF_SIG2_2 as Bind,
+        ],
+    },
+    WifiRow {
+        vis: gsp::GSP_BIND_WF_ROW3_VIS as Bind,
+        name: gsp::GSP_BIND_WF_NAME3 as Bind,
+        meta: gsp::GSP_BIND_WF_META3 as Bind,
+        bars: [
+            gsp::GSP_BIND_WF_SIG3_0 as Bind,
+            gsp::GSP_BIND_WF_SIG3_1 as Bind,
+            gsp::GSP_BIND_WF_SIG3_2 as Bind,
+        ],
+    },
+    WifiRow {
+        vis: gsp::GSP_BIND_WF_ROW4_VIS as Bind,
+        name: gsp::GSP_BIND_WF_NAME4 as Bind,
+        meta: gsp::GSP_BIND_WF_META4 as Bind,
+        bars: [
+            gsp::GSP_BIND_WF_SIG4_0 as Bind,
+            gsp::GSP_BIND_WF_SIG4_1 as Bind,
+            gsp::GSP_BIND_WF_SIG4_2 as Bind,
+        ],
+    },
+    WifiRow {
+        vis: gsp::GSP_BIND_WF_ROW5_VIS as Bind,
+        name: gsp::GSP_BIND_WF_NAME5 as Bind,
+        meta: gsp::GSP_BIND_WF_META5 as Bind,
+        bars: [
+            gsp::GSP_BIND_WF_SIG5_0 as Bind,
+            gsp::GSP_BIND_WF_SIG5_1 as Bind,
+            gsp::GSP_BIND_WF_SIG5_2 as Bind,
+        ],
+    },
+];
+pub const SAVED_ROWS: [Bind; 4] = [
+    gsp::GSP_BIND_NI_SAVED0 as Bind,
+    gsp::GSP_BIND_NI_SAVED1 as Bind,
+    gsp::GSP_BIND_NI_SAVED2 as Bind,
+    gsp::GSP_BIND_NI_SAVED3 as Bind,
 ];

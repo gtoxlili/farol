@@ -16,14 +16,36 @@ use std::time::Instant;
 use gsp_sys as gsp;
 use logic::App;
 use logic::paseo::{Config, Out};
-use logic::sys::{Chime, Display, Event, Glow, Haptic, Net, NetState, Power, Prefs, Sys, WifiCmd};
+use logic::sys::{
+    Ap, Chime, Display, Event, Glow, Haptic, Net, NetState, Power, Prefs, Sys, WifiCmd,
+};
 use logic::ui::GspUi;
 
 /// Poll granularity for time-driven work.
 const POLL_PERIOD_MS: u32 = 50;
 
 /// Effects become stderr lines; the scenario logs show what the board would do.
-struct SimSys;
+/// Wi-Fi is emulated: a scan finds a few sample networks, and a join succeeds
+/// unless the password is "wrong". Those answers wait in `pending`.
+#[derive(Default)]
+struct SimSys {
+    pending: Vec<Event>,
+}
+
+fn sample_networks() -> Vec<Event> {
+    let ap = |ssid: &str, rssi, secure, saved| Ap {
+        ssid: ssid.into(),
+        rssi,
+        secure,
+        saved,
+    };
+    vec![Event::Networks(vec![
+        ap("sim", -48, true, true),
+        ap("example-home-5f", -61, true, false),
+        ap("example-guest", -70, false, false),
+        ap("example-lab", -82, true, false),
+    ])]
+}
 
 impl Sys for SimSys {
     fn link(&mut self, out: Out) {
@@ -49,6 +71,24 @@ impl Sys for SimSys {
     }
     fn wifi(&mut self, cmd: WifiCmd) {
         eprintln!("farol sim: wifi {cmd:?}");
+        match cmd {
+            WifiCmd::Scan => self.pending.extend(sample_networks()),
+            WifiCmd::Join { ssid, password } => {
+                let state = if password == "wrong" {
+                    NetState::WrongPassword
+                } else {
+                    NetState::Online
+                };
+                self.pending.push(Event::Net(Net {
+                    state,
+                    ssid,
+                    rssi: -52,
+                    saved: vec!["sim".into()],
+                    ip: "192.0.2.10".into(),
+                }));
+            }
+            WifiCmd::Retry | WifiCmd::Forget { .. } => {}
+        }
     }
     fn camera(&mut self, on: bool) {
         eprintln!("farol sim: camera {on}");
@@ -71,6 +111,11 @@ impl Backend {
     fn handle(&mut self, event: Event) {
         let now = self.now_ms();
         self.app.handle(now, event, &mut self.ui, &mut self.sys);
+        // Emulated Wi-Fi answers arrive as their own events, as on the board.
+        while !self.sys.pending.is_empty() {
+            let event = self.sys.pending.remove(0);
+            self.app.handle(now, event, &mut self.ui, &mut self.sys);
+        }
         self.poll();
     }
 
@@ -163,7 +208,7 @@ pub unsafe extern "C" fn app_logic_host_start(handle: gsp::esp_gsp_handle_t) -> 
         app,
         // SAFETY: the bridge keeps the handle valid until deinit.
         ui: unsafe { GspUi::new(handle) },
-        sys: SimSys,
+        sys: SimSys::default(),
         epoch: Instant::now(),
         timer: ptr::null_mut(),
     }));

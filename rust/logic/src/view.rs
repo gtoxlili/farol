@@ -7,7 +7,8 @@ use alloc::string::{String, ToString};
 
 use gsp_sys as gsp;
 
-use crate::app::{App, DECK, Overlay, SLOTS};
+use crate::app::{App, DECK, Entry, Overlay, SLOTS};
+use crate::model::VERSION;
 use crate::model::{Agent, AskKind, State};
 use crate::paseo::Down;
 use crate::scene::{self, Card, Variant};
@@ -681,7 +682,7 @@ fn control(app: &App, p: &mut Painter, ui: &mut impl Ui) {
 fn down_text(down: &Down) -> &'static str {
     match down {
         Down::None => "正在连接…",
-        Down::Unconfigured => "还没配对",
+        Down::Unconfigured => "还没有连接 Paseo",
         Down::Dns => "找不到这个地址",
         Down::Timeout => "连接超时",
         Down::Tls => "TLS 证书无效",
@@ -716,6 +717,29 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         matches!(o, Overlay::Pair { .. }),
     );
     p.visible(ui, bind(gsp::GSP_BIND_ST_SCAN_VIS), *o == Overlay::Scan);
+    p.visible(
+        ui,
+        bind(gsp::GSP_BIND_ST_INPUT_VIS),
+        matches!(o, Overlay::Input { .. }),
+    );
+    p.visible(ui, bind(gsp::GSP_BIND_ST_WIFI_VIS), *o == Overlay::Wifi);
+    p.visible(
+        ui,
+        bind(gsp::GSP_BIND_ST_NETINFO_VIS),
+        *o == Overlay::NetInfo,
+    );
+    p.visible(ui, bind(gsp::GSP_BIND_ST_LINK_VIS), *o == Overlay::Link);
+    match o {
+        Overlay::Input {
+            entry,
+            error,
+            joining,
+        } => input_page(p, ui, entry, error.as_deref(), *joining),
+        Overlay::Wifi => wifi_page(app, p, ui),
+        Overlay::NetInfo => net_details(app, p, ui),
+        Overlay::Link => link_details(app, p, ui),
+        _ => {}
+    }
 
     p.text(
         ui,
@@ -770,7 +794,12 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     );
 
     // No Paseo.
-    p.text(ui, bind(gsp::GSP_BIND_ST_NP_REASON), down_text(app.down()));
+    let reason = match app.plugin_version {
+        Some(v) if v > VERSION => "Farol 插件比固件新：请更新板子的固件",
+        Some(_) => "Farol 插件比固件旧：请在 Paseo 里更新插件",
+        None => down_text(app.down()),
+    };
+    p.text(ui, bind(gsp::GSP_BIND_ST_NP_REASON), reason);
     let retry = match app.session.retry_at() {
         Some(at) => format!(
             "已重试 {} 次，{} 秒后再试",
@@ -843,4 +872,156 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
             &format!("连不上 Paseo · {} · 点开看原因", down_text(app.down())),
         );
     }
+}
+
+// ---------------------------------------------------------------- setup pages
+
+/// Signal strength as a word and as lit bars out of three.
+fn signal(rssi: i8) -> (&'static str, usize) {
+    match rssi {
+        -60.. => ("信号很好", 3),
+        -70..=-61 => ("信号一般", 2),
+        _ => ("信号弱", 1),
+    }
+}
+
+fn input_page(
+    p: &mut Painter,
+    ui: &mut impl Ui,
+    entry: &Entry,
+    error: Option<&str>,
+    joining: bool,
+) {
+    let (title, caption) = match entry {
+        Entry::Address => (
+            String::from("连接 Paseo"),
+            String::from("第 1 步，共 2 步 · daemon 地址，例如 paseo.example.net"),
+        ),
+        Entry::Password { url } => (
+            String::from("连接 Paseo"),
+            format!(
+                "第 2 步，共 2 步 · {} 的 daemon 密码",
+                crate::qr::host_of(url)
+            ),
+        ),
+        Entry::WifiPassword { ssid } => (
+            format!("加入「{ssid}」"),
+            String::from(if joining {
+                "正在连接…"
+            } else {
+                "Wi-Fi 密码"
+            }),
+        ),
+    };
+    p.text(
+        ui,
+        bind(gsp::GSP_BIND_IN_TITLE),
+        &text::fit(&title, 330, 22),
+    );
+    p.text(
+        ui,
+        bind(gsp::GSP_BIND_IN_CAPTION),
+        &text::fit(&caption, 432, 13),
+    );
+    p.text(ui, bind(gsp::GSP_BIND_IN_ERROR), error.unwrap_or(""));
+}
+
+fn wifi_page(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let note = match (app.networks.is_empty(), app.scanning) {
+        (true, true) => "正在扫描…",
+        (true, false) => "附近没有 2.4 GHz 网络",
+        _ => "",
+    };
+    p.text(ui, bind(gsp::GSP_BIND_WF_NOTE), note);
+    for (i, row) in scene::WIFI_ROWS.iter().enumerate() {
+        let ap = app.networks.get(i);
+        p.visible(ui, row.vis, ap.is_some());
+        let Some(ap) = ap else { continue };
+        let (word, lit) = signal(ap.rssi);
+        let mut meta = String::new();
+        if ap.saved {
+            meta.push_str("已保存 · ");
+        }
+        meta.push_str(if ap.secure {
+            "需要密码 · "
+        } else {
+            "开放网络 · "
+        });
+        meta.push_str(word);
+        p.text(ui, row.name, &text::fit(&ap.ssid, 360, 18));
+        p.text(ui, row.meta, &meta);
+        for (k, bar) in row.bars.iter().enumerate() {
+            p.color(ui, *bar, if k < lit { INK1 } else { DIM });
+        }
+    }
+}
+
+fn net_details(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let net = &app.net;
+    let online = net.state == NetState::Online;
+    let ssid = if online {
+        net.ssid.as_str()
+    } else {
+        "没有连上 Wi-Fi"
+    };
+    p.text(ui, bind(gsp::GSP_BIND_NI_SSID), &text::fit(ssid, 432, 28));
+    let signal_line = if online {
+        format!("{} · {} dBm", signal(net.rssi).0, net.rssi)
+    } else {
+        String::new()
+    };
+    p.text(ui, bind(gsp::GSP_BIND_NI_SIGNAL), &signal_line);
+    let ip = if online && !net.ip.is_empty() {
+        format!("IP {}", net.ip)
+    } else {
+        String::new()
+    };
+    p.text(ui, bind(gsp::GSP_BIND_NI_IP), &ip);
+    for (i, b) in scene::SAVED_ROWS.iter().enumerate() {
+        let name = match (i, net.saved.get(i)) {
+            (0, None) => "还没有保存任何网络",
+            (_, Some(name)) => name.as_str(),
+            _ => "",
+        };
+        p.text(ui, *b, &text::fit(name, 432, 17));
+    }
+}
+
+fn link_details(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let url = app.session.config().map(|c| c.url.as_str()).unwrap_or("");
+    let host = if !app.host.is_empty() && app.host != "demo" {
+        app.host.clone()
+    } else if url.is_empty() {
+        String::from("还没有连接 Paseo")
+    } else {
+        crate::qr::host_of(url)
+    };
+    p.text(ui, bind(gsp::GSP_BIND_LK_HOST), &text::fit(&host, 432, 28));
+    p.text(ui, bind(gsp::GSP_BIND_LK_URL), url);
+    let state = if app.session.is_ready() {
+        let mut line = String::from("已连接");
+        if let Some(rtt) = app.session.rtt_ms() {
+            line.push_str(&format!(" · 延迟 {rtt} ms"));
+        }
+        if let Some(at) = app.last_sync {
+            line.push_str(&format!(" · {}同步", time::ago(app.now as i64, at as i64)));
+        }
+        line
+    } else if url.is_empty() {
+        String::new()
+    } else {
+        String::from(down_text(app.down()))
+    };
+    p.text(ui, bind(gsp::GSP_BIND_LK_STATE), &state);
+    p.text(
+        ui,
+        bind(gsp::GSP_BIND_LK_DEVICE),
+        &format!("这块板子：farol-{}", app.device),
+    );
+    let forget = if app.now < app.forget_until {
+        "再点一次，忘记它"
+    } else {
+        "忘记这台 Paseo"
+    };
+    p.text(ui, bind(gsp::GSP_BIND_LK_FORGET_T), forget);
 }
