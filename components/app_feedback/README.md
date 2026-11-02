@@ -1,9 +1,9 @@
 # app_feedback
 
 Carries out Farol's board feedback and reads its sensors: vibration patterns,
-the three chimes, the interaction module (hot-plug, PIR, ambient light, touch
-keys, six LEDs), the AI key, BMI270 motion, the BQ27220 fuel gauge, and panel
-power and brightness. It decides nothing: when to vibrate, ring, glow or switch
+the three chimes, the microphone for dictation, the interaction module
+(hot-plug, PIR, ambient light, touch keys, six LEDs), the AI key, BMI270
+motion, the BQ27220 fuel gauge, and panel power and brightness. It decides nothing: when to vibrate, ring, glow or switch
 the panel off is the logic's decision (`rust/logic`); the Rust glue is
 `rust/platform/src/feedback.rs`.
 
@@ -15,6 +15,8 @@ app_feedback_chime(APP_FEEDBACK_CHIME_DONE);
 app_feedback_glow(APP_FEEDBACK_GLOW_WORK);   /* only shown with the module */
 app_feedback_led_brightness(60);
 app_feedback_display(true, 80);
+app_feedback_on_audio(on_audio, ctx);        /* 16 kHz mono s16le, on `chime` */
+app_feedback_listen(true);                   /* ... then false; NULL ends it */
 ```
 
 ## Tasks and ownership
@@ -22,7 +24,7 @@ app_feedback_display(true, 80);
 | Task | Priority, stack | Owns |
 |---|---|---|
 | `feedback` | 6, 5 KB | motor, AI key state, IMU, fuel gauge, module driver and LEDs, panel power (through `app_display`), the event callback |
-| `chime` | 3, 3.5 KB | the ES8311 speaker path |
+| `chime` | 3, 3.5 KB | the ES8311 codec: the speaker and the microphone, one at a time |
 
 Requests (`app_feedback_*`) only write a mailbox under a spinlock and notify
 `feedback`; they never block. The latest request wins, except that a FLASH
@@ -40,8 +42,9 @@ when one cannot be created.
 | Part | How | BSP |
 |---|---|---|
 | Haptics | step patterns timed by `feedback` from the planned step end: tick 10 ms, confirm 25 ms, call two 45 ms pulses at 55 %, fail 170 ms then 50 ms | `bsp_motor_*` (GPIO8, LEDC PWM) |
-| Chimes | `tools/chimes.py` synthesizes 16 kHz mono PCM at build time (stdlib only, deterministic); the codec opens per chime and closes after 3 s idle, so the amplifier is off between chimes | `bsp_audio_init` (speaker only, mic DIN unassigned), `bsp_audio_codec_speaker_init` |
-| AI key | press, 600 ms long press, release; a click is a release without a long press; a key held through boot is ignored until released | `bsp_iot_button_create` (GPIO7) |
+| Chimes | `tools/chimes.py` synthesizes 16 kHz mono PCM at build time (stdlib only, deterministic); the codec opens per chime and closes after 3 s idle, so the amplifier is off between chimes | `bsp_audio_init` (both directions on I2S0), `bsp_audio_codec_speaker_init` |
+| Microphone | `app_feedback_listen(true)` records at 16 kHz (the speaker's rate: both share the I2S clock) with 30 dB gain, 25 ms reads, 0.5 s chunks to the audio callback from a PSRAM buffer; it stops on `listen(false)` or after 60 s and always ends with a NULL call; chimes asked for meanwhile are dropped, since the speaker sits next to the microphone | `bsp_audio_codec_microphone_init` (ES8311 ADC) |
+| AI key | press, 600 ms long press (`AI_LONG`), release (`AI_RELEASE` after a long press, else `AI_CLICK`); a key held through boot is ignored until released | `bsp_iot_button_create` (GPIO7) |
 | Motion | accelerometer polled every 50 ms; `LIFTED` when a board that sat still for 1.5 s tilts 12° or its acceleration departs 0.15 g from 1 g; `FACE_DOWN` when the screen faces down (z < -0.85 g share) for 0.8 s, `FACE_UP` when it leaves that (z > -0.5) for 0.3 s | `bsp_imu_*` (BMI270, 50 Hz, 2 g) |
 | Power | every 5 s; reported on a change of percent, charging or availability, a change of 2+ minutes in the estimate, and at least every 30 s; charging follows the factory firmware (DSG flag, positive current, 3 confirming samples); `known=false` while the gauge does not answer (retried every 30 s) | `bsp_battery_init`, `bsp_battery_read` (BQ27220) |
 | Module | see below | `mosaico_module_mgr`, `mosaico_module_interact` |
@@ -75,7 +78,8 @@ The driver's brightness is fixed at 96/255; the LED percentage scales below it.
 
 ## Logs
 
-Tag `feedback`: `ready`, each haptic and chime, AI key and touch keys,
+Tag `feedback`: `ready`, each haptic and chime, `listening` and `listened <ms>`,
+AI key and touch keys,
 `presence`, `motion`, `power` changes, module attach and removal, glow changes,
 display on and off, and every 60 s a `status:` line with the battery, the IMU's
 z share and the module's state, ambient level, glow and LED brightness.
