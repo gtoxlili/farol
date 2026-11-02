@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "timeout_seconds": 60,
+  "checks": [
+    "the demo fleet reaches the home lamp",
+    "a swipe moves to the deck",
+    "a swipe moves to usage"
+  ],
+  "steps": [
+    {"action": "wait_property", "name": "home_count_box", "property": "visible", "value": true, "max_frames": 240,
+     "check": "the demo fleet reaches the home lamp"},
+    {"action": "screenshot", "file": "home.png"},
+    {"action": "drag", "x1": 420, "y1": 300, "x2": 60, "y2": 300},
+    {"action": "wait_component", "name": "screens", "value": 2, "require_new_event": true, "max_frames": 120,
+     "check": "a swipe moves to the deck"},
+    {"action": "screenshot", "file": "deck.png"},
+    {"action": "drag", "x1": 60, "y1": 300, "x2": 420, "y2": 300},
+    {"action": "wait_component", "name": "screens", "value": 1, "require_new_event": true, "max_frames": 120},
+    {"action": "drag", "x1": 60, "y1": 300, "x2": 420, "y2": 300},
+    {"action": "wait_component", "name": "screens", "value": 0, "require_new_event": true, "max_frames": 120,
+     "check": "a swipe moves to usage"},
+    {"action": "screenshot", "file": "usage.png"}
+  ]
+}
