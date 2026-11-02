@@ -112,6 +112,8 @@ pub struct Session {
     prefs: Option<BoardPrefs>,
     /// The poll in flight carries `prefs`.
     prefs_in_poll: bool,
+    /// The screen in front, as the plugin knows it.
+    screen: &'static str,
     last_rx: u64,
     last_ping: u64,
     ping_at: Option<u64>,
@@ -137,6 +139,7 @@ impl Session {
             focus: None,
             prefs: None,
             prefs_in_poll: false,
+            screen: "home",
             last_rx: 0,
             last_ping: 0,
             ping_at: None,
@@ -450,11 +453,14 @@ impl Session {
     }
 
     /// The card on screen changed; the plugin answers the waiting poll at once.
-    pub fn set_focus(&mut self, focus: Option<&str>) {
-        if self.focus.as_deref() == focus {
+    /// The agent card on screen (its live detail is pushed) and the screen
+    /// in front ("usage" asks for fresh quota numbers).
+    pub fn set_focus(&mut self, focus: Option<&str>, screen: &'static str) {
+        if self.focus.as_deref() == focus && self.screen == screen {
             return;
         }
         self.focus = focus.map(ToString::to_string);
+        self.screen = screen;
         self.send_focus();
     }
 
@@ -476,6 +482,7 @@ impl Session {
             let input = serde_json::to_value(model::Focus {
                 focus: self.focus.as_deref(),
                 device: &self.device,
+                screen: self.screen,
                 prefs: self.prefs,
             })
             .unwrap_or(Value::Null);
@@ -490,6 +497,8 @@ impl Session {
             cursor: self.cursor,
             focus: self.focus.as_deref(),
             device: &self.device,
+            screen: self.screen,
+            fw: crate::FIRMWARE,
             prefs: self.prefs,
         })
         .unwrap_or(Value::Null);
@@ -752,6 +761,7 @@ mod tests {
         s.take_out();
         let act = Act {
             agent: "a".into(),
+            device: "farol-3a1f".into(),
             kind: ActKind::Answer,
             request_id: Some("r".into()),
             choice: Some(0),
@@ -790,8 +800,8 @@ mod tests {
     fn focus_changes_wake_the_plugin_once() {
         let mut s = ready();
         s.take_out();
-        s.set_focus(Some("a-work"));
-        s.set_focus(Some("a-work"));
+        s.set_focus(Some("a-work"), "deck");
+        s.set_focus(Some("a-work"), "deck");
         let frames = sent(&mut s);
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0]["message"]["method"], "farol.focus");

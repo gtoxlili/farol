@@ -1219,8 +1219,13 @@ impl App {
         } else {
             None
         };
+        let screen = match self.screen {
+            DECK => "deck",
+            HOME => "home",
+            _ => "usage",
+        };
         if self.demo.is_none() {
-            self.session.set_focus(focus.as_deref());
+            self.session.set_focus(focus.as_deref(), screen);
         }
     }
 
@@ -1349,6 +1354,7 @@ impl App {
     ) -> bool {
         let act = Act {
             agent: agent.to_string(),
+            device: alloc::format!("farol-{}", self.device),
             kind,
             request_id,
             choice,

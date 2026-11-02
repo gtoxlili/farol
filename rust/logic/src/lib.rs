@@ -16,6 +16,9 @@
 
 extern crate alloc;
 
+/// Firmware version, as the board reports it to the plugin.
+pub const FIRMWARE: &str = env!("CARGO_PKG_VERSION");
+
 mod app;
 mod demo;
 pub mod model;
