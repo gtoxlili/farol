@@ -112,6 +112,7 @@ function Boards({ theme, onBoardSound }: HostProps & { onBoardSound?(sound: bool
           label={b.device}
           hint={[
             b.online ? "在线" : "离线",
+            b.fw ? `固件 ${b.fw}` : null,
             `最近一次 ${ago(b.lastSeen, now)}`,
             b.prefs
               ? `声音${b.prefs.sound ? "开" : "关"} · 振动${b.prefs.haptic ? "开" : "关"} · 亮度 ${b.prefs.brightness}%${b.prefs.dnd ? " · 勿扰" : ""}`
@@ -121,6 +122,7 @@ function Boards({ theme, onBoardSound }: HostProps & { onBoardSound?(sound: bool
             .join(" · ")}
         />
       ))}
+      {query.data?.usageAt ? <Text style={muted}>额度数据更新于 {ago(query.data.usageAt, now)}</Text> : null}
       {query.data && !query.data.canStop ? (
         <Text style={muted}>找不到 paseo 命令行，板子上的“停止”不可用。</Text>
       ) : null}

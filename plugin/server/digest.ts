@@ -255,6 +255,8 @@ function digestAgent(entry: Entry, input: DigestInput, focused: boolean): Agent 
   return out;
 }
 
+const KEEP_RANK: Record<State, number> = { call: 0, work: 1, fail: 2, done: 3, seen: 4 };
+
 function stateRank(s: State): number {
   return STATES.indexOf(s);
 }
@@ -298,19 +300,19 @@ export function digest(input: DigestInput): Omit<Snapshot, "rev" | "idle"> {
     if (stale && !focused) continue;
     agents.push(agent);
   }
-  agents.sort(
-    (x, y) =>
-      stateRank(x.state) - stateRank(y.state) ||
-      (y.since ?? 0) - (x.since ?? 0) ||
-      x.id.localeCompare(y.id),
-  );
+  const bySince = (x: Agent, y: Agent) => (y.since ?? 0) - (x.since ?? 0) || x.id.localeCompare(y.id);
   if (agents.length > MAX_AGENTS) {
-    const keep = agents.slice(0, MAX_AGENTS);
+    // What survives the cap: waiting and working cards first, so a pile of
+    // unread finished cards can never hide a live one; then failed, finished, read.
+    const keep = [...agents]
+      .sort((x, y) => KEEP_RANK[x.state] - KEEP_RANK[y.state] || bySince(x, y))
+      .slice(0, MAX_AGENTS);
     const focused = agents.find((a) => a.id === input.focus);
     if (focused && !keep.includes(focused)) keep[keep.length - 1] = focused;
     agents.length = 0;
     agents.push(...keep);
   }
+  agents.sort((x, y) => stateRank(x.state) - stateRank(y.state) || bySince(x, y));
   return {
     v: PROTOCOL_VERSION,
     now: input.now,

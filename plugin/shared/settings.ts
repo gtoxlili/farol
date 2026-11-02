@@ -39,6 +39,9 @@ export const BoardSchema = z.object({
   lastSeen: z.number(),
   online: z.boolean(),
   focus: z.string().nullable(),
+  /** Firmware version and the screen in front, as the board last reported. */
+  fw: z.string().nullable(),
+  screen: z.string().nullable(),
   /** What the board's own control centre last reported. */
   prefs: BoardPrefsSchema.nullable(),
 });
@@ -52,6 +55,8 @@ export const statusRpc = defineRpc({
     host: z.string(),
     boards: z.array(BoardSchema),
     canStop: z.boolean(),
+    /** When provider usage was last fetched, epoch ms. */
+    usageAt: z.number().nullable(),
     /** Sound as last switched on a board, when that is newer than this page's setting. */
     boardSound: z.boolean().nullable(),
   }),

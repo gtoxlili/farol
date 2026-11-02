@@ -154,6 +154,8 @@ try {
   await board.setPrefs({ sound: first.settings.sound, haptic: true, brightness: 70, dnd: false });
   await until("settings back", (s) => s.settings?.sound === first.settings.sound, 5_000);
 
+  check(me?.fw === "1.0.0" && me?.screen === "home", "recent boards show firmware and screen", `fw=${me?.fw} screen=${me?.screen}`);
+
   // 1. A working agent: live detail for the focused card.
   const work = await spawn("Fix the spawn error", "work fast");
   await until("work agent working", (s) => agentIn(s, work)?.state === "work");
@@ -195,7 +197,11 @@ try {
     `body="${agentIn(afterAsk, ask)?.body}" (${Date.now() - tAnswer} ms)`,
   );
   const askRows = await timelineRows(ask);
-  check(askRows.some((r) => r.kind === "farol-action" && r.data?.action === "answer"), "timeline row appended for the answer", JSON.stringify(askRows.map((r) => r.data)));
+  check(
+    askRows.some((r) => r.kind === "farol-action" && r.data?.action === "answer" && r.data?.device === `farol-${board.device}`),
+    "timeline row names the board",
+    JSON.stringify(askRows.map((r) => r.data)),
+  );
 
   // 4. Permission, denied from the board.
   const perm = await spawn("Clean the build", "permission fast");
@@ -263,6 +269,26 @@ try {
     });
     const idle = snapshots.slice(before).find((s) => s.idle);
     check(Boolean(idle) && idle.ms >= 24_000 && idle.ms <= 26_000, "idle answer after ~25 s", `poll took ${idle?.ms} ms, waited ${Date.now() - tIdle} ms`);
+  }
+
+  // 10. The board turns to its usage screen: usage is fetched at once, but at
+  // most once a minute, so wait out the fetch made when observation started.
+  {
+    const status = async () => (await board.rpc("farol.status", {})).output;
+    const before = (await status()).usageAt;
+    const wait = before + 61_000 - Date.now();
+    if (wait > 0) {
+      say(`waiting ${Math.round(wait / 1000)} s for the once-a-minute usage limit`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+    const tUsage = Date.now();
+    await board.setFocus(null, "usage");
+    const after = (await status()).usageAt;
+    check(after >= tUsage, "usage screen refreshes usage at once", `fetched ${after - tUsage} ms after the switch`);
+    await board.setFocus(null, "deck");
+    await board.setFocus(null, "usage");
+    check((await status()).usageAt === after, "a second switch within a minute does not refetch");
+    check(latest.usage.length > 0, "snapshot carries usage", latest.usage.map((u) => `${u.label} ${u.used}%`).join(", ") + ` fuel=${JSON.stringify(latest.fuel)}`);
   }
 } catch (error) {
   check(false, "scenario threw", String(error?.stack ?? error));

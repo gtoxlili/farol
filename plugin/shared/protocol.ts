@@ -98,12 +98,17 @@ export const SnapshotSchema = z.object({
 export type Snapshot = z.infer<typeof SnapshotSchema>;
 
 const deviceId = z.string().max(64);
+/** The board's screen in front: "usage", "home" or "deck" (lenient for newer boards). */
+const screen = z.string().max(16);
 
 export const NextSchema = z.object({
   v: z.number().int(),
   cursor: z.number().int().nonnegative(),
   focus: z.string().nullable().optional(),
   device: deviceId,
+  /** Absent from boards older than firmware 1.0.0. */
+  screen: screen.optional(),
+  fw: z.string().max(32).optional(),
   prefs: BoardPrefsSchema.optional(),
 });
 export type Next = z.infer<typeof NextSchema>;
@@ -111,12 +116,15 @@ export type Next = z.infer<typeof NextSchema>;
 export const FocusSchema = z.object({
   focus: z.string().nullable().optional(),
   device: deviceId,
+  screen: screen.optional(),
   prefs: BoardPrefsSchema.optional(),
 });
 export type Focus = z.infer<typeof FocusSchema>;
 
 export const ActSchema = z.object({
   agent: z.string(),
+  /** The acting board as Paseo knows it ("farol-3a1f"); absent from older boards. */
+  device: z.string().max(80).optional(),
   kind: z.enum(["answer", "stop", "seen"]),
   requestId: z.string().optional(),
   choice: u8.optional(),

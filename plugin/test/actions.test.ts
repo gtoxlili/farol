@@ -86,6 +86,12 @@ describe("Actions", () => {
     expect(p.respond).toHaveBeenCalledTimes(1);
   });
 
+  it("names the acting board in the timeline row", async () => {
+    const p = ports(agent({ pendingPermissions: [question] }));
+    await new Actions(p).act({ agent: "a", device: "farol-3a1f", kind: "answer", requestId: "q1", choice: 1 }, "farol-3a1f");
+    expect(p.appendRow).toHaveBeenCalledWith("a", "farol-q1", { action: "answer", text: "Plasma", device: "farol-3a1f" });
+  });
+
   it("reports already_resolved for a request that is no longer pending", async () => {
     const actions = new Actions(ports(agent()));
     expect((await actions.act({ agent: "a", kind: "answer", requestId: "gone", choice: 0 }, "")).reason).toBe(

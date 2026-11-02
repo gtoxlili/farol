@@ -3,8 +3,9 @@
 // as paseo.rs builds them. Node 22+ (global WebSocket).
 
 export class FakeBoard {
-  constructor({ url, password, device = "devboard", appVersion = "farol/0.1.0", log = () => {} }) {
-    Object.assign(this, { url, password, device, appVersion, log });
+  constructor({ url, password, device = "devboard", fw = "1.0.0", appVersion = "farol/1.0.0", log = () => {} }) {
+    Object.assign(this, { url, password, device, fw, appVersion, log });
+    this.screen = "home";
     this.nextId = 0;
     this.pending = new Map();
     this.cursor = 0;
@@ -89,6 +90,8 @@ export class FakeBoard {
   next() {
     const input = { v: 1, cursor: this.cursor, device: this.device };
     if (this.focus) input.focus = this.focus;
+    input.screen = this.screen;
+    input.fw = this.fw;
     // Control-centre settings ride every poll until one is answered.
     const carried = this.prefs;
     if (carried) input.prefs = carried;
@@ -101,9 +104,11 @@ export class FakeBoard {
     });
   }
 
-  setFocus(focus) {
-    if (this.focus === focus) return null;
+  /** paseo.rs `set_focus(focus, screen)`: the deck when a card is on screen. */
+  setFocus(focus, screen = focus ? "deck" : "home") {
+    if (this.focus === focus && this.screen === screen) return null;
     this.focus = focus;
+    this.screen = screen;
     return this.sendFocus();
   }
 
@@ -116,13 +121,14 @@ export class FakeBoard {
   sendFocus() {
     const input = { device: this.device };
     if (this.focus) input.focus = this.focus;
+    input.screen = this.screen;
     if (this.prefs) input.prefs = this.prefs;
     return this.rpc("farol.focus", input);
   }
 
   /** `farol.act`; fields named and omitted like model.rs `Act`. */
   act(agent, kind, requestId, choice) {
-    const input = { agent, kind };
+    const input = { agent, device: `farol-${this.device}`, kind };
     if (requestId != null) input.requestId = requestId;
     if (choice != null) input.choice = choice;
     return this.rpc("farol.act", input);
