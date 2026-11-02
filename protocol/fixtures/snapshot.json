@@ -1,0 +1,65 @@
+{
+  "v": 1,
+  "rev": 42,
+  "now": 1793598060000,
+  "tz": 480,
+  "host": "studio-mac",
+  "readOnly": false,
+  "agents": [
+    {
+      "id": "a-call",
+      "title": "给 Farol 首页选一种光球动效",
+      "project": "farol",
+      "model": "opus 5.5",
+      "state": "call",
+      "since": 1793597820000,
+      "ask": {
+        "kind": "question",
+        "requestId": "perm-1",
+        "text": "首页的光球用哪种风格？三种都在模拟器里渲染过，截图在 docs/orbs。",
+        "options": ["光环 · 底部积光", "等离子 · 冷暖渐变", "只留文字，不要光球"]
+      }
+    },
+    {
+      "id": "a-work",
+      "title": "修复子 agent 调用失败，补回归测试",
+      "project": "api-server",
+      "model": "gpt-6.1 sol",
+      "state": "work",
+      "since": 1793597292000,
+      "now": "cargo test -p runtime --lib",
+      "recent": ["edit  src/agent/spawn.rs", "grep  SubAgentError", "read  docs/agents.md"],
+      "todo": {"done": 3, "total": 7, "current": "正在补回归测试"},
+      "ctx": 41,
+      "stoppable": true
+    },
+    {
+      "id": "a-done",
+      "title": "查喂食器的出粮记录为什么总是堵",
+      "project": "notes",
+      "model": "sonnet 5.5",
+      "state": "done",
+      "since": 1793597700000,
+      "body": "查到了：定时出粮和「早饭」自动化都在 7:00 触发，两次出粮间隔不到一分钟，粮道还没清空就又推了一次。建议停掉其中一个，或者把自动化挪到 7:05。",
+      "ctx": 23,
+      "cost": "$0.42"
+    },
+    {
+      "id": "a-fail",
+      "title": "迁移到 Rsbuild 2.x 并跑一遍构建",
+      "project": "web-console",
+      "model": "gpt-6.1 terra",
+      "state": "fail",
+      "since": 1793597940000,
+      "error": "usage limit reached · resets 15:00",
+      "body": "这一轮停在第 5 步（共 8 步）。额度恢复后，在 Paseo 里让它继续。"
+    }
+  ],
+  "usage": [
+    {"label": "Claude · 本窗", "used": 65, "resets": 1793602380000},
+    {"label": "Claude · 本周", "used": 15, "resets": 1793927460000},
+    {"label": "Codex · 本周", "used": 64, "resets": 1793785260000},
+    {"label": "Gemini Argon · 周", "used": 99, "resets": 1794036000000}
+  ],
+  "fuel": {"label": "Claude · 本窗", "left": 35}
+}

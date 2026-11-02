@@ -1,6 +1,6 @@
 [package]
 name = "logic"
-description = "Application logic: state, event handling and GSP setters (GSP renders, this crate decides)"
+description = "Farol's logic: Paseo client session, farol/1 model, navigation and the GSP setters (GSP renders, this crate decides)"
 edition.workspace = true
 version.workspace = true
 publish.workspace = true
@@ -12,3 +12,5 @@ bench = false
 
 [dependencies]
 gsp_sys.workspace = true
+serde = { version = "1.0.229", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0.154", default-features = false, features = ["alloc"] }
