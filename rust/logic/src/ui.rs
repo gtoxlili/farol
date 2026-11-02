@@ -7,6 +7,7 @@
 //! the scene's RGB565.
 
 use alloc::collections::BTreeMap;
+use alloc::string::String;
 
 use gsp_sys as gsp;
 
@@ -49,8 +50,22 @@ pub trait Ui {
     fn set_i32(&mut self, key: Key, property: Property, value: i32) -> UiResult;
     /// Sets a color runtime property such as an effect's `fg_color`.
     fn set_property_color(&mut self, key: Key, property: Property, rgb: u32) -> UiResult;
-    /// Tweens a component's primary color to `to`.
-    fn animate_color_to(&mut self, key: Key, to: u32, ms: u32, ease: Ease) -> UiResult;
+    /// Tweens an integer runtime property (an effect's `phase`...).
+    fn animate_i32(
+        &mut self,
+        key: Key,
+        property: Property,
+        from: i32,
+        to: i32,
+        ms: u32,
+        ease: Ease,
+    ) -> UiResult;
+    /// Routes the scene's keyboard (`action` is its `GSP_ACT_ID_*_KEY`) into
+    /// the text bind `bind`, starting from empty text. Only its OK key reaches
+    /// the logic, as a `Call` with `action`.
+    fn keyboard_attach(&mut self, action: u16, bind: Bind) -> UiResult;
+    /// The attached keyboard's current text.
+    fn keyboard_text(&mut self) -> Result<String, gsp::esp_gsp_err_t>;
     /// Selects a PageFlow page.
     fn set_page(&mut self, key: Key, page: u16, animated: bool) -> UiResult;
     /// Opens or closes a Drawer.
@@ -255,6 +270,8 @@ mod gsp_ui {
     /// Longest label text accepted, in bytes; longer text is cut at a char
     /// boundary. GSP copies text of any length, this only bounds the copy.
     const MAX_TEXT: usize = 2048;
+    /// A daemon address or a password never needs more.
+    const KEYBOARD_MAX_BYTES: usize = 256;
 
     /// [`Ui`] over a running GSP instance's C API.
     #[derive(Clone, Copy)]
@@ -351,10 +368,44 @@ mod gsp_ui {
             })
         }
 
-        fn animate_color_to(&mut self, key: Key, to: u32, ms: u32, e: Ease) -> UiResult {
+        fn animate_i32(
+            &mut self,
+            key: Key,
+            property: Property,
+            from: i32,
+            to: i32,
+            ms: u32,
+            e: Ease,
+        ) -> UiResult {
+            let (from, to) = (i32_value(from), i32_value(to));
             check(unsafe {
-                gsp::esp_gsp_component_animate_color_to(self.0, key, rgb565(to), ms, ease(e))
+                gsp::esp_gsp_component_animate_property(
+                    self.0,
+                    key,
+                    property,
+                    &from,
+                    &to,
+                    ms,
+                    ease(e),
+                )
             })
+        }
+
+        fn keyboard_attach(&mut self, action: u16, bind: Bind) -> UiResult {
+            check(unsafe {
+                gsp::esp_gsp_keyboard_attach_ex(self.0, action, bind, KEYBOARD_MAX_BYTES)
+            })
+        }
+
+        fn keyboard_text(&mut self) -> Result<String, gsp::esp_gsp_err_t> {
+            let mut size = 0usize;
+            check(unsafe { gsp::esp_gsp_keyboard_text_size(self.0, &mut size) })?;
+            let mut buffer = alloc::vec![0u8; size.max(1)];
+            check(unsafe {
+                gsp::esp_gsp_keyboard_text(self.0, buffer.as_mut_ptr().cast(), buffer.len())
+            })?;
+            let end = buffer.iter().position(|&b| b == 0).unwrap_or(buffer.len());
+            Ok(String::from_utf8_lossy(&buffer[..end]).into_owned())
         }
 
         fn set_page(&mut self, key: Key, page: u16, animated: bool) -> UiResult {

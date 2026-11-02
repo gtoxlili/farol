@@ -167,6 +167,11 @@ impl Session {
         self.phase == Phase::Ready
     }
 
+    /// The daemon address and password in use, if any.
+    pub fn config(&self) -> Option<&Config> {
+        self.config.as_ref()
+    }
+
     pub fn is_configured(&self) -> bool {
         self.config.is_some()
     }

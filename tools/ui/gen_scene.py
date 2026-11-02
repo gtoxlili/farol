@@ -61,6 +61,9 @@ CARDS = 3          # recycled card pages in the deck
 OPTIONS = 4        # answer options per card
 FLEET_DOTS = 8     # status dots on the home page and the deck rail
 USAGE_CELLS = 4
+WIFI_ROWS = 6      # networks listed on the "choose a network" page
+SAVED_ROWS = 4     # saved networks listed on the network details page
+DRIFT = 3          # burn-in drift room, px each way (the logic moves +-2)
 
 objects: list[dict] = []
 
@@ -79,9 +82,12 @@ def under(parent: str | None, obj: dict) -> dict:
 
 
 def label(parent, x, y, w, h, text="", *, font=NOTO, size=18, color=INK1, align="left",
-          name=None, bind=False, charset=None, ellipsis=False, hidden=False, dyn_y=None):
+          name=None, bind=False, charset=None, ellipsis=False, hidden=False, dyn_y=None,
+          input=False):
     obj = {"type": "label", "x": x, "y": y, "w": w, "h": h, "text": text, "font": font,
            "font_size": size, "fg_color": color, "text_align": align}
+    if input:
+        obj["input"] = True
     if name:
         obj["name"] = name
     if bind:
@@ -392,7 +398,7 @@ def status_pages():
           bind=True, ellipsis=True)
     button(g, "st_np_retry_btn", 40, 362, 196, 52, text="立即重试", size=18, bg=INK1, fg=BG,
            border=None, callback="retry")
-    button(g, "st_np_repair", 244, 362, 196, 52, text="重新配对", size=18, callback="repair")
+    button(g, "st_np_repair", 244, 362, 196, 52, text="重新扫码", size=18, callback="repair")
     label(g, 28, 432, 424, 22, "", size=14, color=INK3, align="center", name="st_np_foot",
           bind=True, ellipsis=True)
 
@@ -409,9 +415,10 @@ def status_pages():
           name="st_pair_url", bind=True, ellipsis=True)
     label(g, 28, 264, 424, 22, "", size=14, color=INK3, align="center", name="st_pair_code",
           bind=True, ellipsis=True)
-    label(g, 28, 300, 424, 24, "连接后 Paseo 的设置里会出现这块板子，", size=15, color=INK2,
-          align="center")
-    label(g, 28, 324, 424, 24, "随时可以在任意一边解除。", size=15, color=INK2, align="center")
+    label(g, 28, 300, 424, 24, "连接后，Paseo 的 Farol 设置里会出现这块板子。", size=15,
+          color=INK2, align="center")
+    label(g, 28, 324, 424, 24, "要断开，就在板子的控制中心里忘记这台 Paseo。", size=15,
+          color=INK2, align="center")
     button(g, "st_pair_cancel", 40, 380, 196, 52, text="取消", size=18, callback="pair_cancel")
     button(g, "st_pair_connect", 244, 380, 196, 52, text="连接", size=18, bg=INK1, fg=BG,
            border=None, callback="pair_connect")
@@ -424,7 +431,7 @@ def status_pages():
         rect(g, x, y, w, h, INK1, radius=2)
     under(g, {"type": "effect", "name": "scan_sweep", "x": 64, "y": 250, "w": 352, "h": 4,
               "effect": "shimmer", "fg_color": CALL, "bg_color": "#26282C", "period_ms": 1400})
-    label(g, 28, 42, 424, 24, "对准 Paseo 的配对码，或手机分享的 Wi-Fi 码", size=15, color=INK2,
+    label(g, 28, 42, 424, 24, "对准 Farol 的连接码，或手机分享的 Wi-Fi 码", size=15, color=INK2,
           align="center")
     label(g, 60, 220, 360, 60, "", size=15, color=INK2, align="center", name="scan_note",
           bind=True)
@@ -448,6 +455,97 @@ def hold_overlay():
           align="center")
     label("ov_hold", 40, 340, 400, 26, "agent 和它的上下文都还在。", size=16, color=INK2,
           align="center")
+
+    input_page(p)
+    wifi_page(p)
+    net_details_page(p)
+    link_details_page(p)
+
+
+def page_header(g, prefix, title, close_text, close_callback, *, bind_title=False):
+    label(g, 24, 44, 330, 30, title, size=22, name=f"{prefix}_title" if bind_title else None,
+          bind=bind_title, ellipsis=True)
+    button(g, f"{prefix}_close", 372, 40, 84, 36, text=close_text, size=16, bg=CLEAR, fg=INK2,
+           border=None, pressed_dim=24, callback=close_callback)
+
+
+def input_page(p):
+    """Manual entry: one field and the on-screen keyboard. The logic attaches the
+    keyboard to `in_text` for each step (Paseo address, then password; or a
+    Wi-Fi password) and reads the text back on OK."""
+    g = "st_input"
+    group(p, g, 0, 0, W, H, hidden=True)
+    page_header(g, "in", "", "取消", "in_cancel", bind_title=True)
+    label(g, 24, 80, 432, 20, "", size=13, color=INK3, name="in_caption", bind=True, ellipsis=True)
+    field = group(g, "in_field", 24, 104, 432, 52, vis=False, bg=SURF)
+    field.update({"radius": 14, "border_color": EDGE, "border_width": 1})
+    label("in_field", 16, 12, 400, 28, "", font=MONO, size=18, name="in_text", bind=True,
+          input=True)
+    label(g, 24, 162, 432, 22, "", size=14, color=FAIL, name="in_error", bind=True, ellipsis=True)
+    under(g, {"type": "keyboard", "name": "kb", "x": 0, "y": 196, "w": W, "h": H - 196,
+              "font": NOTO, "font_size": 20, "function_font_size": 15, "bg_color": "#0B0B0A",
+              "fg_color": INK1, "key_color": "#1F1E1C", "function_color": "#2A2926",
+              "function_text_color": INK2, "delete_color": "#2A2926", "delete_text_color": INK2,
+              "space_color": "#1F1E1C", "space_text_color": INK2, "ok_color": INK1,
+              "ok_text_color": BG, "key_radius": 10, "shift_label": "大写", "delete_label": "删除",
+              "ok_label": "好", "symbols_label": "符号", "letters_label": "字母",
+              "space_label": "空格"})
+
+
+def wifi_page(p):
+    """Networks from the last scan, strongest first. A saved or open network
+    connects on tap; a protected one asks for its password."""
+    g = "st_wifi"
+    group(p, g, 0, 0, W, H, hidden=True)
+    page_header(g, "wf", "选择网络", "取消", "wf_cancel")
+    button(g, "wf_rescan", 268, 40, 100, 36, text="重新扫描", size=16, bg=CLEAR, fg=INK2,
+           border=None, pressed_dim=24, callback="wf_rescan")
+    label(g, 24, 230, 432, 24, "", size=16, color=INK3, align="center", name="wf_note", bind=True)
+    for i in range(WIFI_ROWS):
+        row = f"wf_row{i}"
+        btn = button(g, row, 16, 88 + i * 60, 448, 54, bg=TILE, border=None, radius=16,
+                     pressed_dim=32, callback=row, hidden=True)
+        visibility(btn)
+        label(row, 18, 6, 360, 24, "", size=18, name=f"wf_name{i}", bind=True, ellipsis=True)
+        label(row, 18, 31, 360, 18, "", size=13, color=INK3, name=f"wf_meta{i}", bind=True,
+              ellipsis=True)
+        for k, h in enumerate((6, 10, 14)):
+            rect(row, 404 + k * 8, 34 - h, 5, h, DIM, radius=1, name=f"wf_sig{i}_{k}",
+                 color_bind=True)
+
+
+def net_details_page(p):
+    g = "st_netinfo"
+    group(p, g, 0, 0, W, H, hidden=True)
+    page_header(g, "ni", "Wi-Fi", "返回", "ni_close")
+    label(g, 24, 96, 432, 36, "", size=28, name="ni_ssid", bind=True, ellipsis=True)
+    label(g, 24, 138, 432, 22, "", size=15, color=INK2, name="ni_signal", bind=True, ellipsis=True)
+    label(g, 24, 162, 432, 22, "", font=MONO, size=15, color=INK2, name="ni_ip", bind=True,
+          ellipsis=True)
+    rect(g, 24, 202, 432, 1, LINE)
+    label(g, 24, 216, 432, 20, "已保存的网络", size=13, color=INK3)
+    for i in range(SAVED_ROWS):
+        label(g, 24, 242 + i * 28, 432, 24, "", size=17, name=f"ni_saved{i}", bind=True,
+              ellipsis=True)
+    button(g, "ni_pick", 40, 380, 196, 52, text="选择网络", size=18, callback="wifi_pick")
+    button(g, "ni_scan", 244, 380, 196, 52, text="扫码加入", size=18, bg=INK1, fg=BG,
+           border=None, callback="scan_open")
+
+
+def link_details_page(p):
+    g = "st_link"
+    group(p, g, 0, 0, W, H, hidden=True)
+    page_header(g, "lk", "Paseo", "返回", "lk_close")
+    label(g, 24, 96, 432, 36, "", size=28, name="lk_host", bind=True, ellipsis=True)
+    label(g, 24, 138, 432, 22, "", font=MONO, size=15, color=INK2, name="lk_url", bind=True,
+          ellipsis=True)
+    label(g, 24, 162, 432, 22, "", size=15, color=INK2, name="lk_state", bind=True, ellipsis=True)
+    label(g, 24, 186, 432, 22, "", size=15, color=INK3, name="lk_device", bind=True,
+          ellipsis=True)
+    button(g, "lk_rescan", 40, 380, 196, 52, text="重新扫码", size=18, callback="scan_open")
+    button(g, "lk_forget", 244, 380, 196, 52, size=18, callback="lk_forget")
+    label("lk_forget", 0, 12, 196, 26, "", size=18, color=FAIL, align="center",
+          name="lk_forget_t", bind=True)
 
 
 def banner():
@@ -646,6 +744,11 @@ def rust_tables() -> str:
                           for i in range(FLEET_DOTS))
     rail_dots = ", ".join(f"Dot {{ key: {k(f'rail{i}')}, color: {b(f'rail{i}')} }}"
                           for i in range(FLEET_DOTS))
+    wifi_rows = "\n".join(
+        f"    WifiRow {{ vis: {b(f'wf_row{i}_vis')}, name: {b(f'wf_name{i}')}, "
+        f"meta: {b(f'wf_meta{i}')}, bars: [{', '.join(b(f'wf_sig{i}_{j}') for j in range(3))}] }},"
+        for i in range(WIFI_ROWS))
+    saved_rows = ", ".join(b(f"ni_saved{i}") for i in range(SAVED_ROWS))
     return f"""// @generated by tools/ui/gen_scene.py; do not edit.
 //! Typed tables of the scene's keys and binds, grouped the way the views use
 //! them. Regenerated with the scene, so a renamed object is a compile error.
@@ -716,6 +819,15 @@ pub struct Dot {{
     pub color: Bind,
 }}
 
+/// One network row on the "choose a network" page; `bars` are color binds.
+#[derive(Clone, Copy)]
+pub struct WifiRow {{
+    pub vis: Bind,
+    pub name: Bind,
+    pub meta: Bind,
+    pub bars: [Bind; 3],
+}}
+
 pub const CARDS: [Card; {CARDS}] = [
 {chr(10).join(cards)}
 ];
@@ -727,6 +839,10 @@ pub const USAGE: [UsageCell; {USAGE_CELLS}] = [
 pub const HOME_DOTS: [Dot; {FLEET_DOTS}] = [{home_dots}];
 pub const RAIL_DOTS: [Dot; {FLEET_DOTS}] = [{rail_dots}];
 pub const HOME_WORD: [Variant; VARIANTS] = {variants('home_word')};
+pub const WIFI_ROWS: [WifiRow; {WIFI_ROWS}] = [
+{wifi_rows}
+];
+pub const SAVED_ROWS: [Bind; {SAVED_ROWS}] = [{saved_rows}];
 """
 
 

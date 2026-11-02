@@ -73,6 +73,43 @@ fn wifi(body: &str) -> Option<Code> {
     Some(Code::Wifi { ssid, password })
 }
 
+/// A daemon address typed by hand, made into the WebSocket URL the session
+/// opens: `https://` becomes `wss://`, `http://` `ws://`, no scheme means
+/// `wss://`, and an address without a path gets Paseo's `/ws`.
+pub fn normalize_url(text: &str) -> Result<String, &'static str> {
+    let text = text.trim();
+    let (scheme, rest) = match text.split_once("://") {
+        Some((s, r)) if s.eq_ignore_ascii_case("wss") || s.eq_ignore_ascii_case("https") => {
+            ("wss", r)
+        }
+        Some((s, r)) if s.eq_ignore_ascii_case("ws") || s.eq_ignore_ascii_case("http") => ("ws", r),
+        Some(_) => return Err("地址要以 wss:// 或 ws:// 开头"),
+        None => ("wss", text),
+    };
+    let host = rest.split(['/', '?']).next().unwrap_or("");
+    if host.is_empty() || host.contains(char::is_whitespace) {
+        return Err("地址里缺少主机名");
+    }
+    let path = &rest[host.len()..];
+    let path = if path.is_empty() || path == "/" {
+        "/ws"
+    } else {
+        path
+    };
+    Ok(alloc::format!("{scheme}://{host}{path}"))
+}
+
+/// The host part of a WebSocket URL, for showing which Paseo this is.
+pub fn host_of(url: &str) -> String {
+    let rest = url.split_once("://").map_or(url, |(_, r)| r);
+    let authority = rest.split(['/', '?']).next().unwrap_or("");
+    let host = match authority.rsplit_once(':') {
+        Some((h, port)) if port.chars().all(|c| c.is_ascii_digit()) => h,
+        _ => authority,
+    };
+    String::from(host)
+}
+
 fn farol(query: &str) -> Option<Code> {
     let (mut url, mut password, mut host) = (None, String::new(), String::new());
     for pair in query.split('&') {
@@ -121,6 +158,32 @@ fn percent_decode(s: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn typed_addresses_become_websocket_urls() {
+        assert_eq!(
+            normalize_url(" paseo.example.net ").as_deref(),
+            Ok("wss://paseo.example.net/ws")
+        );
+        assert_eq!(
+            normalize_url("https://paseo.example.net:8443/").as_deref(),
+            Ok("wss://paseo.example.net:8443/ws")
+        );
+        assert_eq!(
+            normalize_url("http://192.0.2.7:6767").as_deref(),
+            Ok("ws://192.0.2.7:6767/ws")
+        );
+        assert_eq!(
+            normalize_url("wss://p.example.net/custom/ws").as_deref(),
+            Ok("wss://p.example.net/custom/ws")
+        );
+        assert!(normalize_url("ftp://x").is_err());
+        assert!(normalize_url("wss:///ws").is_err());
+        assert_eq!(
+            host_of("wss://paseo.example.net:8443/ws"),
+            "paseo.example.net"
+        );
+    }
 
     #[test]
     fn wifi_codes_with_escapes() {
