@@ -22,12 +22,6 @@ export class Farol {
   private observer: Observer | null = null;
   private starting: Promise<Observer> | null = null;
   private settings: Settings = DEFAULT_SETTINGS;
-  /**
-   * Sound as last switched on a board. Plugin server code cannot write its own
-   * settings document (Paseo 0.14), so this overrides the document until the
-   * document changes; the settings page saves it into the document when open.
-   */
-  private boardSound: boolean | null = null;
   /** Board settings as last sent, and their rev (starts at the clock, so it survives restarts). */
   private boardSettings: BoardSettings = { ...boardSettingsOf(DEFAULT_SETTINGS, Date.now()) };
   private readonly seen = new Map<string, number>();
@@ -107,28 +101,22 @@ export class Farol {
     return this.starting;
   }
 
-  get pendingBoardSound(): boolean | null {
-    return this.boardSound;
-  }
-
   setSettings(next: Settings): void {
     const background = next.includeBackground !== this.settings.includeBackground;
-    // An edit of the document (including the page saving the board's choice) wins.
-    if (next.sound !== this.settings.sound || next.sound === this.boardSound) this.boardSound = null;
     this.settings = next;
     if (background) void this.observer?.setIncludeBackground(next.includeBackground);
     this.updateBoardSettings();
   }
 
-  /** A board's control centre reported its settings; its sound switch becomes the global one. */
-  adoptPrefs(device: string, prefs: BoardPrefs | undefined): void {
-    if (!prefs) return;
-    this.stream.setPrefs(device, prefs);
-    const effective = this.boardSound ?? this.settings.sound;
-    if (prefs.sound !== effective) {
-      this.boardSound = prefs.sound === this.settings.sound ? null : prefs.sound;
-      this.updateBoardSettings();
-    }
+  /**
+   * A board's control centre reported its settings. They stay the board's own
+   * (it keeps them in flash) and show in the recent-boards list; the settings
+   * made in Paseo reach every board through `settings.rev`. Plugin server code
+   * cannot write the settings document (Paseo 0.14), so nothing is held here
+   * that a plugin restart could lose.
+   */
+  notePrefs(device: string, prefs: BoardPrefs | undefined): void {
+    if (prefs) this.stream.setPrefs(device, prefs);
   }
 
   /** A board turned to its usage screen: fresh quota numbers now (at most once a minute). */
@@ -137,8 +125,7 @@ export class Farol {
   }
 
   private updateBoardSettings(): void {
-    const sound = this.boardSound ?? this.settings.sound;
-    const next = boardSettingsOf({ ...this.settings, sound }, this.boardSettings.rev);
+    const next = boardSettingsOf(this.settings, this.boardSettings.rev);
     if (JSON.stringify(next) !== JSON.stringify(this.boardSettings)) {
       this.boardSettings = { ...next, rev: this.boardSettings.rev + 1 };
     }
@@ -153,7 +140,7 @@ export class Farol {
     prefs?: BoardPrefs,
     meta: { fw?: string; screen?: string } = {},
   ): Promise<Snapshot> {
-    this.adoptPrefs(device, prefs);
+    this.notePrefs(device, prefs);
     const observer = await this.ensure(paseo);
     this.noteScreen(observer, device, meta);
     if (focus !== undefined) await observer.setFocused(this.focusesWith(device, focus ?? null));
@@ -167,7 +154,7 @@ export class Farol {
     prefs?: BoardPrefs,
     screen?: string,
   ): Promise<void> {
-    this.adoptPrefs(device, prefs);
+    this.notePrefs(device, prefs);
     const observer = await this.ensure(paseo);
     this.noteScreen(observer, device, { screen });
     await observer.setFocused(this.focusesWith(device, focus));

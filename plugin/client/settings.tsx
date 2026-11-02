@@ -85,7 +85,7 @@ export function AddDevice({ theme, layout, address }: HostProps & { address: str
   );
 }
 
-function Boards({ theme, onBoardSound }: HostProps & { onBoardSound?(sound: boolean): void }) {
+function Boards({ theme }: HostProps) {
   const status = useRpc(statusRpc);
   const query = useQuery({
     queryKey: ["farol", "status"],
@@ -95,11 +95,6 @@ function Boards({ theme, onBoardSound }: HostProps & { onBoardSound?(sound: bool
   const muted = { color: theme.colors.foregroundMuted, fontSize: 13 };
   const now = Date.now();
   const boards = query.data?.boards ?? [];
-  // A board switched sound in its control centre: save it here so Paseo's setting follows.
-  const boardSound = query.data?.boardSound ?? null;
-  useEffect(() => {
-    if (boardSound !== null) onBoardSound?.(boardSound);
-  }, [boardSound]);
   return (
     <SettingsSection title="最近的板子">
       {query.isError ? <Text style={muted}>读不到插件状态：{String(query.error)}</Text> : null}
@@ -249,13 +244,7 @@ export function SettingsScreen({ theme, layout }: PluginSurfaceProps) {
     <Shell theme={theme} layout={layout}>
       <Status theme={theme} layout={layout} state={state} />
       {values ? <AddDevice theme={theme} layout={layout} address={values.address} /> : null}
-      <Boards
-        theme={theme}
-        layout={layout}
-        onBoardSound={(sound) => {
-          if (values && values.sound !== sound) save({ ...values, sound });
-        }}
-      />
+      <Boards theme={theme} layout={layout} />
       {values ? <Preferences key={state.status === "ready" ? state.revision : "-"} values={values} save={save} /> : null}
     </Shell>
   );
