@@ -83,11 +83,23 @@ enum Written {
 /// Wraps a [`Ui`] and forgets nothing: identical repeated writes are dropped,
 /// so the views can describe the whole screen on every update without
 /// flooding GSP. Tweens always pass through and invalidate the cached value.
-/// The first rejected setter's code is kept for one log line.
+/// The first rejected setter is kept for one log line. A rejected write is
+/// not cached, so the next render retries it.
 pub struct Painter {
     written: BTreeMap<(u8, u32), Written>,
     rejections: u32,
-    first_rejection: Option<gsp::esp_gsp_err_t>,
+    first_rejection: Option<Rejection>,
+    /// Some write failed since the last [`Painter::take_failed`].
+    failed: bool,
+}
+
+/// A setter GSP refused, for the log: its code, the kind of target and the
+/// target's bind id or component key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rejection {
+    pub code: gsp::esp_gsp_err_t,
+    pub what: &'static str,
+    pub target: u32,
 }
 
 const TEXT: u8 = 0;
@@ -109,6 +121,7 @@ impl Painter {
             written: BTreeMap::new(),
             rejections: 0,
             first_rejection: None,
+            failed: false,
         }
     }
 
@@ -121,8 +134,13 @@ impl Painter {
         self.rejections
     }
 
-    pub fn take_first_rejection(&mut self) -> Option<gsp::esp_gsp_err_t> {
+    pub fn take_first_rejection(&mut self) -> Option<Rejection> {
         self.first_rejection.take()
+    }
+
+    /// Whether a write failed since the last call (and will be retried).
+    pub fn take_failed(&mut self) -> bool {
+        core::mem::take(&mut self.failed)
     }
 
     fn write(&mut self, slot: (u8, u32), value: Written, apply: impl FnOnce() -> UiResult) {
@@ -133,18 +151,29 @@ impl Painter {
             Ok(()) => {
                 self.written.insert(slot, value);
             }
-            Err(code) => self.reject(code),
+            Err(code) => self.reject(code, slot),
         }
     }
 
-    fn reject(&mut self, code: gsp::esp_gsp_err_t) {
+    fn reject(&mut self, code: gsp::esp_gsp_err_t, (kind, target): (u8, u32)) {
         self.rejections = self.rejections.saturating_add(1);
-        self.first_rejection.get_or_insert(code);
+        self.failed = true;
+        let what = match kind {
+            TEXT => "text bind",
+            VISIBLE => "visibility bind",
+            COLOR => "color bind",
+            VALUE => "value of key",
+            PROPERTY => "property slot",
+            PAGE => "page of key",
+            _ => "call",
+        };
+        self.first_rejection
+            .get_or_insert(Rejection { code, what, target });
     }
 
     fn result(&mut self, result: UiResult) {
         if let Err(code) = result {
-            self.reject(code);
+            self.reject(code, (u8::MAX, 0));
         }
     }
 

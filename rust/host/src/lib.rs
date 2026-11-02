@@ -127,9 +127,10 @@ impl Backend {
         if now >= self.app.next_deadline_ms() {
             self.app.poll(now, &mut self.ui, &mut self.sys);
         }
-        if let Some(code) = self.app.take_first_rejection() {
+        if let Some(r) = self.app.take_first_rejection() {
             eprintln!(
-                "farol sim: GSP rejected a setter ({code}); further rejections are only counted"
+                "farol sim: GSP rejected a setter (0x{:x}, {} {}); further rejections are only counted",
+                r.code, r.what, r.target
             );
         }
     }
