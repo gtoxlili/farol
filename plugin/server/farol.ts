@@ -7,7 +7,7 @@ import os from "node:os";
 import type { PaseoApi } from "@getpaseo/client";
 import type { Act, ActResult, BoardPrefs, BoardSettings, Snapshot } from "../shared/protocol";
 import { DEFAULT_SETTINGS, type Settings, TIMELINE_KIND } from "../shared/settings";
-import { Actions } from "./actions";
+import { Actions, type PermissionResponse } from "./actions";
 import type { AgentFacts } from "./digest";
 import { boardSettingsOf, digest } from "./digest";
 import { Observer } from "./observer";
@@ -22,6 +22,8 @@ export class Farol {
   private observer: Observer | null = null;
   private starting: Promise<Observer> | null = null;
   private settings: Settings = DEFAULT_SETTINGS;
+  /** Answers waiting to learn which response Paseo applied, by request id. */
+  private readonly resolutions = new Map<string, Array<(r: PermissionResponse | null) => void>>();
   /** Board settings as last sent, and their rev (starts at the clock, so it survives restarts). */
   private boardSettings: BoardSettings = { ...boardSettingsOf(DEFAULT_SETTINGS, Date.now()) };
   private readonly seen = new Map<string, number>();
@@ -35,10 +37,27 @@ export class Farol {
       agent: (id) => (this.observer?.get(id) as unknown as AgentFacts | null) ?? null,
       allowActions: () => this.settings.allowActions,
       canStop: () => this.cli !== null,
+      fresh: async (agentId) => {
+        const paseo = await this.paseo();
+        const ref = paseo.agents.ref(agentId);
+        await ref.refresh();
+        return (ref.current() as unknown as AgentFacts | null) ?? null;
+      },
       respond: async (agentId, requestId, response) => {
         const paseo = await this.paseo();
         await paseo.agents.ref(agentId).respondToPermission({ requestId, response });
       },
+      resolution: (requestId, timeoutMs) =>
+        new Promise((resolve) => {
+          const waiters = this.resolutions.get(requestId) ?? [];
+          const timer = setTimeout(() => settle(null), timeoutMs);
+          const settle = (r: PermissionResponse | null) => {
+            clearTimeout(timer);
+            resolve(r);
+          };
+          waiters.push(settle);
+          this.resolutions.set(requestId, waiters);
+        }),
       stop: (agentId) => runStop(this.cli!, agentId),
       appendRow: async (agentId, rowId, row) => {
         const paseo = await this.paseo();
@@ -99,6 +118,13 @@ export class Farol {
         });
     }
     return this.starting;
+  }
+
+  /** agent.permission_resolved: wakes the board answer waiting on this request. */
+  resolved(requestId: string, resolution: PermissionResponse): void {
+    const waiters = this.resolutions.get(requestId);
+    this.resolutions.delete(requestId);
+    for (const settle of waiters ?? []) settle(resolution);
   }
 
   setSettings(next: Settings): void {

@@ -32,7 +32,8 @@
       "recent": ["edit  src/agent/spawn.rs", "grep  SubAgentError", "read  docs/agents.md"],
       "todo": {"done": 3, "total": 7, "current": "正在补回归测试"},
       "ctx": 41,
-      "stoppable": true
+      "stoppable": true,
+      "turn": "t-7"
     },
     {
       "id": "a-done",
