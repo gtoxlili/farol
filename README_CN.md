@@ -2,132 +2,116 @@
 
 [English](README.md)
 
-放在桌上的一盏灯，替你看着 [Paseo](https://paseo.sh) 里的 agent，跑在 ESP-Mosaico 开发板上。
-看一眼灯就知道它们怎么样了：都在干活时是冷色、慢慢呼吸；有 agent 在等你时变琥珀色；
-一轮失败时变红；光的高低跟着你最紧的那份额度走。灯后面是一叠卡片，一个 agent 一张，
-回答问题、权限或计划，停止正在跑的一轮，把完成的标成已读，都不用打开 App。
+Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里的 agent，跑在 ESP-Mosaico 开发板上。看一眼就知道 agent 们怎么样了。不打开 App 也能回答和停止它们，还能开新会话。
 
-Farol 由两部分组成，都在这个仓库里：
+![光、提问卡、运行中的一轮和新会话](docs/media/zh/overview.png)
 
-- 板子上的应用（ESP32-S31，界面由 GSP 渲染，逻辑用 Rust 写）；
-- Paseo 插件（`plugin/`）：把 Paseo 的状态整理成给板子的简报，替板子执行动作，执行前先做检查。
-
-## 板子怎么连 Paseo
-
-板子连 Paseo daemon 的方式和 Paseo App 添加 Host 时一样，有两种：
-
-- **扫描二维码**，加密 relay 连接。板子扫 Paseo 在 设置 › 你的 Host › 配对设备 里出示的配对码，
-  经 Paseo 的中继连过去，和 daemon 之间端到端加密。什么都不用暴露到公网。
-- **直接连接**，本地网络或 VPN。在板子上填 Host、端口、是否用 SSL 和 daemon 密码。
-
-两种方式都在 daemon 设了密码时用 **daemon 密码**登录，之后只调用 Farol 插件的接口
-（`farol.next`、`farol.focus`、`farol.act`，协议见 [farol/1](protocol/README.md)）。
-插件不开端口，也不保存密码。
-
-> **板子把连接用的东西明文存在 flash（NVS）里**：daemon 密码，以及走中继时的配对码。
-> 拿到板子和一根 USB 线的人就能读出来。密码能完全控制你的 daemon；daemon 没设密码时，
-> 配对码也一样（Paseo 也提醒要像密码一样保管它）。只把 Farol 装在你自己保管的板子上，
-> 给 daemon 设一个密码，板子丢了就改掉它。
-
-从别的网络直接连接时，需要一个把 WebSocket 转发到 daemon 的 HTTPS 地址，
-[docs/remote-access.md](docs/remote-access.md) 给了 Caddy、Cloudflare Tunnel、Tailscale Funnel
-的写法。用 SSL 时证书必须是公开信任的。
+- 灯光反映所有 agent 的状态。都在干活时是冷色、慢慢呼吸，有 agent 等你时变琥珀色，一轮失败时变红。光的高低跟着你最紧的那份额度走。
+- 灯后面是一叠卡片，一个 agent 一张。按住选项就能回答问题、权限请求或计划，按住运行中的卡片能停止这一轮。
+- 按住 AI 键说话，就能开始一段新会话。Paseo 自己的语音输入把你说的话变成第一条消息，也可以打字。
+- 板子和插件都有中文和英文，跟着 Paseo App 的语言走。
 
 ## 需要什么
 
-- 一块 ESP-Mosaico 板子。左槽的摄像头模块用来扫 Wi-Fi 码和 Paseo 的配对码；没有它就用直接连接，
-  在屏幕上输入。
-  右槽的交互模块可选：插上后，屏幕随人亮灭、跟着环境光调亮度，LED 显示灯的状态。
-- Paseo daemon 0.14 或更新，并开启插件。扫码连接还要启用它的中继（第一次打开配对码时 Paseo 会问）。
-- 一个 [ESP-Mosaico 工作区](https://github.com/esp-mosaico/esp-mosaico-vibe)（含子模块）、
-  工作区固定提交的 ESP-IDF、Python 3.10+，以及 Rust stable 和
-  `riscv32imafc-unknown-none-elf` 目标（`rust/rust-toolchain.toml` 会通过 rustup 装上）。
-
-验证过的组合：工作区 `esp-mosaico-vibe` 1872fd8，ESP-IDF 7b9cc1ac，ESP-GSP 1.9.0
-（gspc 0.10.0、模拟器 1.9.0），Paseo 0.14.0。
+- 一块 ESP-Mosaico 板子。左槽的摄像头模块用来扫 Wi-Fi 码和 Paseo 的配对码。右槽的交互模块可选，插上后屏幕随人亮灭、跟着环境光调亮度，LED 也会显示灯的状态。
+- Paseo 0.14 或更新，并开启插件。想用语音开会话，要在 Paseo 里设置好语音输入。
+- 构建固件需要一个 [ESP-Mosaico 工作区](https://github.com/esp-mosaico/esp-mosaico-vibe)（含子模块），以及 Python 3.10+ 和 Rust stable。板子的编译目标由 rustup 按 `rust/rust-toolchain.toml` 装上。
 
 ## 安装
 
-1. 固件。把本仓库放在工作区的 `projects/farol`，在工作区根目录运行：
+1. 把本仓库放在工作区的 `projects/farol`，在工作区根目录构建固件并装到板子上：
 
    ```sh
    python mosaico.py iris system-update --project projects/farol
    ```
 
-   它会构建固件，并装在板子保留的 Vibe Mode 旁边。摄像头驱动会在配置时给 ESP-IDF 打补丁，
-   所以 Farol 要用一份固定版本 ESP-IDF 的私有副本来构建；`$IDF_PATH` 没打补丁时构建会停下，
-   以免改动共享的 ESP-IDF。按
-   [components/app_camera/README.md](components/app_camera/README.md#building-with-the-camera)
-   做一次副本，之后带上那三个环境变量运行上面的命令。
+   摄像头驱动会在配置时给 ESP-IDF 打补丁，所以遇到没打补丁的 ESP-IDF，构建会停下。按[开发说明](docs/development.md#esp-idf-with-the-camera-patch)用一份私有副本构建，或者设置 `FAROL_ALLOW_IDF_PATCH=1`，让它直接给工作区的那份打补丁。
 
-2. 插件。在运行 daemon 的 Mac 上：
+2. 在运行 Paseo daemon 的电脑上安装插件：
 
    ```sh
    cd plugin && npm install && npm run check
    paseo plugin install "$PWD" --id farol
    ```
 
-## 连接一块板子
+## 连接板子
 
-1. Wi-Fi（2.4 GHz）。在板子的“没有连上 Wi-Fi”页上，扫手机 Wi-Fi 设置里出示的网络二维码，
-   或者选一个网络、输入密码。
-2. Paseo。在板子上选“扫描二维码”，扫 Paseo 在 设置 › 你的 Host › 配对设备 里出示的码；
-   或者选“直接连接”，填 Host、端口（默认 6767）、是否用 SSL 和 daemon 密码。板子会先告诉你
-   要连的是哪台 Paseo，点“连接”。daemon 设了密码而码里没带时，板子会再问你要。
+1. 连 Wi-Fi（2.4 GHz）。在板子的“没有连上 Wi-Fi”页上扫手机 Wi-Fi 设置里出示的网络二维码，或者选一个网络、输入密码。
+2. 连 Paseo，方式和 Paseo App 添加连接时一样，二选一。
+   - 扫描二维码，走加密 relay 连接。在 Paseo 里打开 设置 › 你的 Host › 配对设备，用板子扫出现的码。第一次打开时 Paseo 会问你要不要启用中继。之后板子在任何网络下都能连上，和 daemon 之间端到端加密。
+   - 直接连接，适合本地网络或 VPN。填 Host、端口（留空就是 6767）、是否用 SSL 和 daemon 密码。
+3. 板子会先告诉你要连的是哪台 Paseo，点“连接”。daemon 设了密码而配对码里没带时，板子会再问你要。
+
+<img src="docs/media/zh/welcome.png" width="240" alt="欢迎页：扫 Paseo 的配对码，或者直接连接">
 
 ## 怎么用
 
 | 在哪 | 手势 | 结果 |
 |---|---|---|
-| 任何地方 | 左右滑 | 额度 ← 首页 → 卡片组 |
-| 任何地方 | 从顶部下拉 | 控制中心：Wi-Fi、Paseo、勿扰、声音、振动、亮度 |
-| 首页 | 轻点灯 | 跳到最紧急的那张卡 |
-| 卡片组 | 上下滑 | 换下一个 agent，最紧急的排在前面 |
-| 提问卡 | 按住一个选项（0.5 秒） | 用这个选项回答 |
-| 工作中的卡 | 按住（1.2 秒） | 停止这一轮；提前松手就取消 |
+| 任何地方 | 左右滑 | 额度、灯、卡片组 |
+| 任何地方 | 从顶部下拉 | 控制中心，含 Wi-Fi、Paseo、勿扰、声音、振动和亮度 |
+| 灯 | 轻点 | 最紧急的那张卡 |
+| 灯 | 按住 | 新会话 |
+| 卡片组 | 上下滑 | 下一个 agent，最紧急的排在前面 |
+| 提问卡 | 按住一个选项 0.5 秒 | 用这个选项回答 |
+| 运行中的卡 | 按住 1.2 秒 | 停止这一轮，提前松手就取消 |
 | 完成的卡 | 点“已读” | 变灰，一小时后离开卡片组 |
-| AI 键 | 单击 / 长按 | 去最紧急的卡，再按回到灯 / 勿扰一小时 |
+| AI 键 | 单击 | 最紧急的那张卡，再按一次回到灯 |
+| AI 键 | 按住 | 说话，松开后看一眼文字，点“发送” |
 | 板子 | 扣过来放 | 扣着的时候勿扰 |
 
-轻点永远不会作用到 agent。插件设置里关掉“允许板子操作 agent”，板子就只能看不能动。
-没插交互模块时，两分钟没碰屏幕会变暗，十分钟熄屏；插上后，有人在旁边就一直亮着，
-人走开三分钟后熄屏。熄屏时碰一下屏幕只会把它唤醒。
+轻点永远不会改动 agent，只有按住才会。
+
+### 回答问题
+
+<img src="docs/media/zh/answer.gif" width="360" alt="点亮着琥珀色的灯，按住一个选项，agent 接着干活"> · [MP4](docs/media/zh/answer.mp4)
+
+### 停止一轮
+
+<img src="docs/media/zh/stop.gif" width="360" alt="按住运行中的卡片，直到圆环走满"> · [MP4](docs/media/zh/stop.mp4)
+
+### 用语音开会话
+
+<img src="docs/media/zh/voice.gif" width="360" alt="按住灯，按住说话，发送，新会话的卡片出现"> · [MP4](docs/media/zh/voice.mp4)
+
+新会话开在插件设置里选的 workspace 里，用那里选的 agent 配置。板子的键盘只有英文字母，写中文就用说的。语音转文字由 Paseo 的语音输入完成，用的是你在 Paseo 里配好的服务。中文识别不准时，在 daemon 配置里把 `features.dictation.stt.language` 设成 `zh`。
+
+### 其他页面
+
+<img src="docs/media/zh/usage.png" width="240" alt="额度"> <img src="docs/media/zh/control.png" width="240" alt="控制中心"> <img src="docs/media/zh/failed.png" width="240" alt="失败的一轮">
+
+## 插件设置
+
+在 Paseo 里打开 设置 › 插件 › Farol。
+
+- 最近的板子，含固件版本，以及每块板子自己的声音、振动和亮度。
+- 从板子开始新会话。选一个 workspace 和一个 agent 配置，两个都选了板子才能开会话。
+- 允许板子操作 agent。关掉后所有板子只读。
+- 板子的语言，可以跟随 Paseo，也可以固定成中文或英文。
+- 还有完成卡的回复预览、后台 workspace、声音、LED 亮度、安静时段，以及板子时钟用的时区。
+
+## 板子连不上时
+
+下拉控制中心，点 Paseo，页面上会写明原因。
+
+| 板子上显示 | 怎么办 |
+|---|---|
+| daemon 密码不对 | 点“重新连接”，用新密码再连一次。 |
+| relay 联系不上这台 Paseo | 确认 daemon 在运行，并且开着中继。 |
+| 加密连接失败 | daemon 的密钥换了，重新扫它的配对码。 |
+| Paseo 里没有运行 Farol 插件 | 安装插件，或者在 Paseo 的插件列表里打开它。 |
+| daemon 不认这个 Host（hostnames） | 把这个 Host 加进 daemon 配置里的 `daemon.hostnames`。 |
+| SSL 证书无效 | 换成公开 CA 签发的证书，或者在可信的网络里关掉 SSL。 |
+| 先在 Paseo 的 Farol 设置里选一个默认 workspace | 在插件设置里选好 workspace 和 agent 配置。 |
+
+## 安全
+
+板子把 daemon 密码，以及走中继时的配对码，明文存在 flash 里。拿到板子和一根 USB 线的人就能读出来。密码能完全控制你的 daemon，daemon 没设密码时配对码也一样。板子自己保管好，给 daemon 设一个密码，板子丢了就改掉它。
 
 ## 开发
 
-在本目录下：
-
-```sh
-cd rust && cargo test -p logic                 # 逻辑、协议、文字排版的测试
-python tools/dev.py sim                        # 浏览器里的模拟器，跑演示数据
-python tools/dev.py check                      # 脚本化场景检查（截图）
-python tools/simdrive.py                       # 长按、键盘、各页面的交互流程
-python tools/dev.py scene                      # 改了 tools/ui/gen_scene.py 之后
-cd plugin && npm run check                     # 插件类型检查和测试
-node tools/relay_vectors.mjs > protocol/fixtures/relay.json   # Paseo 改了中继协议之后
-```
-
-模拟器跑的是和板子上同一份 Rust 逻辑，数据来自内置的演示 agent。`plugin/dev/` 会起一个
-隔离的 Paseo daemon 和脚本化的假 agent，像板子一样驱动插件，不碰你自己的 daemon。
-打开 `CONFIG_FAROL_BENCH` 会构建一个回放脚本化手势、打印每帧耗时的测量固件
-（[components/app_bench/README.md](components/app_bench/README.md)）。
-
-## 目录
-
-- `main`：只管启动顺序。
-- `components/app_display`：CO5300 屏幕、presenter、触摸、亮度。
-- `components/app_logic`：场景（`ui/main.json`，由 `tools/ui/gen_scene.py` 生成）、字体和 Rust 构建；
-  `host/` 是模拟器后端。
-- `components/app_net`、`app_link`：Wi-Fi，以及连 Paseo 的 WebSocket（直接连接或中继；
-  中继的加密在 `rust/logic/src/relay.rs`）。
-- `components/app_feedback`、`app_camera`：振动、声音、交互模块、传感器；摄像头和二维码识别。
-- `components/app_bench`：帧测量工具（默认关闭）。
-- `rust/logic`：板子上所有的判断，板子、模拟器和测试共用；`rust/platform`：板子这一侧；
-  `rust/host`：模拟器这一侧。
-- `plugin/`：Paseo 插件；`protocol/`：farol/1 协议和两边测试共用的样例。
-- `tools/`：场景和字体生成器、模拟器驱动。
+构建、模拟器、测试和板子的协议见 [docs/development.md](docs/development.md)（英文）。
 
 ## 许可
 
-Apache-2.0（[LICENSE](LICENSE)）。字体是 Noto Sans SC 和 Geist 的子集，
-遵循 SIL Open Font License（`components/app_logic/ui/fonts/OFL-*.txt`）。
+Apache-2.0，见 [LICENSE](LICENSE)。字体是 Noto Sans SC 和 Geist 的子集，遵循 SIL Open Font License（`components/app_logic/ui/fonts/OFL-*.txt`）。

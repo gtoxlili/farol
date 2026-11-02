@@ -1,45 +1,22 @@
-Farol is the companion plugin for the Farol desk lamp, an ESP32 board that shows
-your Paseo agents at a glance: cool light while agents work, warm light when one
-waits for you. From the board you can answer a question, a permission or a plan,
-stop a running turn, and mark finished agents as read.
+Farol is a desk lamp for your Paseo agents, on an ESP-Mosaico board. The light shows how your agents are doing. On the board you answer questions, permission requests and plans, stop a running turn, and start a new session by voice or keyboard. This plugin feeds the board and carries out what you do on it.
 
-## How it works
+## Connect a board
 
-The board connects to this daemon the two ways Paseo's app does (scanning the
-pairing code for the encrypted relay, or a direct connection), signs in with
-the daemon password when one is set, and then only calls this plugin. The plugin reads agents,
-timelines and provider usage through Paseo's public SDK, sends the board a
-compact summary, and performs the board's actions after checking that the
-request is still open. It opens no port and stores no password.
-
-## Setup
-
-Install this plugin, then connect the board on the board itself: "扫描二维码"
-reads the pairing code under Settings › this host › 配对设备 (the relay, nothing
-to expose), "直接连接" takes host, port, SSL and the daemon password. Requires
-Paseo 0.14 or newer.
+Install this plugin, then connect on the board. "Scan QR code" reads the pairing code under Settings › this host › Pair device and goes through Paseo's encrypted relay. "Direct connection" takes the host, port, SSL and daemon password. Requires Paseo 0.14 or later.
 
 ## Settings
 
-- Allow the board to act on agents. Off makes every board read-only.
-- Reply preview on finished cards.
-- Include agents in background workspaces.
-- Sound, LED brightness and quiet hours, applied by every board when you change
-  them here. A board's own control centre changes only that board (shown under
-  recent boards).
-- Time zone for the board's clock; empty follows this Mac.
+- New sessions from a board: the workspace and the agent profile they use. Boards can start sessions only when both are set. Dictation uses Paseo's own speech-to-text settings.
+- Let boards act on agents. Off makes every board read-only.
+- Board language: follow Paseo, Chinese or English.
+- Reply preview on finished cards, and agents in background workspaces.
+- Sound, LED brightness and quiet hours for every board. A board's own control centre changes only that board.
+- Time zone of the board's clock. Empty follows this computer.
 
-## Things to know
+## Good to know
 
-- The board holds the daemon password, which grants full access to this daemon.
-  If a board is lost, change the daemon password.
-- Stopping a turn runs the `paseo stop` command on this Mac (the same cancel as
-  the app's stop button). Only the turn the board showed is stopped: if a new
-  turn started meanwhile, for example from your phone, the board's stop is
-  refused. Without the CLI on the daemon's PATH the board offers no stop.
-- An answer from a board counts only when Paseo applied it; if you answered the
-  same question elsewhere first, the board says so.
-- Each answer or stop made on a board adds a line to that agent's timeline
-  (display only: it never reaches the model).
-- Boards wait for news with a 20-second request, which the daemon log lists as a
-  slow request; that is expected.
+- The board keeps the daemon password, and for the relay the pairing code. Each gives full control of this daemon. If you lose a board, change the daemon password.
+- A board's stop runs `paseo stop` on this computer and stops only the turn the board showed. Without the `paseo` CLI on the daemon's PATH, boards cannot stop turns.
+- A board's answer counts only when Paseo applied it. If you answered elsewhere first, the board says so.
+- Answers and stops from a board add a line to the agent's timeline. The line is for you. The model never sees it.
+- Boards wait for news with a 20-second request. The daemon log lists each one as a slow request. That is expected.
