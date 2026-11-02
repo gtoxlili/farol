@@ -60,6 +60,6 @@ add_custom_target(app_logic_cargo
 # Components whose C symbols the Rust code calls directly.
 add_prebuilt_library(app_logic_staticlib "${app_logic_staticlib}"
     PRIV_REQUIRES espressif__esp-gsp heap log esp_timer freertos nvs_flash esp_hw_support
-        app_display)
+        app_display app_link app_net)
 add_dependencies(app_logic_staticlib app_logic_cargo)
 target_link_libraries(${COMPONENT_LIB} INTERFACE app_logic_staticlib)

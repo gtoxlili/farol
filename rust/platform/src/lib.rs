@@ -5,8 +5,10 @@
 //! render task; they decode, box the [`Event`] and post the pointer to a
 //! FreeRTOS queue without blocking. The `logic` task waits on that queue until
 //! the app's next deadline, then runs [`App::handle`] and [`App::poll`], whose
-//! setters GSP applies asynchronously before its next frame. Only the `logic`
-//! task touches the `App`; the render task reads one atomic, [`SCREEN_ON`].
+//! setters GSP applies asynchronously before its next frame. Wi-Fi and link
+//! reports arrive the same way from the C components' tasks ([`net`]). Only
+//! the `logic` task touches the `App`; the render task reads one atomic,
+//! [`SCREEN_ON`].
 #![no_std]
 
 extern crate alloc;
@@ -14,6 +16,7 @@ extern crate alloc;
 mod board;
 mod heap;
 mod idf;
+mod net;
 mod panic;
 
 use alloc::boxed::Box;
@@ -52,9 +55,9 @@ static PRESSED: AtomicBool = AtomicBool::new(false);
 /// The current press began on a dark panel and is swallowed (render task only).
 static SWALLOWING: AtomicBool = AtomicBool::new(false);
 
-/// Effects on the board. The link, Wi-Fi, camera, haptics, sound and LEDs
-/// arrive with their components (app_link, app_net, app_camera,
-/// app_feedback); until then those effects are logged.
+/// Effects on the board. The link and Wi-Fi go to app_link and app_net
+/// ([`net`]); the camera, haptics, sound and LEDs arrive with their components
+/// (app_camera, app_feedback), and until then those effects are logged.
 struct Board {
     display: Option<Display>,
 }
@@ -67,9 +70,7 @@ impl Board {
 
 impl Sys for Board {
     fn link(&mut self, out: Out) {
-        if !matches!(out, Out::Send(_)) {
-            Self::later(&alloc::format!("link {out:?} (no app_link yet)"));
-        }
+        net::link(out);
     }
     fn haptic(&mut self, _haptic: Haptic) {}
     fn chime(&mut self, _chime: Chime) {}
@@ -101,7 +102,7 @@ impl Sys for Board {
         board::save_prefs(prefs);
     }
     fn wifi(&mut self, cmd: WifiCmd) {
-        Self::later(&alloc::format!("wifi {cmd:?} (no app_net yet)"));
+        net::wifi(cmd);
     }
     fn camera(&mut self, on: bool) {
         Self::later(&alloc::format!("camera {on} (no app_camera yet)"));
@@ -308,6 +309,8 @@ pub unsafe extern "C" fn app_logic_start(handle: gsp::esp_gsp_handle_t) -> i32 {
     if !registered {
         return -3;
     }
+    // Reports wait in the queue until the task below runs.
+    net::subscribe(queue);
     let arg = Box::into_raw(task).cast::<c_void>();
     if !idf::spawn(c"logic", TASK_STACK_BYTES, TASK_PRIORITY, logic_task, arg) {
         // The callbacks stay registered on the leaked queue, which nobody
