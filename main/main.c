@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "sdkconfig.h"
+#if CONFIG_FAROL_BENCH
+#include "app_bench.h"
+#endif
 #include "app_display.h"
 #include "app_logic.h"
 #include "esp_gsp_esp_lcd.h"
@@ -11,9 +15,22 @@
 
 static const char *TAG = "farol";
 
+#if CONFIG_FAROL_BENCH
+/* Every bench run starts from the same demo moment: 14 s into the script the
+ * question is up and "runtime" is mid-turn, so the fourth card is a running
+ * agent with its shimmer bar, and the hold stops it. */
+#define BENCH_DEMO_AT_MS 14000
+
+static bool bench_reset_scene(void)
+{
+    return app_logic_restart_demo(BENCH_DEMO_AT_MS);
+}
+#endif
+
 /* The composition root retains owned handles; all live until reboot. */
 static struct {
     app_display_t display;
+    esp_lcd_touch_handle_t touch;   /* what GSP reads: the panel, or the bench script */
     esp_gsp_handle_t ui;
 } application;
 
@@ -32,6 +49,12 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(app_logic_font_apply(&config));
     err = app_display_create(&application.display);
+    application.touch = application.display.touch;
+#if CONFIG_FAROL_BENCH
+    if (err == ESP_OK) {
+        err = app_bench_touch_create(&application.touch);
+    }
+#endif
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Display unavailable (0x%x); Recovery RPC remains active", err);
         return;
@@ -39,10 +62,15 @@ void app_main(void)
 
     esp_gsp_esp_lcd_config_t display = ESP_GSP_ESP_LCD_CONFIG_INIT();
     display.presenter = application.display.presenter;
-    display.touch = application.display.touch;
+    display.touch = application.touch;
+#if CONFIG_FAROL_BENCH
+    /* The scripted touch has no interrupt line; GSP polls it. */
+    display.touch_input_mode = ESP_GSP_TOUCH_INPUT_POLLING;
+#else
     /* AUTO: interrupt on the touch INT line when it registers (as the factory
      * firmware), otherwise GSP logs a warning and polls. */
     display.touch_input_mode = ESP_GSP_TOUCH_INPUT_AUTO;
+#endif
     /* CO5300 QSPI requires the X origin and width in multiples of 4 pixels. */
     display.render_alignment = (esp_display_present_render_alignment_t) {
         .x_pixels = 4,
@@ -58,5 +86,9 @@ void app_main(void)
                  (long)logic_err);
         return;
     }
+#if CONFIG_FAROL_BENCH
+    static const app_bench_hooks_t bench_hooks = {.reset_scene = bench_reset_scene};
+    ESP_ERROR_CHECK(app_bench_start(application.ui, application.display.presenter, &bench_hooks));
+#endif
     ESP_LOGI(TAG, "ready");
 }

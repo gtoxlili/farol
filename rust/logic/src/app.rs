@@ -325,6 +325,16 @@ impl App {
                 }
             },
             Event::Scanned(payload) => self.on_scanned(&payload, sys),
+            Event::Demo { offset_ms } => {
+                self.start_demo(offset_ms);
+                self.deck = 0;
+                self.fill_slots();
+                self.screen = HOME;
+                self.painter.page(ui, gsp::GSP_OBJ_KEY_SCREENS, HOME, false);
+                self.painter
+                    .run(ui.set_drawer(gsp::GSP_OBJ_KEY_CC, false, false));
+                self.update_focus();
+            }
             Event::Restored { config, prefs } => {
                 self.prefs = prefs;
                 if self.demo.is_none() {
