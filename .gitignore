@@ -4,7 +4,6 @@ build_*/
 build-*/
 cmake-build-*/
 managed_components/
-/dependencies.lock
 sdkconfig
 sdkconfig.old
 sdkconfig.backup
