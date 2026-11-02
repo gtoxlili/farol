@@ -1,0 +1,10 @@
+dependencies:
+  idf: ">=6.2"
+  # The DVP camera driver. At configure time it patches $IDF_PATH (DVP frame
+  # capture) and managed_components/espressif__esp_cam_sensor (SC101IOT PCLK
+  # delay); see the README's "Building with the camera".
+  mosaico_module_camera:
+    version: "*"
+    override_path: "../../../../submodule/esp-mosaico-bsp/components/mosaico_module_camera"
+  # Pinned exactly: cam_qr.c relies on quirc_flip() and the payload limits.
+  espressif/quirc: "==1.2.0~1"
