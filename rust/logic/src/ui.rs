@@ -1,8 +1,12 @@
-//! The setters the logic drives the scene with.
+//! The scene operations the logic uses, and [`Painter`], which drops writes
+//! that would not change what is on screen.
 //!
 //! GSP setters are asynchronous: `Ok` means GSP accepted the command, which it
-//! applies before the next frame; it is not a rendered frame. On the board they
-//! are safe from any task and never wait for rendering.
+//! applies before the next frame. On the board they are safe from any task and
+//! never wait for rendering. Colors are 0xRRGGBB; [`GspUi`] converts them to
+//! the scene's RGB565.
+
+use alloc::collections::BTreeMap;
 
 use gsp_sys as gsp;
 
@@ -25,46 +29,218 @@ pub enum Ease {
     InOut,
 }
 
-/// Tween timing. `iterations = 0` repeats until stopped; `alternate` plays
-/// every other iteration backwards.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Timing {
-    pub duration_ms: u32,
-    pub iterations: u16,
-    pub alternate: bool,
-    pub ease: Ease,
+/// Every scene operation the logic performs. [`GspUi`] implements it over the
+/// GSP C API; the tests record the calls instead.
+pub trait Ui {
+    /// Replaces a bound label's text. Glyphs outside the baked set come from
+    /// the dynamic (FreeType) font.
+    fn set_text(&mut self, bind: Bind, text: &str) -> UiResult;
+    /// Shows or hides an object with a visibility bind, with its subtree.
+    fn set_visible(&mut self, bind: Bind, visible: bool) -> UiResult;
+    /// Sets the color of an object with a color bind.
+    fn set_color(&mut self, bind: Bind, rgb: u32) -> UiResult;
+    /// Tweens the color of an object with a color bind.
+    fn animate_color(&mut self, bind: Bind, from: u32, to: u32, ms: u32, ease: Ease) -> UiResult;
+    /// Sets a value control (arc, progress, orb level, slider).
+    fn set_value(&mut self, key: Key, value: i32) -> UiResult;
+    /// Tweens a value control.
+    fn animate_value(&mut self, key: Key, from: i32, to: i32, ms: u32, ease: Ease) -> UiResult;
+    /// Sets an integer runtime property (`x`, `y`, an effect's `period_ms`...).
+    fn set_i32(&mut self, key: Key, property: Property, value: i32) -> UiResult;
+    /// Sets a color runtime property such as an effect's `fg_color`.
+    fn set_property_color(&mut self, key: Key, property: Property, rgb: u32) -> UiResult;
+    /// Tweens a component's primary color to `to`.
+    fn animate_color_to(&mut self, key: Key, to: u32, ms: u32, ease: Ease) -> UiResult;
+    /// Selects a PageFlow page.
+    fn set_page(&mut self, key: Key, page: u16, animated: bool) -> UiResult;
+    /// Opens or closes a Drawer.
+    fn set_drawer(&mut self, key: Key, open: bool, animated: bool) -> UiResult;
 }
 
-impl Timing {
-    /// One forward run.
-    pub const fn once(duration_ms: u32, ease: Ease) -> Self {
-        Self {
-            duration_ms,
-            iterations: 1,
-            alternate: false,
-            ease,
-        }
+/// What a [`Painter`] last wrote to one target, to skip identical writes.
+#[derive(Clone, PartialEq, Eq, Debug)]
+enum Written {
+    Text(u64),
+    Flag(bool),
+    Number(i32),
+}
+
+/// Wraps a [`Ui`] and forgets nothing: identical repeated writes are dropped,
+/// so the views can describe the whole screen on every update without
+/// flooding GSP. Tweens always pass through and invalidate the cached value.
+/// The first rejected setter's code is kept for one log line.
+pub struct Painter {
+    written: BTreeMap<(u8, u32), Written>,
+    rejections: u32,
+    first_rejection: Option<gsp::esp_gsp_err_t>,
+}
+
+const TEXT: u8 = 0;
+const VISIBLE: u8 = 1;
+const COLOR: u8 = 2;
+const VALUE: u8 = 3;
+const PROPERTY: u8 = 4;
+const PAGE: u8 = 5;
+
+impl Default for Painter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-/// The scene operations the logic uses. Add a method here, implement it in
-/// [`GspUi`] over `gsp_sys`, and record it in the tests' mock.
-pub trait Ui {
-    /// Replaces a bound label's text (`"bind"` in the scene). The text must fit
-    /// the GSP text capacity and its glyphs must be in the label's charset.
-    fn set_text(&mut self, bind: Bind, text: &str) -> UiResult;
+impl Painter {
+    pub const fn new() -> Self {
+        Self {
+            written: BTreeMap::new(),
+            rejections: 0,
+            first_rejection: None,
+        }
+    }
 
-    /// Starts a GSP tween of an integer property of a named component (for
-    /// example opacity). GSP runs the motion; a new tween on the same
-    /// property replaces the running one.
-    fn animate_i32(
-        &mut self,
-        key: Key,
-        property: Property,
-        from: i32,
-        to: i32,
-        timing: Timing,
-    ) -> UiResult;
+    /// Forget everything written, e.g. after the scene was reset.
+    pub fn forget(&mut self) {
+        self.written.clear();
+    }
+
+    pub fn rejections(&self) -> u32 {
+        self.rejections
+    }
+
+    pub fn take_first_rejection(&mut self) -> Option<gsp::esp_gsp_err_t> {
+        self.first_rejection.take()
+    }
+
+    fn write(&mut self, slot: (u8, u32), value: Written, apply: impl FnOnce() -> UiResult) {
+        if self.written.get(&slot) == Some(&value) {
+            return;
+        }
+        match apply() {
+            Ok(()) => {
+                self.written.insert(slot, value);
+            }
+            Err(code) => self.reject(code),
+        }
+    }
+
+    fn reject(&mut self, code: gsp::esp_gsp_err_t) {
+        self.rejections = self.rejections.saturating_add(1);
+        self.first_rejection.get_or_insert(code);
+    }
+
+    fn result(&mut self, result: UiResult) {
+        if let Err(code) = result {
+            self.reject(code);
+        }
+    }
+
+    pub fn text(&mut self, ui: &mut impl Ui, bind: Bind, text: &str) {
+        self.write((TEXT, bind.into()), Written::Text(hash(text)), || {
+            ui.set_text(bind, text)
+        });
+    }
+
+    pub fn visible(&mut self, ui: &mut impl Ui, bind: Bind, visible: bool) {
+        self.write((VISIBLE, bind.into()), Written::Flag(visible), || {
+            ui.set_visible(bind, visible)
+        });
+    }
+
+    pub fn color(&mut self, ui: &mut impl Ui, bind: Bind, rgb: u32) {
+        self.write((COLOR, bind.into()), Written::Number(rgb as i32), || {
+            ui.set_color(bind, rgb)
+        });
+    }
+
+    /// Tweens from the color last written (or `rgb` if none) to `rgb`.
+    pub fn fade_color(&mut self, ui: &mut impl Ui, bind: Bind, rgb: u32, ms: u32) {
+        let slot = (COLOR, u32::from(bind));
+        let from = match self.written.get(&slot) {
+            Some(Written::Number(n)) => *n as u32,
+            _ => rgb,
+        };
+        if from == rgb && self.written.contains_key(&slot) {
+            return;
+        }
+        let result = ui.animate_color(bind, from, rgb, ms, Ease::Out);
+        if result.is_ok() {
+            self.written.insert(slot, Written::Number(rgb as i32));
+        }
+        self.result(result);
+    }
+
+    pub fn value(&mut self, ui: &mut impl Ui, key: Key, value: i32) {
+        self.write((VALUE, key), Written::Number(value), || {
+            ui.set_value(key, value)
+        });
+    }
+
+    /// Tweens to `value` from what was last written; the end value is cached.
+    pub fn glide_value(&mut self, ui: &mut impl Ui, key: Key, value: i32, ms: u32) {
+        let slot = (VALUE, key);
+        match self.written.get(&slot) {
+            Some(Written::Number(from)) if *from == value => {}
+            Some(Written::Number(from)) => {
+                let from = *from;
+                let result = ui.animate_value(key, from, value, ms, Ease::Out);
+                if result.is_ok() {
+                    self.written.insert(slot, Written::Number(value));
+                }
+                self.result(result);
+            }
+            _ => self.value(ui, key, value),
+        }
+    }
+
+    pub fn property(&mut self, ui: &mut impl Ui, key: Key, property: Property, value: i32) {
+        let slot = (PROPERTY, key ^ property.rotate_left(7));
+        self.write(slot, Written::Number(value), || {
+            ui.set_i32(key, property, value)
+        });
+    }
+
+    pub fn property_color(&mut self, ui: &mut impl Ui, key: Key, property: Property, rgb: u32) {
+        let slot = (PROPERTY, key ^ property.rotate_left(7));
+        self.write(slot, Written::Number(rgb as i32), || {
+            ui.set_property_color(key, property, rgb)
+        });
+    }
+
+    /// Selects a page; `None` cached means "unknown", so the write goes out.
+    pub fn page(&mut self, ui: &mut impl Ui, key: Key, page: u16, animated: bool) {
+        self.write((PAGE, key), Written::Number(page.into()), || {
+            ui.set_page(key, page, animated)
+        });
+    }
+
+    /// Records a page the user reached by swiping, so a later write of the
+    /// same page is not sent again.
+    pub fn note_page(&mut self, key: Key, page: u16) {
+        self.written
+            .insert((PAGE, key), Written::Number(page.into()));
+    }
+
+    /// One-off operations that have no cached state.
+    pub fn run(&mut self, result: UiResult) {
+        self.result(result);
+    }
+}
+
+/// FNV-1a; collisions only cost a skipped write of identical-hash text.
+fn hash(text: &str) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in text.bytes() {
+        h ^= u64::from(byte);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    h
+}
+
+/// 0xRRGGBB to the scene's RGB565.
+pub const fn rgb565(rgb: u32) -> u32 {
+    let r = (rgb >> 16) & 0xFF;
+    let g = (rgb >> 8) & 0xFF;
+    let b = rgb & 0xFF;
+    ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
 }
 
 #[cfg(not(test))]
@@ -72,8 +248,13 @@ pub use gsp_ui::GspUi;
 
 #[cfg(not(test))]
 mod gsp_ui {
+    use alloc::vec::Vec;
+
     use super::*;
-    use crate::text::TEXT_CAPACITY;
+
+    /// Longest label text accepted, in bytes; longer text is cut at a char
+    /// boundary. GSP copies text of any length, this only bounds the copy.
+    const MAX_TEXT: usize = 2048;
 
     /// [`Ui`] over a running GSP instance's C API.
     #[derive(Clone, Copy)]
@@ -102,6 +283,14 @@ mod gsp_ui {
         }
     }
 
+    fn ease(ease: Ease) -> gsp::esp_gsp_ease_t {
+        match ease {
+            Ease::Linear => gsp::ESP_GSP_EASE_LINEAR,
+            Ease::Out => gsp::ESP_GSP_EASE_OUT,
+            Ease::InOut => gsp::ESP_GSP_EASE_IN_OUT,
+        }
+    }
+
     fn i32_value(v: i32) -> gsp::gsp_value_t {
         let mut value = gsp::gsp_value_t {
             type_: gsp::GSP_VALUE_I32,
@@ -111,44 +300,74 @@ mod gsp_ui {
         value
     }
 
-    fn ease(ease: Ease) -> gsp::esp_gsp_ease_t {
-        match ease {
-            Ease::Linear => gsp::ESP_GSP_EASE_LINEAR,
-            Ease::Out => gsp::ESP_GSP_EASE_OUT,
-            Ease::InOut => gsp::ESP_GSP_EASE_IN_OUT,
-        }
-    }
-
     impl Ui for GspUi {
         fn set_text(&mut self, bind: Bind, text: &str) -> UiResult {
-            // GSP copies the string before returning; the NUL-terminated copy
-            // here only needs to live for the call.
-            let mut c_text = [0u8; TEXT_CAPACITY + 1];
-            if text.len() > TEXT_CAPACITY || text.as_bytes().contains(&0) {
-                return Err(gsp::ESP_GSP_ERR_INVALID_ARG as gsp::esp_gsp_err_t);
+            let mut end = text.len().min(MAX_TEXT);
+            while !text.is_char_boundary(end) {
+                end -= 1;
             }
-            c_text[..text.len()].copy_from_slice(text.as_bytes());
+            let mut c_text: Vec<u8> = Vec::with_capacity(end + 1);
+            c_text.extend(
+                text.as_bytes()[..end]
+                    .iter()
+                    .map(|&b| if b == 0 { b' ' } else { b }),
+            );
+            c_text.push(0);
             check(unsafe { gsp::esp_gsp_set_text(self.0, bind, c_text.as_ptr().cast()) })
         }
 
-        fn animate_i32(
-            &mut self,
-            key: Key,
-            property: Property,
-            from: i32,
-            to: i32,
-            timing: Timing,
-        ) -> UiResult {
-            let (from, to) = (i32_value(from), i32_value(to));
-            let config = gsp::esp_gsp_animation_config_t {
-                duration_ms: timing.duration_ms,
-                delay_ms: 0,
-                iterations: timing.iterations,
-                alternate: timing.alternate,
-                ease: ease(timing.ease),
-            };
+        fn set_visible(&mut self, bind: Bind, visible: bool) -> UiResult {
+            check(unsafe { gsp::esp_gsp_set_visible(self.0, bind, visible) })
+        }
+
+        fn set_color(&mut self, bind: Bind, rgb: u32) -> UiResult {
+            check(unsafe { gsp::esp_gsp_set_color(self.0, bind, rgb565(rgb)) })
+        }
+
+        fn animate_color(&mut self, bind: Bind, from: u32, to: u32, ms: u32, e: Ease) -> UiResult {
             check(unsafe {
-                gsp::esp_gsp_component_play_animation(self.0, key, property, &from, &to, &config)
+                gsp::esp_gsp_animate_color(self.0, bind, rgb565(from), rgb565(to), ms, ease(e))
+            })
+        }
+
+        fn set_value(&mut self, key: Key, value: i32) -> UiResult {
+            check(unsafe { gsp::esp_gsp_component_set_value(self.0, key, value) })
+        }
+
+        fn animate_value(&mut self, key: Key, from: i32, to: i32, ms: u32, e: Ease) -> UiResult {
+            check(unsafe {
+                gsp::esp_gsp_component_animate_value(self.0, key, from, to, ms, ease(e))
+            })
+        }
+
+        fn set_i32(&mut self, key: Key, property: Property, value: i32) -> UiResult {
+            let value = i32_value(value);
+            check(unsafe { gsp::esp_gsp_component_set_property(self.0, key, property, &value) })
+        }
+
+        fn set_property_color(&mut self, key: Key, property: Property, rgb: u32) -> UiResult {
+            check(unsafe {
+                gsp::esp_gsp_component_set_property_color_rgb888(self.0, key, property, rgb)
+            })
+        }
+
+        fn animate_color_to(&mut self, key: Key, to: u32, ms: u32, e: Ease) -> UiResult {
+            check(unsafe {
+                gsp::esp_gsp_component_animate_color_to(self.0, key, rgb565(to), ms, ease(e))
+            })
+        }
+
+        fn set_page(&mut self, key: Key, page: u16, animated: bool) -> UiResult {
+            check(unsafe { gsp::esp_gsp_page_flow_set_page(self.0, key, page, animated) })
+        }
+
+        fn set_drawer(&mut self, key: Key, open: bool, animated: bool) -> UiResult {
+            check(unsafe {
+                if open {
+                    gsp::esp_gsp_drawer_open(self.0, key, animated)
+                } else {
+                    gsp::esp_gsp_drawer_close(self.0, key, animated)
+                }
             })
         }
     }
