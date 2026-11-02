@@ -165,6 +165,9 @@ pub struct Snapshot {
 pub struct Compose {
     /// The workspace's name, for the board to show.
     pub workspace: String,
+    /// The agent profile's name; empty from plugins before it.
+    #[serde(default)]
+    pub profile: String,
 }
 
 /// `farol.start` input: a new agent session in the default workspace, with

@@ -1,12 +1,14 @@
-//! A new agent session from the board, part of [`App`]: the compose page,
-//! push-to-talk through Paseo's dictation (hold the AI key or the page's
-//! button), typing, and `farol.start`. The page is drawn in `view.rs`.
+//! A new agent session from the board, part of [`App`]: the lamp listens.
+//! Hold the AI key anywhere (or the lamp on the compose page) and talk through
+//! Paseo's dictation; the lamp turns violet and rises with your voice. The
+//! words then show as the card the session will be, and holding the send bar
+//! starts it with `farol.start`, as answers and stops are holds too. The page
+//! is drawn in `view.rs`.
 
 use alloc::string::String;
 
 use super::{App, Entry, Overlay};
 use crate::dictation::Heard;
-use crate::lang::Lang;
 use crate::model::{ActResult, Start};
 use crate::sys::{Haptic, Sys};
 use crate::tr;
@@ -16,6 +18,12 @@ use crate::ui::Ui;
 pub(crate) const LISTEN_MAX_MS: u64 = 60_000;
 /// Demo: how long the pretend transcription takes.
 const DEMO_TRANSCRIBE_MS: u64 = 900;
+/// The send bar fills in this time; GSP's long press (500 ms) then sends.
+pub(crate) const SEND_HOLD_MS: u32 = 500;
+/// The send bar empties this fast when let go early.
+const SEND_EMPTY_MS: u32 = 160;
+/// Demo: the pretend voice's loudness changes this often.
+const DEMO_LOUDNESS_MS: u64 = 100;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum Voice {
@@ -41,6 +49,10 @@ pub(crate) struct Compose {
     pub demo_heard_at: Option<u64>,
     /// Recording stops here at the latest.
     pub listen_until: Option<u64>,
+    /// The microphone's loudness while listening, 0..=100.
+    pub loudness: u8,
+    /// The send bar is held and filling.
+    pub holding: bool,
 }
 
 impl App {
@@ -57,7 +69,35 @@ impl App {
             GSP_ACT_ID_MIC_PRESS => self.talk(sys),
             GSP_ACT_ID_MIC_RELEASE => self.talked(sys),
             GSP_ACT_ID_CP_KEYS => self.type_prompt(ui, sys),
-            GSP_ACT_ID_CP_SEND => self.send_compose(sys),
+            GSP_ACT_ID_SEND_PRESS => {
+                if self.compose.voice == Voice::Idle && !self.compose.text.is_empty() {
+                    self.compose.holding = true;
+                    self.painter.run(ui.animate_value(
+                        GSP_OBJ_KEY_CP_FILL,
+                        0,
+                        100,
+                        SEND_HOLD_MS,
+                        crate::ui::Ease::Linear,
+                    ));
+                }
+            }
+            GSP_ACT_ID_SEND_LONG => {
+                if core::mem::take(&mut self.compose.holding) {
+                    self.send_compose(sys);
+                }
+            }
+            GSP_ACT_ID_SEND_RELEASE => {
+                // Let go before the long press: nothing is sent.
+                if core::mem::take(&mut self.compose.holding) {
+                    self.painter.run(ui.animate_value(
+                        GSP_OBJ_KEY_CP_FILL,
+                        50,
+                        0,
+                        SEND_EMPTY_MS,
+                        crate::ui::Ease::Out,
+                    ));
+                }
+            }
             GSP_ACT_ID_CP_CANCEL => self.close_compose(sys),
             GSP_ACT_ID_LANG_TOGGLE => {
                 self.prefs.lang = self.prefs.lang.other();
@@ -118,6 +158,7 @@ impl App {
             sys.listen(true);
         }
         self.compose.voice = Voice::Listening;
+        self.compose.loudness = 0;
         self.compose.note = None;
         self.compose.listen_until = Some(self.now + LISTEN_MAX_MS);
         self.feel(Haptic::Confirm, sys);
@@ -171,7 +212,42 @@ impl App {
 
     pub(super) fn compose_deadline(&self) -> u64 {
         let listen = self.compose.listen_until.unwrap_or(u64::MAX);
-        listen.min(self.compose.demo_heard_at.unwrap_or(u64::MAX))
+        let mut next = listen.min(self.compose.demo_heard_at.unwrap_or(u64::MAX));
+        // The demo's pretend voice moves the lamp as a real one would.
+        if self.demo.is_some() && self.compose.voice == Voice::Listening {
+            next = next.min(self.now + DEMO_LOUDNESS_MS);
+        }
+        next
+    }
+
+    /// The microphone's loudness (the board reports it while recording).
+    pub(super) fn loudness(&mut self, level: u8) {
+        if self.compose.voice == Voice::Listening {
+            self.compose.loudness = level;
+        }
+    }
+
+    /// Loudness for the lamp: the board's, or in the demo a voice-like rise
+    /// and fall made of two triangle waves.
+    pub(crate) fn voice_level(&self) -> u8 {
+        if self.demo.is_none() {
+            return self.compose.loudness;
+        }
+        let tri = |period: u64| {
+            let t = self.now % period;
+            let half = period / 2;
+            (if t < half { t } else { period - t }) * 100 / half
+        };
+        ((tri(700) * 6 + tri(230) * 4) / 10).min(100) as u8
+    }
+
+    /// Where a session from the board goes: "web-console · Opus 5.5".
+    pub(crate) fn compose_where(&self) -> String {
+        match &self.snapshot.compose {
+            Some(c) if !c.profile.is_empty() => alloc::format!("{} · {}", c.workspace, c.profile),
+            Some(c) => c.workspace.clone(),
+            None => String::new(),
+        }
     }
 
     /// What Paseo's dictation heard.
@@ -318,13 +394,5 @@ impl App {
             ..Compose::default()
         };
         self.overlay = Overlay::None;
-    }
-
-    /// The compose page's caption: where the session will start.
-    pub(crate) fn compose_caption(&self, l: Lang) -> String {
-        match &self.snapshot.compose {
-            Some(c) => tr!(l, "在 {} 里开始", "Starts in {}", c.workspace),
-            None => String::new(),
-        }
     }
 }

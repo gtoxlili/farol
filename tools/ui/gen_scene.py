@@ -49,6 +49,9 @@ CALL = "#FFB13B"   # lamplight: needs you
 DONE = "#F2EFE8"   # finished, unread
 FAIL = "#FF5A4E"   # ember: failed
 SEEN = "#3A3936"   # finished, seen
+VOICE = "#A99BFF"  # the lamp while you talk
+VOICE_DEEP = "#5B4FD0"  # the send bar filling
+VOICE_DIM = "#3A3358"
 CLEAR = "#00000000"
 VIEWFINDER = "#141516"  # the scan page's empty viewfinder
 
@@ -584,33 +587,61 @@ def tls_page(p):
 
 
 def compose_page(p):
-    """A new agent session in the default workspace: hold the button (or the AI
-    key) to talk through Paseo's dictation, or type; then send."""
+    """A new agent session: the lamp listens. Hold the AI key anywhere, or hold
+    the lamp on this page, and talk; the lamp turns violet and rises with your
+    voice. Then the words become the card the session will be, and holding the
+    bar sends it, as answering and stopping are holds too."""
     g = "st_compose"
     group(p, g, 0, 0, W, H, hidden=True)
-    page_header(g, "cp", tr("新会话", "New session"), CANCEL, "cp_cancel")
-    label(g, 24, 80, 432, 20, "", size=13, color=INK3, name="cp_caption", bind=True,
+    button(g, "cp_cancel", 372, 40, 84, 36, text=CANCEL, size=16, bg=CLEAR, fg=INK2,
+           border=None, pressed_dim=24, callback="cp_cancel")
+
+    # Stage: ready, listening, transcribing. The lamp sits where the home lamp does.
+    s = "cp_stage"
+    group(g, s, 0, 0, W, H)
+    label(s, 24, 48, 340, 22, "", font=MONO, size=14, color=INK2, name="cp_where", bind=True,
           ellipsis=True)
-    label(g, 24, 108, 432, 150, "", size=22, name="cp_text", bind=True)
-    label(g, 24, 264, 432, 22, "", size=14, color=INK2, align="center", name="cp_note",
+    add_orb(s, "cp_orb", 90, 74, 300, color=VOICE, value=20, particles=0, strength=40)
+    icon = under(s, {"type": "image", "name": "cp_mic_icon", "x": 222, "y": 168, "w": 36,
+                     "h": 36, "image": "icons/mic.svg", "tint": INK1})
+    visibility(icon)
+    label(s, 110, 196, 260, 56, "", size=40, align="center", name="cp_big", bind=True)
+    label(s, 110, 212, 260, 30, "", size=19, color=VOICE, align="center", name="cp_word",
           bind=True, ellipsis=True)
-    listen = under(g, {"type": "effect", "name": "cp_listen", "x": 170, "y": 278, "w": 140,
-                       "h": 140, "effect": "pulse", "fg_color": CALL, "playing": True,
-                       "period_ms": 1200, "strength": 90, "softness": 85, "hidden": True})
-    visibility(listen)
-    mic = button(g, "cp_mic", 190, 298, 100, 100, bg=INK1, border=None, radius=50,
-                 pressed_dim=24, hidden=True,
-                 events=calls(press="mic_press", release="mic_release", cancel="mic_release"))
-    visibility(mic)
-    under("cp_mic", {"type": "image", "x": 34, "y": 22, "w": 32, "h": 32,
-                     "image": "icons/mic.svg", "tint": BG})
-    label("cp_mic", 0, 62, 100, 20, "", size=13, color=BG, align="center", name="cp_mic_t",
-          bind=True)
-    button(g, "cp_keys", 24, 416, 200, 48, text=tr("键盘输入", "Keyboard"), size=17,
-           callback="cp_keys")
-    send = button(g, "cp_send", 256, 416, 200, 48, text=tr("发送", "Send"), size=17, bg=INK1,
-                  fg=BG, border=None, callback="cp_send", hidden=True)
-    visibility(send)
+    # The lamp is the button: hold it to talk.
+    button(s, "cp_orb_btn", 110, 94, 260, 260, bg=CLEAR, border=None, radius=130, pressed_dim=0,
+           events=calls(press="mic_press", release="mic_release", cancel="mic_release"))
+    label(s, 28, 386, 424, 62, "", size=21, align="center", name="cp_live", bind=True)
+    shimmer = under(s, {"type": "effect", "name": "cp_shimmer", "x": 150, "y": 410, "w": 180,
+                        "h": 6, "effect": "shimmer", "fg_color": VOICE_DIM, "bg_color": "#141416",
+                        "period_ms": 1400, "hidden": True})
+    visibility(shimmer)
+    label(s, 28, 446, 424, 22, "", size=14, color=INK3, align="center", name="cp_hint",
+          bind=True, ellipsis=True)
+    keys = button(s, "cp_keys", 16, 437, 120, 40, text=tr("键盘", "Keyboard"), size=15,
+                  bg=CLEAR, fg=INK2, border=None, pressed_dim=24, callback="cp_keys", hidden=True)
+    visibility(keys)
+
+    # Review: the card this session will be, and the hold-to-send bar.
+    r = "cp_review"
+    group(g, r, 0, 0, W, H, hidden=True)
+    rect(r, 28, 53, 8, 8, VOICE, radius=4)
+    label(r, 44, 45, 300, 24, tr("新会话", "New session"), size=17, color=VOICE)
+    label(r, 28, 72, 420, 22, "", size=15, color=INK2, name="cp_meta", bind=True, ellipsis=True)
+    # The card's own title geometry (card_page), so this is the card to be.
+    label(r, 28, 96, 420, 180, "", size=26, name="cp_title", bind=True)
+    rect(r, 28, 286, 424, 1, LINE)
+    rect(r, 28, 309, 8, 8, BG, radius=4, border=VOICE, border_w=2)
+    label(r, 44, 300, 300, 24, "", size=15, color=INK2, name="cp_again", bind=True,
+          ellipsis=True)
+    button(r, "cp_keys2", 336, 294, 120, 36, text=tr("键盘", "Keyboard"), size=15, bg=CLEAR,
+           fg=INK2, border=None, pressed_dim=24, callback="cp_keys")
+    under(r, {"type": "progress", "name": "cp_fill", "x": 24, "y": 372, "w": 432, "h": 64,
+              "value": 0, "bg_color": TILE, "fg_color": VOICE_DEEP, "radius": 32})
+    label(r, 24, 390, 432, 28, "", size=19, align="center", name="cp_send_t", bind=True)
+    button(r, "cp_send", 24, 372, 432, 64, bg=CLEAR, border=None, radius=32, pressed_dim=0,
+           events=calls(press="send_press", long="send_long", release="send_release",
+                        cancel="send_release"))
 
 
 def input_page(p):

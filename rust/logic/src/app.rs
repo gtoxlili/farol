@@ -437,6 +437,7 @@ impl App {
             },
             Event::Audio(pcm) => self.audio(&pcm),
             Event::AudioEnd => self.audio_end(),
+            Event::Loudness(level) => self.loudness(level),
             Event::Net(net) => self.on_net(net),
             Event::Power(power) => self.power = power,
             Event::Button(button) => {
@@ -1982,7 +1983,12 @@ mod tests {
         app.poll(1_000, &mut ui, &mut sys);
         assert_eq!(app.compose.voice, Voice::Idle);
         assert!(!app.compose.text.is_empty());
-        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_CP_SEND);
+        // A tap on the bar sends nothing; holding it through GSP's long press does.
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_SEND_PRESS);
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_SEND_RELEASE);
+        assert_eq!(app.overlay, Overlay::Compose);
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_SEND_PRESS);
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_SEND_LONG);
         assert_eq!(app.overlay, Overlay::None);
         assert_eq!(app.screen, DECK);
         assert_eq!(app.current_agent().map(|a| a.id.as_str()), Some("new-1"));

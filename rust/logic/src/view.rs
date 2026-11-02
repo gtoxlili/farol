@@ -31,6 +31,8 @@ pub mod palette {
     pub const LAMP_IDLE: u32 = 0x5E5C57;
     pub const TILE: u32 = 0x171716;
     pub const TILE_ON: u32 = 0x3A3936;
+    /// The lamp while you talk (tools/ui/gen_scene.py VOICE).
+    pub const VOICE: u32 = 0xA99BFF;
 }
 use palette::*;
 
@@ -1004,62 +1006,106 @@ fn signal(rssi: i8, l: Lang) -> (&'static str, usize) {
     }
 }
 
+/// The new-session page: the violet lamp that listens, then the card the
+/// session will be with its hold-to-send bar.
 fn compose_page(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     use crate::app::Voice;
     let l = app.lang();
     let c = &app.compose;
-    p.text(
-        ui,
-        bind(gsp::GSP_BIND_CP_CAPTION),
-        &text::fit(&app.compose_caption(l), 432, 13),
-    );
+    let review = (c.voice == Voice::Idle && !c.text.is_empty()) || c.voice == Voice::Sending;
+    p.visible(ui, bind(gsp::GSP_BIND_CP_STAGE_VIS), !review);
+    p.visible(ui, bind(gsp::GSP_BIND_CP_REVIEW_VIS), review);
+    let place = app.compose_where();
     let blocked = app.compose_blocked();
     let talk = app.can_talk();
-    let body: &str = if !c.text.is_empty() {
-        &c.text
-    } else if let Some((zh, en)) = blocked {
-        l.pick(zh, en)
-    } else if talk {
-        l.pick(
-            "按住下面的按钮（或 AI 键）说出要做的事，或者用键盘输入。",
-            "Hold the button below (or the AI key) and say what to do, or type it.",
-        )
-    } else {
-        l.pick(
-            "Paseo 没有开启语音输入：用键盘输入（只有英文字母）。",
-            "Dictation is off in Paseo: type it (Latin letters only).",
-        )
-    };
-    // GSP breaks lines only at spaces; Chinese needs the board's own breaker.
-    let body = text::wrap(body, 432, 22, 5);
-    p.text(ui, bind(gsp::GSP_BIND_CP_TEXT), &body);
-    let note = match (&c.note, c.voice) {
-        (Some(note), _) => note.clone(),
-        (None, Voice::Listening) => String::from(l.pick("正在听…", "Listening…")),
-        (None, Voice::Transcribing) => String::from(l.pick("正在转写…", "Transcribing…")),
-        (None, Voice::Sending) => String::from(l.pick("正在开始…", "Starting…")),
-        (None, Voice::Idle) => String::new(),
-    };
-    p.text(ui, bind(gsp::GSP_BIND_CP_NOTE), &text::fit(&note, 432, 14));
-    p.visible(ui, bind(gsp::GSP_BIND_CP_MIC_VIS), talk);
-    p.visible(
-        ui,
-        bind(gsp::GSP_BIND_CP_LISTEN_VIS),
-        c.voice == Voice::Listening,
-    );
+    if review {
+        p.text(ui, bind(gsp::GSP_BIND_CP_META), &text::fit(&place, 420, 15));
+        p.text(
+            ui,
+            bind(gsp::GSP_BIND_CP_TITLE),
+            &text::wrap(&c.text, 420, 26, 4),
+        );
+        let again = match &c.note {
+            Some(note) => note.as_str(),
+            None if talk => l.pick("按住 AI 键重说", "Hold the AI key to redo"),
+            None => "",
+        };
+        p.text(ui, bind(gsp::GSP_BIND_CP_AGAIN), &text::fit(again, 290, 15));
+        let send = match (c.voice, c.holding) {
+            (Voice::Sending, _) => l.pick("正在开始…", "Starting…"),
+            (_, true) => l.pick("继续按住", "Keep holding"),
+            _ => l.pick("按住发送", "Hold to send"),
+        };
+        p.text(ui, bind(gsp::GSP_BIND_CP_SEND_T), send);
+        return;
+    }
+
     p.text(
         ui,
-        bind(gsp::GSP_BIND_CP_MIC_T),
-        if c.voice == Voice::Listening {
-            l.pick("松开结束", "Release")
-        } else {
-            l.pick("按住说话", "Hold to talk")
-        },
+        bind(gsp::GSP_BIND_CP_WHERE),
+        &text::fit(&place, 340, 14),
     );
+    // The lamp: violet while it can listen, grey when it can't; it rises with
+    // the voice and breathes slowly while Paseo transcribes.
+    let key = gsp::GSP_OBJ_KEY_CP_ORB;
+    let level = i32::from(app.voice_level());
+    let (value, strength, particles, period, glide) = match c.voice {
+        Voice::Listening => (24 + level * 3 / 4, 95, 1 + level / 25, 1300, 110),
+        Voice::Transcribing => (30, 55, 0, 5200, 600),
+        _ if blocked.is_some() || !talk => (10, 25, 0, 6000, 600),
+        _ => (22, 45, 0, 4800, 600),
+    };
+    let color = if blocked.is_some() { SEEN } else { VOICE };
+    p.property_color(ui, key, gsp::GSP_PROP_KEY_FG_COLOR, color);
+    p.glide_value(ui, key, value, glide);
+    p.property(ui, key, gsp::GSP_PROP_KEY_STRENGTH, strength);
+    p.property(ui, key, gsp::GSP_PROP_KEY_PARTICLES, particles);
+    p.property(ui, key, gsp::GSP_PROP_KEY_PERIOD_MS, period);
+
+    let ready = c.voice == Voice::Idle;
+    let big = if c.voice == Voice::Listening {
+        l.pick("在听", "Listening")
+    } else {
+        ""
+    };
+    let word = match c.voice {
+        Voice::Transcribing => l.pick("转写中", "Transcribing"),
+        Voice::Listening | Voice::Sending => "",
+        Voice::Idle if blocked.is_some() => l.pick("还不能开始", "Can't start yet"),
+        Voice::Idle if !talk => l.pick("Paseo 没开语音输入", "Dictation is off"),
+        Voice::Idle => l.pick("按住光，说要做的事", "Hold the light and talk"),
+    };
+    p.text(ui, bind(gsp::GSP_BIND_CP_BIG), big);
+    p.text(ui, bind(gsp::GSP_BIND_CP_WORD), word);
+    p.visible(ui, bind(gsp::GSP_BIND_CP_MIC_ICON_VIS), ready && talk);
+    let live = match (c.voice, blocked) {
+        (Voice::Listening, _) => text::wrap(&c.text, 424, 21, 2),
+        (Voice::Idle, Some((zh, en))) => text::wrap(l.pick(zh, en), 424, 21, 2),
+        _ => String::new(),
+    };
+    p.text(ui, bind(gsp::GSP_BIND_CP_LIVE), &live);
     p.visible(
         ui,
-        bind(gsp::GSP_BIND_CP_SEND_VIS),
-        !c.text.is_empty() && c.voice == Voice::Idle && blocked.is_none(),
+        bind(gsp::GSP_BIND_CP_SHIMMER_VIS),
+        c.voice == Voice::Transcribing,
+    );
+    let hint = match (&c.note, c.voice) {
+        (Some(note), _) => note.as_str(),
+        (None, Voice::Listening) => l.pick("松开结束", "Release to finish"),
+        (None, Voice::Idle) if blocked.is_none() && talk => {
+            l.pick("也可以按住 AI 键", "Or hold the AI key")
+        }
+        (None, Voice::Idle) if blocked.is_none() => l.pick(
+            "用键盘输入，只有英文字母",
+            "Type it instead, Latin letters only",
+        ),
+        _ => "",
+    };
+    p.text(ui, bind(gsp::GSP_BIND_CP_HINT), &text::fit(hint, 300, 14));
+    p.visible(
+        ui,
+        bind(gsp::GSP_BIND_CP_KEYS_VIS),
+        ready && blocked.is_none(),
     );
 }
 

@@ -358,6 +358,7 @@ impl Demo {
             lang: None,
             compose: Some(Compose {
                 workspace: "web-console".into(),
+                profile: "Opus 5.5".into(),
             }),
             agents,
             usage: vec![

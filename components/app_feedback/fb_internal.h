@@ -25,7 +25,8 @@
 
 int64_t fb_now_ms(void);
 
-/** Report an event through the callback given to app_feedback_start. */
+/** Report an event through the callback given to app_feedback_start (from the
+ * `feedback` task; LOUDNESS from the `chime` task, which the callback allows). */
 void fb_emit(app_feedback_event_kind_t kind, int32_t value);
 void fb_emit_power(const app_feedback_power_t *power);
 

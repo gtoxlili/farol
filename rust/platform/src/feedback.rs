@@ -25,6 +25,7 @@ const EVENT_MODULE: c_int = 2;
 const EVENT_PRESENCE: c_int = 3;
 const EVENT_AMBIENT: c_int = 4;
 const EVENT_MOTION: c_int = 5;
+const EVENT_LOUDNESS: c_int = 6;
 /// `APP_FEEDBACK_MINUTES_UNKNOWN`.
 const MINUTES_UNKNOWN: u16 = u16::MAX;
 
@@ -158,6 +159,7 @@ fn decode(report: &Report) -> Option<Event> {
         EVENT_MODULE => Event::Module(value != 0),
         EVENT_PRESENCE => Event::Presence(value != 0),
         EVENT_AMBIENT => Event::Ambient(value.clamp(0, 100) as u8),
+        EVENT_LOUDNESS => Event::Loudness(value.clamp(0, 100) as u8),
         EVENT_MOTION => Event::Motion(match value {
             0 => Motion::Lifted,
             1 => Motion::FaceDown,

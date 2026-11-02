@@ -9,7 +9,8 @@ agents (rust/logic/src/demo.rs), once in Chinese and once in English:
 
 Clips need ffmpeg; the overview needs ImageMagick. Output goes to
 docs/media/<zh|en>/: <name>.png, and <clip>.gif (shown in the READMEs) with
-<clip>.mp4 next to it.
+<clip>.mp4 next to it. The English overview and clips are also copied to
+plugin/assets for the plugin's store listing.
 """
 from __future__ import annotations
 
@@ -26,8 +27,8 @@ MEDIA = simdrive.APP / "docs/media"
 LANGS = ("zh", "en")
 CLIP_FPS = 20
 LAMP = (240, 206)
-MIC = (240, 348)
-SEND = (356, 440)
+MIC = (240, 224)  # the compose page's lamp
+SEND = (240, 404)  # the hold-to-send bar
 HOLD_TO_STOP = (240, 420)
 
 
@@ -125,26 +126,34 @@ def working(sim: Sim, out: Path, clips: bool) -> None:
 
 
 def voice(sim: Sim, out: Path, clips: bool) -> None:
-    """Hold the lamp, hold to talk, send: a new session's card."""
+    """Hold the lamp, hold it again to talk, hold the bar: a new session's card."""
     clip = Clip(sim, "voice") if clips else None
     run = clip.run if clip else sim.ms
+
+    def hold(xy: tuple[int, int], ms: int, shot: str | None = None, at: int = 0) -> None:
+        sim.call("feed_pointer", {"x": xy[0], "y": xy[1], "pressed": True})
+        if shot and not clip:
+            run(at)
+            shoot(sim, out, shot)
+            run(ms - at)
+        else:
+            run(ms)
+        sim.call("feed_pointer", {"x": xy[0], "y": xy[1], "pressed": False})
+
     run(600)
-    sim.call("feed_pointer", {"x": LAMP[0], "y": LAMP[1], "pressed": True})
-    run(700)
-    sim.call("feed_pointer", {"x": LAMP[0], "y": LAMP[1], "pressed": False})
-    run(700)
+    hold(LAMP, 700)
+    run(800)
     if not clip:
         shoot(sim, out, "compose")
-    sim.call("feed_pointer", {"x": MIC[0], "y": MIC[1], "pressed": True})
-    run(1500)
+    hold(MIC, 1800, "listening", 1000)
+    run(300)
     if not clip:
-        shoot(sim, out, "listening")
-    sim.call("feed_pointer", {"x": MIC[0], "y": MIC[1], "pressed": False})
-    run(1400)
+        shoot(sim, out, "transcribing")
+    run(1300)
     if not clip:
         shoot(sim, out, "transcript")
-    sim.call("tap", {"x": SEND[0], "y": SEND[1]})
-    run(1500)
+    hold(SEND, 700, "holding", 300)
+    run(1600)
     if clip:
         clip.save(out)
     else:
@@ -164,6 +173,15 @@ def overview(out: Path) -> None:
                    check=True)
 
 
+def listing(out: Path) -> None:
+    """The plugin's store listing (plugin/paseo-plugin.json `media`) ships its own
+    copies. plugin-settings.png is a Paseo screenshot, taken by hand."""
+    assets = simdrive.APP / "plugin/assets"
+    for name in ("overview.png", "plugin-settings.png", "voice.mp4", "answer.mp4"):
+        if (out / name).exists():
+            shutil.copy2(out / name, assets / name)
+
+
 def main() -> int:
     clips = sys.argv[1:] != ["shots"]
     runs = [
@@ -181,6 +199,7 @@ def main() -> int:
             if clips and run is not welcome:
                 session(lang, env, run, out, clips=True)
         overview(out)
+    listing(MEDIA / "en")
     return 0
 
 

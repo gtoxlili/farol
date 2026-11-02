@@ -41,6 +41,8 @@ pub enum Event {
     Audio(Vec<u8>),
     /// The recording ended: after `listen(false)`, or at the board's limit.
     AudioEnd,
+    /// How loud the microphone is while recording, 0..=100, ten times a second.
+    Loudness(u8),
     /// The camera could not start: no module in the left slot, or it failed.
     NoCamera,
     /// A Wi-Fi scan finished: networks in range, strongest first.

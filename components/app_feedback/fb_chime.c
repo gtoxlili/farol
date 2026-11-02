@@ -10,6 +10,7 @@
 // Recording reads MIC_READ_BYTES at a time and hands APP_FEEDBACK_AUDIO_CHUNK
 // bytes to the audio callback; both directions run at the same 16 kHz, as
 // they share one I2S clock.
+#include <math.h>
 #include <stdatomic.h>
 #include <stdint.h>
 
@@ -31,6 +32,9 @@ static const char *TAG = FB_TAG;
 #define WRITE_CHUNK_BYTES   1024
 #define MIC_GAIN_DB         30.0f /* the BSP examples' gain */
 #define MIC_READ_BYTES      800   /* 25 ms; APP_FEEDBACK_AUDIO_CHUNK is a multiple */
+#define LOUDNESS_READS      4     /* one loudness report per 100 ms */
+#define LOUDNESS_FLOOR_DB   (-55.0f) /* reported as 0 */
+#define LOUDNESS_TOP_DB     (-12.0f) /* reported as 100 */
 _Static_assert(APP_FEEDBACK_AUDIO_CHUNK % MIC_READ_BYTES == 0, "whole reads per chunk");
 
 /* Task notification bits of the chime task. */
@@ -161,6 +165,26 @@ static void audio_end(void)
     }
 }
 
+/* Sum of squares of 16-bit samples, for the loudness report. */
+static double square_sum(const uint8_t *pcm, size_t bytes)
+{
+    const int16_t *samples = (const int16_t *)pcm;
+    double sum = 0;
+    for (size_t i = 0; i < bytes / 2; i++) {
+        sum += (double)samples[i] * samples[i];
+    }
+    return sum;
+}
+
+/* RMS over `samples` as 0..100 between LOUDNESS_FLOOR_DB and LOUDNESS_TOP_DB. */
+static int32_t loudness(double sum, size_t samples)
+{
+    const float rms = sqrtf((float)(sum / (double)samples)) / 32768.0f;
+    const float db = rms > 0 ? 20.0f * log10f(rms) : LOUDNESS_FLOOR_DB;
+    const float share = (db - LOUDNESS_FLOOR_DB) / (LOUDNESS_TOP_DB - LOUDNESS_FLOOR_DB);
+    return (int32_t)(share < 0 ? 0 : share > 1 ? 100 : share * 100.0f);
+}
+
 /* One recording, until app_feedback_listen(false) or the limit. Chimes asked
  * for meanwhile are dropped: they would be in the recording. */
 static void record(void)
@@ -183,11 +207,19 @@ static void record(void)
     const int64_t until = esp_timer_get_time() / 1000 + APP_FEEDBACK_LISTEN_MAX_MS;
     size_t filled = 0;
     size_t total = 0;
+    double loud_sum = 0;
+    int loud_reads = 0;
     while (atomic_load(&s_listen) && esp_timer_get_time() / 1000 < until) {
         const int ret = esp_codec_dev_read(s_mic, buf + filled, MIC_READ_BYTES);
         if (ret != ESP_CODEC_DEV_OK) {
             ESP_LOGW(TAG, "microphone read failed (%d)", ret);
             break;
+        }
+        loud_sum += square_sum(buf + filled, MIC_READ_BYTES);
+        if (++loud_reads == LOUDNESS_READS) {
+            fb_emit(APP_FEEDBACK_EVENT_LOUDNESS, loudness(loud_sum, LOUDNESS_READS * MIC_READ_BYTES / 2));
+            loud_sum = 0;
+            loud_reads = 0;
         }
         filled += MIC_READ_BYTES;
         if (filled == APP_FEEDBACK_AUDIO_CHUNK) {

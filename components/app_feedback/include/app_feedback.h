@@ -42,6 +42,8 @@ typedef enum {
     APP_FEEDBACK_EVENT_PRESENCE,  /*!< `value`: 1 someone near (PIR), 0 nobody */
     APP_FEEDBACK_EVENT_AMBIENT,   /*!< `value`: relative light 0..100 */
     APP_FEEDBACK_EVENT_MOTION,    /*!< `value`: app_feedback_motion_t */
+    APP_FEEDBACK_EVENT_LOUDNESS,  /*!< `value`: microphone loudness 0..100, ten times a
+                                       second while recording (from the `chime` task) */
 } app_feedback_event_kind_t;
 
 typedef enum {
