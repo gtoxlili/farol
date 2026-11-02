@@ -139,8 +139,12 @@ def visibility(obj: dict) -> None:
     obj["bind_target"] = "visible"
 
 
-def group(parent, name, x, y, w, h, *, hidden=False, vis=True, bg=None):
+def group(parent, name, x, y, w, h, *, hidden=False, vis=True, bg=None, drift=False):
     obj = {"type": "container", "name": name, "x": x, "y": y, "w": w, "h": h}
+    if drift:
+        # Burn-in guard: the logic slides the whole group a pixel or two each minute.
+        obj["x"] = {"default": x, "min": x - DRIFT, "max": x + DRIFT}
+        obj["y"] = {"default": y, "min": y - DRIFT, "max": y + DRIFT}
     if bg:
         obj["bg_color"] = bg
     if hidden:
@@ -219,7 +223,15 @@ def usage_page(parent):
 
 
 def home_page(parent):
+    group(parent, "home_body", 0, 0, W, H, vis=False, drift=True)
+    parent = "home_body"
     add_orb(parent, "lamp", 90, 56, 300, color=CALL, value=35, particles=2)
+    # A finished turn: one white bloom over the lamp, played once by the logic
+    # (behind the orb it only showed faintly through the lamp's centre).
+    pulse = under(parent, {"type": "effect", "name": "lamp_pulse", "x": 40, "y": 6, "w": 400,
+                           "h": 400, "effect": "pulse", "fg_color": DONE, "playing": False,
+                           "period_ms": 900, "strength": 100, "softness": 85, "hidden": True})
+    visibility(pulse)
     button(parent, "lamp_btn", 120, 86, 240, 240, bg=CLEAR, border=None, callback="lamp_tap",
            pressed_dim=0)
     group(parent, "home_count_box", 90, 118, 300, 120)
@@ -227,7 +239,7 @@ def home_page(parent):
           name="home_count", bind=True, charset=DIGITS)
     group(parent, "home_time_box", 90, 140, 300, 100, hidden=True)
     label("home_time_box", 0, 0, 300, 100, "00:00", font=G_THIN, size=76, align="center",
-          name="home_time", bind=True, charset=DIGITS + ":")
+          name="home_time", bind=True, charset=DIGITS + ":-")
     color_variants(parent, "home_word", 90, 236, 300, 32, STATE_COLORS, size=22, align="center")
     label(parent, 40, 372, 400, 22, "", font=MONO, size=15, color=INK2, align="center",
           name="home_who", bind=True, ellipsis=True)
@@ -291,7 +303,7 @@ def card_page(parent, i):
     r = f"{c}_run"
     group(parent, r, 0, 186, 456, 294, hidden=True)
     label(r, 28, -2, 260, 84, "00:00", font=G_THIN, size=68, name=f"{r}_timer", bind=True,
-          charset=DIGITS + ":")
+          charset=DIGITS + ":-")
     label(r, 328, 44, 120, 24, "本轮", size=15, color=INK3, align="right")
     label(r, 28, 88, 420, 28, "", font=MONO, size=18, name=f"{r}_now", bind=True, ellipsis=True)
     alive = under(r, {"type": "effect", "name": f"{r}_alive", "x": 28, "y": 120, "w": 420, "h": 6,
@@ -440,22 +452,6 @@ def status_pages():
     button(g, "scan_cancel", 300, 440, 128, 36, text="取消", size=16, bg=CLEAR, fg=INK2,
            border=None, callback="scan_cancel")
 
-
-def hold_overlay():
-    layer = {"type": "layer", "name": "ov_hold", "x": 0, "y": BAR_H, "w": W, "h": H - BAR_H,
-             "bg_color": "#000000E8", "hidden": True}
-    under(None, layer)
-    visibility(layer)
-    under("ov_hold", {"type": "arc", "name": "hold_ring", "x": 140, "y": 84, "w": 200, "h": 200,
-                      "min": 0, "max": 100, "value": 0, "start_angle": 0, "sweep": 360,
-                      "thickness": 4, "bg_color": "#1F1F1D", "fg_color": FAIL})
-    label("ov_hold", 140, 150, 200, 40, "停止", size=28, align="center")
-    label("ov_hold", 140, 192, 200, 24, "继续按住", size=15, color=INK2, align="center")
-    label("ov_hold", 40, 314, 400, 26, "松手就取消。停止只打断这一轮，", size=16, color=INK2,
-          align="center")
-    label("ov_hold", 40, 340, 400, 26, "agent 和它的上下文都还在。", size=16, color=INK2,
-          align="center")
-
     input_page(p)
     wifi_page(p)
     net_details_page(p)
@@ -548,6 +544,22 @@ def link_details_page(p):
           name="lk_forget_t", bind=True)
 
 
+def hold_overlay():
+    layer = {"type": "layer", "name": "ov_hold", "x": 0, "y": BAR_H, "w": W, "h": H - BAR_H,
+             "bg_color": "#000000E8", "hidden": True}
+    under(None, layer)
+    visibility(layer)
+    under("ov_hold", {"type": "arc", "name": "hold_ring", "x": 140, "y": 84, "w": 200, "h": 200,
+                      "min": 0, "max": 100, "value": 0, "start_angle": 0, "sweep": 360,
+                      "thickness": 4, "bg_color": "#1F1F1D", "fg_color": FAIL})
+    label("ov_hold", 140, 150, 200, 40, "停止", size=28, align="center")
+    label("ov_hold", 140, 192, 200, 24, "继续按住", size=15, color=INK2, align="center")
+    label("ov_hold", 40, 314, 400, 26, "松手就取消。停止只打断这一轮，", size=16, color=INK2,
+          align="center")
+    label("ov_hold", 40, 340, 400, 26, "agent 和它的上下文都还在。", size=16, color=INK2,
+          align="center")
+
+
 def banner():
     g = group(None, "banner", 24, 42, 432, 32, hidden=True, bg="#1A1A18")
     g["radius"] = 16
@@ -616,32 +628,33 @@ def control_centre():
 
 
 def status_bar():
-    label(None, 24, 9, 90, 22, "00:00", font=G_M, size=16, name="sb_time", bind=True,
-          charset=DIGITS + ":")
-    rect(None, 426, 13, 24, 12, BG, radius=3, border=INK2)
+    group(None, "sb", 0, 0, W, BAR_H, vis=False, drift=True)
+    label("sb", 24, 9, 90, 22, "00:00", font=G_M, size=16, name="sb_time", bind=True,
+          charset=DIGITS + ":-")
+    rect("sb", 426, 13, 24, 12, BG, radius=3, border=INK2)
     # A rect with both a dynamic width and a color bind fails to load in GSP 1.9.0
     # ("Invalid GSB render effects"), and a Progress's bind slot carries its value,
     # so the low-battery color is a second Progress switched by visibility.
     for name, fg in (("sb_batt", INK1), ("sb_batt_low", FAIL)):
-        batt = under(None, {"type": "progress", "name": name, "x": 428, "y": 15, "w": 20, "h": 8,
+        batt = under("sb", {"type": "progress", "name": name, "x": 428, "y": 15, "w": 20, "h": 8,
                             "value": 87, "bg_color": BG, "fg_color": fg, "radius": 2,
                             "hidden": name == "sb_batt_low"})
         visibility(batt)
-    rect(None, 451, 17, 2, 4, INK2, radius=1)
-    bolt = under(None, {"type": "image", "name": "sb_bolt", "x": 432, "y": 13, "w": 12, "h": 12,
+    rect("sb", 451, 17, 2, 4, INK2, radius=1)
+    bolt = under("sb", {"type": "image", "name": "sb_bolt", "x": 432, "y": 13, "w": 12, "h": 12,
                         "image": "icons/bolt.svg", "tint": BG, "hidden": True})
     visibility(bolt)
-    label(None, 380, 10, 42, 20, "", font=MONO, size=13, color=INK2, align="right",
+    label("sb", 380, 10, 42, 20, "", font=MONO, size=13, color=INK2, align="right",
           name="sb_batt_pct", bind=True, charset=DIGITS + "%")
     for k, (x, h) in enumerate([(362, 5), (367, 8), (372, 11)]):
-        rect(None, x, 26 - h, 3, h, DIM, radius=1, name=f"sb_wifi{k}", color_bind=True)
-    rect(None, 360, 12, 17, 2, FAIL, radius=1, name="sb_wifi_off", visible_bind=True, hidden=True)
-    rect(None, 339, 14, 11, 11, BG, radius=6, border=INK2, border_w=2, name="sb_link",
+        rect("sb", x, 26 - h, 3, h, DIM, radius=1, name=f"sb_wifi{k}", color_bind=True)
+    rect("sb", 360, 12, 17, 2, FAIL, radius=1, name="sb_wifi_off", visible_bind=True, hidden=True)
+    rect("sb", 339, 14, 11, 11, BG, radius=6, border=INK2, border_w=2, name="sb_link",
          visible_bind=True)
-    rect(None, 339, 14, 11, 11, BG, radius=6, border=FAIL, border_w=2, name="sb_link_off",
+    rect("sb", 339, 14, 11, 11, BG, radius=6, border=FAIL, border_w=2, name="sb_link_off",
          visible_bind=True, hidden=True)
-    rect(None, 342, 17, 5, 5, INK2, radius=3, name="sb_link_dot", visible_bind=True, hidden=True)
-    moon = under(None, {"type": "image", "name": "sb_dnd", "x": 316, "y": 13, "w": 13, "h": 13,
+    rect("sb", 342, 17, 5, 5, INK2, radius=3, name="sb_link_dot", visible_bind=True, hidden=True)
+    moon = under("sb", {"type": "image", "name": "sb_dnd", "x": 316, "y": 13, "w": 13, "h": 13,
                         "image": "icons/moon.svg", "tint": INK2, "hidden": True})
     visibility(moon)
 
