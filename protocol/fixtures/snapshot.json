@@ -5,6 +5,7 @@
   "tz": 480,
   "host": "studio-mac",
   "readOnly": false,
+  "settings": {"rev": 7, "sound": true, "ledBrightness": 60, "quietStart": 1320, "quietEnd": 480},
   "agents": [
     {
       "id": "a-call",

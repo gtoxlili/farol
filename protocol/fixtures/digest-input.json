@@ -1,0 +1,223 @@
+{
+  "$comment": "Paseo-shaped facts that the plugin digests into snapshot.json (with focus on a-work, rev 42). Agent fields follow Paseo 0.14 AgentSnapshotPayload; timeline items follow AgentTimelineItem; usage follows ProviderUsage.",
+  "now": 1793598060000,
+  "rev": 42,
+  "host": "studio-mac",
+  "focus": "a-work",
+  "canStop": true,
+  "settings": {
+    "allowActions": true,
+    "replyPreview": true,
+    "timeZone": "Asia/Shanghai",
+    "sound": true,
+    "ledBrightness": 60,
+    "quietHours": { "enabled": true, "start": "22:00", "end": "08:00" }
+  },
+  "settingsRev": 7,
+  "seen": {},
+  "entries": [
+    {
+      "project": "farol",
+      "agent": {
+        "id": "a-call",
+        "title": "给 Farol 首页选一种光球动效",
+        "provider": "claude",
+        "model": "claude-opus-5-5",
+        "cwd": "/work/farol",
+        "status": "idle",
+        "updatedAt": "2026-11-02T05:37:00.000Z",
+        "activeTurn": null,
+        "requiresAttention": true,
+        "attentionReason": "permission",
+        "attentionTimestamp": "2026-11-02T05:37:00.000Z",
+        "pendingPermissions": [
+          {
+            "id": "perm-1",
+            "provider": "claude",
+            "name": "AskUserQuestion",
+            "kind": "question",
+            "title": "Question",
+            "input": {
+              "questions": [
+                {
+                  "question": "首页的光球用哪种风格？三种都在模拟器里渲染过，截图在 docs/orbs。",
+                  "header": "光球",
+                  "multiSelect": false,
+                  "options": [
+                    { "label": "光环 · 底部积光", "description": "Charging Orb halo" },
+                    { "label": "等离子 · 冷暖渐变", "description": "Charging Orb plasma" },
+                    { "label": "只留文字，不要光球", "description": "Text only" }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "timeline": []
+    },
+    {
+      "project": "api-server",
+      "agent": {
+        "id": "a-work",
+        "title": "修复子 agent 调用失败，补回归测试",
+        "provider": "codex",
+        "model": "gpt-6.1-sol",
+        "cwd": "/work/api-server",
+        "status": "running",
+        "updatedAt": "2026-11-02T05:40:30.000Z",
+        "activeTurn": { "turnId": "t-7", "startedAt": "2026-11-02T05:28:12.000Z" },
+        "pendingPermissions": [],
+        "lastUsage": { "contextWindowMaxTokens": 400000, "contextWindowUsedTokens": 164000 },
+        "requiresAttention": false,
+        "attentionReason": null
+      },
+      "timeline": [
+        { "type": "user_message", "text": "修复子 agent 调用失败，补回归测试" },
+        {
+          "type": "tool_call", "callId": "c1", "name": "Read", "status": "completed", "error": null,
+          "detail": { "type": "read", "filePath": "/work/api-server/docs/agents.md" }
+        },
+        {
+          "type": "tool_call", "callId": "c2", "name": "Grep", "status": "completed", "error": null,
+          "detail": { "type": "search", "toolName": "grep", "query": "SubAgentError" }
+        },
+        {
+          "type": "todo",
+          "items": [
+            { "text": "复现失败", "completed": true, "status": "completed" },
+            { "text": "定位 spawn 路径", "completed": true, "status": "completed" },
+            { "text": "修复错误映射", "completed": true, "status": "completed" },
+            { "text": "补回归测试", "completed": false, "status": "in_progress", "activeForm": "正在补回归测试" },
+            { "text": "跑全量测试", "completed": false, "status": "pending" },
+            { "text": "更新文档", "completed": false, "status": "pending" },
+            { "text": "提交", "completed": false, "status": "pending" }
+          ]
+        },
+        {
+          "type": "tool_call", "callId": "c3", "name": "Edit", "status": "completed", "error": null,
+          "detail": { "type": "edit", "filePath": "/work/api-server/src/agent/spawn.rs" }
+        },
+        {
+          "type": "tool_call", "callId": "c4", "name": "Bash", "status": "running", "error": null,
+          "detail": { "type": "shell", "command": "cargo test -p runtime --lib" }
+        }
+      ]
+    },
+    {
+      "project": "notes",
+      "agent": {
+        "id": "a-done",
+        "title": "查喂食器的出粮记录为什么总是堵",
+        "provider": "claude",
+        "model": "claude-sonnet-5-5",
+        "cwd": "/work/notes",
+        "status": "idle",
+        "updatedAt": "2026-11-02T05:35:00.000Z",
+        "activeTurn": null,
+        "pendingPermissions": [],
+        "lastUsage": { "totalCostUsd": 0.4213, "contextWindowMaxTokens": 200000, "contextWindowUsedTokens": 46000 },
+        "requiresAttention": true,
+        "attentionReason": "finished",
+        "attentionTimestamp": "2026-11-02T05:35:00.000Z"
+      },
+      "timeline": [
+        { "type": "user_message", "text": "查一下喂食器为什么总是堵" },
+        {
+          "type": "assistant_message",
+          "text": "查到了：定时出粮和「早饭」自动化都在 7:00 触发，两次出粮间隔不到一分钟，粮道还没清空就又推了一次。建议停掉其中一个，或者把自动化挪到 7:05。"
+        }
+      ]
+    },
+    {
+      "project": "web-console",
+      "agent": {
+        "id": "a-fail",
+        "title": "迁移到 Rsbuild 2.x 并跑一遍构建",
+        "provider": "codex",
+        "model": "gpt-6.1-terra",
+        "cwd": "/work/web-console",
+        "status": "idle",
+        "updatedAt": "2026-11-02T05:39:00.000Z",
+        "activeTurn": null,
+        "pendingPermissions": [],
+        "lastError": "usage limit reached · resets 15:00",
+        "requiresAttention": true,
+        "attentionReason": "error",
+        "attentionTimestamp": "2026-11-02T05:39:00.000Z"
+      },
+      "timeline": [
+        { "type": "user_message", "text": "迁移到 Rsbuild 2.x" },
+        { "type": "assistant_message", "text": "这一轮停在第 5 步（共 8 步）。额度恢复后，在 Paseo 里让它继续。" }
+      ]
+    },
+    {
+      "project": "notes",
+      "agent": {
+        "id": "a-old",
+        "title": "Read two hours ago",
+        "provider": "claude",
+        "model": "claude-haiku-5-5",
+        "status": "idle",
+        "updatedAt": "2026-11-02T03:00:00.000Z",
+        "pendingPermissions": [],
+        "requiresAttention": false,
+        "attentionTimestamp": "2026-11-02T03:00:00.000Z"
+      },
+      "timeline": []
+    },
+    {
+      "project": "notes",
+      "agent": {
+        "id": "a-archived",
+        "title": "Archived",
+        "provider": "claude",
+        "model": null,
+        "status": "idle",
+        "updatedAt": "2026-11-02T05:40:00.000Z",
+        "pendingPermissions": [],
+        "requiresAttention": true,
+        "attentionReason": "finished",
+        "archivedAt": "2026-11-02T05:40:00.000Z"
+      },
+      "timeline": []
+    }
+  ],
+  "usage": [
+    {
+      "providerId": "claude",
+      "displayName": "Claude",
+      "status": "available",
+      "planLabel": "Max",
+      "windows": [
+        { "id": "5h", "label": "本窗", "summary": true, "usedPct": 65, "resetsAt": "2026-11-02T06:53:00.000Z" },
+        { "id": "7d", "label": "本周", "summary": true, "usedPct": 15, "resetsAt": "2026-11-06T01:11:00.000Z" }
+      ]
+    },
+    {
+      "providerId": "codex",
+      "displayName": "Codex",
+      "status": "available",
+      "planLabel": null,
+      "windows": [
+        { "id": "7d", "label": "本周", "summary": true, "usedPct": 64, "resetsAt": "2026-11-04T09:41:00.000Z" }
+      ]
+    },
+    {
+      "providerId": "antigravity",
+      "displayName": "Gemini Argon",
+      "status": "available",
+      "planLabel": null,
+      "windows": [
+        { "id": "wk", "label": "周", "remainingPct": 1, "resetsAt": "2026-11-07T07:20:00.000Z" }
+      ]
+    },
+    {
+      "providerId": "opencode",
+      "displayName": "OpenCode",
+      "status": "unavailable",
+      "planLabel": null,
+      "windows": []
+    }
+  ]
+}
