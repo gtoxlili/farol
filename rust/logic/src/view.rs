@@ -96,6 +96,8 @@ fn status_bar(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     p.text(ui, bind(gsp::GSP_BIND_SB_TIME), &clock);
 
     let power = app.power;
+    // No fuel gauge (yet): no battery at all, rather than an empty one.
+    p.visible(ui, bind(gsp::GSP_BIND_SB_BATT_BOX_VIS), power.known);
     let pct = if power.known {
         format!("{}%", power.percent)
     } else {
