@@ -11,7 +11,7 @@ use core::cell::Cell;
 use gsp_sys as gsp;
 
 use crate::demo::Demo;
-use crate::model::{Act, ActKind, ActResult, Agent, Snapshot, State};
+use crate::model::{Act, ActKind, ActResult, Agent, BoardPrefs, Settings, Snapshot, State};
 use crate::paseo::{Config, Down, Notice, Out, Session};
 use crate::qr::{self, Code};
 use crate::sys::{
@@ -67,6 +67,8 @@ const DRIFT_PATH: [(i32, i32); 8] = [
     (-1, 1),
 ];
 const DRIFT_GLIDE_MS: u32 = 2_000;
+/// Interaction-module LED brightness until Paseo says otherwise.
+const LED_DEFAULT: u8 = 60;
 /// A change of urgency glides the lamp to its new color this long. GSP cannot
 /// tween the orb's color, so the logic steps it every [`FADE_STEP_MS`].
 const LAMP_FADE_MS: u64 = 600;
@@ -222,8 +224,16 @@ pub struct App {
     pub(crate) last_sync: Option<u64>,
     /// The Wi-Fi password page needs the keyboard again (a wrong password).
     keyboard_again: bool,
-    /// The plugin speaks another farol/N than this firmware.
-    pub(crate) plugin_version: Option<u32>,
+    /// Board settings last sent to (or taken from) Paseo; a difference is a
+    /// change made on the board, which goes out with the next poll.
+    synced: Option<BoardPrefs>,
+    /// The `Settings::rev` applied last.
+    settings_rev: Option<u64>,
+    /// Quiet hours from Paseo, minutes after local midnight (equal = none).
+    quiet: (u16, u16),
+    /// Interaction-module LED brightness from Paseo, and what the board has.
+    led: u8,
+    led_sent: Option<u8>,
     net_down_since: Option<u64>,
     paseo_down_since: Option<u64>,
     pub(crate) banner_dismissed: bool,
@@ -286,7 +296,11 @@ impl App {
             drift_step: 0,
             last_sync: None,
             keyboard_again: false,
-            plugin_version: None,
+            synced: None,
+            settings_rev: None,
+            quiet: (0, 0),
+            led: LED_DEFAULT,
+            led_sent: None,
             net_down_since: None,
             paseo_down_since: None,
             banner_dismissed: false,
@@ -510,6 +524,7 @@ impl App {
     }
 
     fn after(&mut self, ui: &mut impl Ui, sys: &mut impl Sys) {
+        self.sync_prefs();
         self.pump_session(sys);
         self.update_overlay();
         self.apply_power(sys);
@@ -1024,10 +1039,11 @@ impl App {
 
     fn apply(&mut self, mut snapshot: Snapshot, sys: &mut impl Sys) {
         if snapshot.v != crate::model::VERSION {
-            self.plugin_version = Some(snapshot.v);
             return;
         }
-        self.plugin_version = None;
+        if let Some(settings) = snapshot.settings {
+            self.apply_settings(settings, sys);
+        }
         // Local read marks hold until the agent finishes a newer turn.
         self.seen.retain(|id, (since, _)| {
             snapshot
@@ -1416,7 +1432,70 @@ impl App {
     // ------------------------------------------------------------ status
 
     pub(crate) fn dnd(&self) -> bool {
-        self.face_down || self.dnd_until.is_some_and(|until| self.now < until)
+        self.face_down || self.dnd_on() || self.quiet_hours()
+    }
+
+    /// Do not disturb switched on by hand (control centre or AI key).
+    fn dnd_on(&self) -> bool {
+        self.dnd_until.is_some_and(|until| self.now < until)
+    }
+
+    /// Inside the quiet hours set in Paseo, by the plugin's clock and zone.
+    fn quiet_hours(&self) -> bool {
+        let (start, end) = self.quiet;
+        let Some(epoch) = self.epoch() else {
+            return false;
+        };
+        if start == end {
+            return false;
+        }
+        let minute = ((epoch / 60_000 + i64::from(self.tz)).rem_euclid(24 * 60)) as u16;
+        if start < end {
+            (start..end).contains(&minute)
+        } else {
+            minute >= start || minute < end
+        }
+    }
+
+    fn board_prefs(&self) -> BoardPrefs {
+        BoardPrefs {
+            sound: self.prefs.sound,
+            haptic: self.prefs.haptic,
+            brightness: self.prefs.brightness,
+            dnd: self.dnd_on(),
+        }
+    }
+
+    /// Board settings made in Paseo. A change made on the board that Paseo
+    /// has not confirmed yet wins until it has.
+    fn apply_settings(&mut self, settings: Settings, sys: &mut impl Sys) {
+        if self.settings_rev == Some(settings.rev) || self.session.prefs_pending() {
+            return;
+        }
+        self.settings_rev = Some(settings.rev);
+        self.quiet = (settings.quiet_start, settings.quiet_end);
+        self.led = settings.led_brightness.min(100);
+        if self.prefs.sound != settings.sound {
+            self.prefs.sound = settings.sound;
+            sys.save_prefs(&self.prefs);
+        }
+        self.synced = Some(self.board_prefs());
+    }
+
+    /// Sends settings changed on the board to Paseo.
+    fn sync_prefs(&mut self) {
+        if self.demo.is_some() || !self.session.is_configured() {
+            return;
+        }
+        let prefs = self.board_prefs();
+        match self.synced {
+            None => self.synced = Some(prefs),
+            Some(synced) if synced != prefs => {
+                self.synced = Some(prefs);
+                self.session.set_prefs(prefs);
+            }
+            Some(_) => {}
+        }
     }
 
     fn feel(&self, haptic: Haptic, sys: &mut impl Sys) {
@@ -1482,7 +1561,7 @@ impl App {
             Overlay::Welcome
         } else if no_wifi {
             Overlay::NoWifi
-        } else if self.plugin_version.is_some() {
+        } else if matches!(self.session.down(), Down::PluginVersion(_)) {
             Overlay::NoPaseo
         } else if (self.overlay == Overlay::NoPaseo && !self.session.is_ready())
             || (!self.has_snapshot && self.session.failures() > 0)
@@ -1542,7 +1621,12 @@ impl App {
 
     fn apply_glow(&mut self, sys: &mut impl Sys) {
         if !self.module {
+            self.led_sent = None;
             return;
+        }
+        if self.led_sent != Some(self.led) {
+            self.led_sent = Some(self.led);
+            sys.led_brightness(self.led);
         }
         let count = |s: State| self.snapshot.agents.iter().filter(|a| a.state == s).count();
         let wanted = if self.dnd() || !self.has_snapshot {
@@ -1576,6 +1660,7 @@ impl Sys for NullSys {
     fn haptic(&mut self, _: Haptic) {}
     fn chime(&mut self, _: Chime) {}
     fn glow(&mut self, _: Glow) {}
+    fn led_brightness(&mut self, _: u8) {}
     fn display(&mut self, _: Display) {}
     fn save_config(&mut self, _: Option<&Config>) {}
     fn save_prefs(&mut self, _: &Prefs) {}
@@ -1661,6 +1746,7 @@ mod tests {
         fn glow(&mut self, _: Glow) {
             self.glows += 1;
         }
+        fn led_brightness(&mut self, _: u8) {}
         fn display(&mut self, display: Display) {
             self.display = Some(display);
         }
@@ -1868,6 +1954,68 @@ mod tests {
         press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_KB_KEY);
         app.handle(3, Event::Net(online), &mut ui, &mut sys);
         assert!(!matches!(&app.overlay, Overlay::Input { .. }));
+    }
+
+    #[test]
+    fn settings_flow_both_ways_and_a_local_change_wins_until_confirmed() {
+        let (mut app, mut ui, mut sys) = board(vec![]);
+        app.session.configure(
+            Some(Config {
+                url: "wss://paseo.example.net/ws".into(),
+                password: "pw".into(),
+            }),
+            0,
+        );
+        let with = |rev, sound| Snapshot {
+            v: VERSION,
+            now: T,
+            settings: Some(Settings {
+                rev,
+                sound,
+                led_brightness: 40,
+                quiet_start: 0,
+                quiet_end: 0,
+            }),
+            ..Default::default()
+        };
+        app.poll(1, &mut ui, &mut sys);
+        app.apply(with(1, false), &mut sys);
+        assert!(!app.prefs.sound);
+        assert!(!app.session.prefs_pending());
+        // Turned back on at the board: it goes out, and Paseo's older value does not undo it.
+        app.handle(
+            2,
+            Event::Call {
+                action: gsp::GSP_ACT_ID_CC_SOUND,
+                arg: 0,
+            },
+            &mut ui,
+            &mut sys,
+        );
+        assert!(app.prefs.sound && app.session.prefs_pending());
+        app.apply(with(2, false), &mut sys);
+        assert!(app.prefs.sound);
+    }
+
+    #[test]
+    fn quiet_hours_silence_the_board() {
+        let (mut app, _, mut sys) = board(vec![]);
+        // T is 09:41 in UTC+8; quiet 09:00..10:00.
+        let quiet = Snapshot {
+            v: VERSION,
+            now: T,
+            tz: 480,
+            settings: Some(Settings {
+                rev: 1,
+                sound: true,
+                led_brightness: 60,
+                quiet_start: 540,
+                quiet_end: 600,
+            }),
+            ..Default::default()
+        };
+        app.apply(quiet, &mut sys);
+        assert!(app.dnd());
     }
 
     #[test]
