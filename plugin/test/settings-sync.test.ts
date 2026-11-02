@@ -40,23 +40,19 @@ describe("board settings", () => {
     await farol.close();
   });
 
-  it("a board's sound switch becomes the global sound until the document changes", async () => {
+  it("a board's own settings show with the board and leave Paseo's settings alone", async () => {
     const farol = new Farol(quiet.log);
     farol.setSettings(DEFAULT_SETTINGS);
     const before = await settingsOf(farol);
-    farol.adoptPrefs("b", prefs);
-    const after = await settingsOf(farol, "c");
-    expect(after.sound).toBe(false);
-    expect(after.rev).toBeGreaterThan(before.rev);
-    expect(farol.pendingBoardSound).toBe(false);
+    farol.notePrefs("b", prefs);
     expect(farol.stream.boards().find((b) => b.device === "b")?.prefs).toEqual(prefs);
-    // The settings page saves the board's choice into the document.
+    const after = await settingsOf(farol, "c");
+    expect(after).toEqual(before);
+    // An edit in Paseo reaches every board through a new rev.
     farol.setSettings({ ...DEFAULT_SETTINGS, sound: false });
-    expect(farol.pendingBoardSound).toBeNull();
-    expect((await settingsOf(farol, "d")).rev).toBe(after.rev);
-    // A later edit in Paseo wins again.
-    farol.setSettings({ ...DEFAULT_SETTINGS, sound: true });
-    expect((await settingsOf(farol, "e")).sound).toBe(true);
+    const edited = await settingsOf(farol, "d");
+    expect(edited.sound).toBe(false);
+    expect(edited.rev).toBeGreaterThan(before.rev);
     await farol.close();
   });
 });

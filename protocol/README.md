@@ -42,7 +42,9 @@ running.
   minute; otherwise every 5 minutes and after turns end).
 - `fw` is the board's firmware version, shown in the plugin's list of boards.
 - `prefs` (optional, `BoardPrefs`) are settings changed in the board's control
-  centre; the board resends them on every poll until one is answered.
+  centre; the board resends them on every poll until one is answered. They stay
+  the board's own (it keeps them in flash); the plugin shows them with the
+  board and does not change Paseo's settings with them.
 - `screen` and `fw` are absent from boards older than firmware 1.0.0; the plugin
   accepts that.
 
@@ -95,7 +97,7 @@ message).
 | `host` | The Mac's name. |
 | `readOnly` | Board actions are off in the plugin's settings. |
 | `idle` | The poll timed out with no change; only `v`, `rev`, `now` matter, and `agents`/`usage` are empty. |
-| `settings` | Board settings made in Paseo. `rev` increases on every change; boards apply a newer one. `quietStart`/`quietEnd` are minutes after local midnight, may wrap past midnight, equal means no quiet hours. A board's own sound switch (from `prefs`) becomes this `sound`. |
+| `settings` | Board settings made in Paseo. `rev` increases on every change; boards apply a newer one. `quietStart`/`quietEnd` are minutes after local midnight, may wrap past midnight, equal means no quiet hours. |
 | `agents` | Cards, most urgent first: `call`, `fail`, `done`, `work`, `seen`; then newest `since`. At most 24. Archived and internal agents are left out, and so are read cards older than an hour, except the focused one. |
 | `usage` | Quota windows: `label` ("Claude · 5h"), `used` percent, `resets` epoch ms. |
 | `fuel` | The tightest window (Paseo's summary windows when any are marked), as percent `left`. |
@@ -120,8 +122,10 @@ message).
 ### BoardPrefs
 
 `{ "sound": bool, "haptic": bool, "brightness": 5..100, "dnd": bool }`: the
-board's control centre. The plugin shows them with the recent boards and adopts
-`sound` as the global sound setting.
+board's control centre, shown with the recent boards. Settings made in Paseo
+reach every board through `settings` (a newer `rev` replaces the board's own
+sound, LED brightness and quiet hours); a later change on a board stays on that
+board.
 
 ## Connection code
 

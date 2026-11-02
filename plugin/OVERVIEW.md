@@ -24,8 +24,9 @@ and scan the code with the board. Requires Paseo 0.14 or newer.
 - Allow the board to act on agents. Off makes every board read-only.
 - Reply preview on finished cards.
 - Include agents in background workspaces.
-- Sound, LED brightness and quiet hours, applied by every board. Switching sound
-  on a board changes this setting too.
+- Sound, LED brightness and quiet hours, applied by every board when you change
+  them here. A board's own control centre changes only that board (shown under
+  recent boards).
 - Time zone for the board's clock; empty follows this Mac.
 
 ## Things to know

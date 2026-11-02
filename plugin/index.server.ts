@@ -36,7 +36,6 @@ export default function contribute(server: PluginServerContext) {
       boards: farol.stream.boards(),
       canStop: farol.canStop,
       usageAt: farol.usageAt,
-      boardSound: farol.pendingBoardSound,
     };
   });
   server.handle(connectCodeRpc, ({ address, password, name }) => {

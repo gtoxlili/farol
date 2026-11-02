@@ -57,8 +57,6 @@ export const statusRpc = defineRpc({
     canStop: z.boolean(),
     /** When provider usage was last fetched, epoch ms. */
     usageAt: z.number().nullable(),
-    /** Sound as last switched on a board, when that is newer than this page's setting. */
-    boardSound: z.boolean().nullable(),
   }),
 });
 
