@@ -5,7 +5,7 @@ import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { usePaseo, useTranslation } from "@getpaseo/plugin/client";
 import { FlatList, Icon, Modal, SettingsAction, TextInput } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { messages } from "./messages";
 
@@ -17,6 +17,8 @@ interface Choice {
 
 /** Paseo lists at most this many workspaces per page. */
 const PAGE = 200;
+/** Room under the last row, clear of the phone's home indicator. */
+const LIST_BOTTOM = 32;
 
 export function WorkspacePicker({
   theme,
@@ -26,26 +28,39 @@ export function WorkspacePicker({
   const { t } = useTranslation(messages);
   const paseo = usePaseo();
   const [open, setOpen] = useState(false);
+  // The field keeps its own text (a controlled input drops fast keystrokes);
+  // a new key empties it each time the sheet opens.
   const [query, setQuery] = useState("");
+  const [field, setField] = useState(0);
+  const typed = useDeferredValue(query);
   const list = useQuery({
     queryKey: ["farol", "workspaces"],
     queryFn: async (): Promise<Choice[]> =>
-      (await paseo.workspaces.list({ page: { limit: PAGE } })).entries.map((w) => ({
+      (
+        await paseo.workspaces.list({
+          page: { limit: PAGE },
+          sort: [{ key: "activity_at", direction: "desc" }],
+        })
+      ).entries.map((w) => ({
         id: w.id,
         name: w.name,
         project: w.projectDisplayName && w.projectDisplayName !== w.name ? w.projectDisplayName : "",
       })),
   });
   const current = list.data?.find((w) => w.id === value);
+  // Most recently active first; with no search, the current choice and "Off" lead.
   const shown = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = typed.trim().toLowerCase();
     const all = list.data ?? [];
-    const hits = q ? all.filter((w) => `${w.name} ${w.project}`.toLowerCase().includes(q)) : all;
-    return q ? hits : [{ id: "", name: t("session.none"), project: "" }, ...hits];
-  }, [list.data, query, t]);
+    if (q) return all.filter((w) => `${w.name} ${w.project}`.toLowerCase().includes(q));
+    const chosen = all.filter((w) => w.id === value);
+    const rest = all.filter((w) => w.id !== value);
+    return [...chosen, { id: "", name: t("session.none"), project: "" }, ...rest];
+  }, [list.data, typed, value, t]);
   const close = () => {
     setOpen(false);
     setQuery("");
+    setField((n) => n + 1);
   };
   const c = theme.colors;
   return (
@@ -61,8 +76,10 @@ export function WorkspacePicker({
         <Modal.Content scrollable={false} contentContainerStyle={{ padding: 0, gap: 0 }}>
           <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 }}>
             <TextInput
-              value={query}
+              key={field}
+              defaultValue=""
               onChangeText={setQuery}
+              accessibilityLabel={t("session.search")}
               placeholder={t("session.search")}
               placeholderTextColor={c.foregroundMuted}
               autoCapitalize="none"
@@ -84,6 +101,7 @@ export function WorkspacePicker({
             keyExtractor={(w) => w.id || "none"}
             keyboardShouldPersistTaps="handled"
             style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: LIST_BOTTOM }}
             ListEmptyComponent={
               <Text style={{ color: c.foregroundMuted, fontSize: 14, padding: 16 }}>{t("session.noMatch")}</Text>
             }
