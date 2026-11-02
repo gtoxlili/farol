@@ -425,8 +425,8 @@ pub const GSP_OBJ_KEY_SB_WIFI_OFF: u32 = 2848773666;
 pub const GSP_OBJ_KEY_SCAN_CANCEL: u32 = 3228539499;
 pub const GSP_OBJ_KEY_SCAN_MANUAL: u32 = 633855699;
 pub const GSP_OBJ_KEY_SCAN_NOTE: u32 = 2198895469;
+pub const GSP_OBJ_KEY_SCAN_PREVIEW: u32 = 2807166471;
 pub const GSP_OBJ_KEY_SCAN_SWEEP: u32 = 447120243;
-pub const GSP_OBJ_KEY_SCAN_VIEW: u32 = 1753350280;
 pub const GSP_OBJ_KEY_SCREENS: u32 = 1737965126;
 pub const GSP_OBJ_KEY_ST_INPUT: u32 = 186338437;
 pub const GSP_OBJ_KEY_ST_LINK: u32 = 84451419;
@@ -538,6 +538,7 @@ pub const GSP_PROP_KEY_PARTICLES: u32 = 3740252708;
 pub const GSP_PROP_KEY_PERIOD_MS: u32 = 3312085397;
 pub const GSP_PROP_KEY_PHASE: u32 = 3649057272;
 pub const GSP_PROP_KEY_PLAYING: u32 = 1911511093;
+pub const GSP_PROP_KEY_RESOURCE: u32 = 702513141;
 pub const GSP_PROP_KEY_RIPPLE: u32 = 1696468759;
 pub const GSP_PROP_KEY_SOFTNESS: u32 = 2304294106;
 pub const GSP_PROP_KEY_STRENGTH: u32 = 3766098096;
@@ -842,95 +843,96 @@ pub const GSP_BIND_SB_WIFI1: u32 = 388;
 pub const GSP_BIND_SB_WIFI2: u32 = 389;
 pub const GSP_BIND_SB_WIFI_OFF_VIS: u32 = 390;
 pub const GSP_BIND_SCAN_NOTE: u32 = 391;
-pub const GSP_BIND_ST_INPUT_VIS: u32 = 392;
-pub const GSP_BIND_ST_LINK_VIS: u32 = 393;
-pub const GSP_BIND_ST_NETINFO_VIS: u32 = 394;
-pub const GSP_BIND_ST_NOPASEO_VIS: u32 = 395;
-pub const GSP_BIND_ST_NOWIFI_DOT: u32 = 396;
-pub const GSP_BIND_ST_NOWIFI_LIT0_VIS: u32 = 397;
-pub const GSP_BIND_ST_NOWIFI_LIT1_VIS: u32 = 398;
-pub const GSP_BIND_ST_NOWIFI_LIT2_VIS: u32 = 399;
-pub const GSP_BIND_ST_NOWIFI_REASON: u32 = 400;
-pub const GSP_BIND_ST_NOWIFI_SAVED: u32 = 401;
-pub const GSP_BIND_ST_NOWIFI_VIS: u32 = 402;
-pub const GSP_BIND_ST_NP_FOOT: u32 = 403;
-pub const GSP_BIND_ST_NP_REASON: u32 = 404;
-pub const GSP_BIND_ST_NP_RETRY: u32 = 405;
-pub const GSP_BIND_ST_PAIR_CODE: u32 = 406;
-pub const GSP_BIND_ST_PAIR_TITLE: u32 = 407;
-pub const GSP_BIND_ST_PAIR_URL: u32 = 408;
-pub const GSP_BIND_ST_PAIR_VIS: u32 = 409;
-pub const GSP_BIND_ST_SCAN_VIS: u32 = 410;
-pub const GSP_BIND_ST_WELCOME_NAME: u32 = 411;
-pub const GSP_BIND_ST_WELCOME_VIS: u32 = 412;
-pub const GSP_BIND_ST_WIFI_VIS: u32 = 413;
-pub const GSP_BIND_U0_ARC_CALL_VIS: u32 = 414;
-pub const GSP_BIND_U0_ARC_FAIL_VIS: u32 = 415;
-pub const GSP_BIND_U0_ARC_WORK_VIS: u32 = 416;
-pub const GSP_BIND_U0_NAME: u32 = 417;
-pub const GSP_BIND_U0_PCT: u32 = 418;
-pub const GSP_BIND_U0_RESET: u32 = 419;
-pub const GSP_BIND_U0_VIS: u32 = 420;
-pub const GSP_BIND_U1_ARC_CALL_VIS: u32 = 421;
-pub const GSP_BIND_U1_ARC_FAIL_VIS: u32 = 422;
-pub const GSP_BIND_U1_ARC_WORK_VIS: u32 = 423;
-pub const GSP_BIND_U1_NAME: u32 = 424;
-pub const GSP_BIND_U1_PCT: u32 = 425;
-pub const GSP_BIND_U1_RESET: u32 = 426;
-pub const GSP_BIND_U1_VIS: u32 = 427;
-pub const GSP_BIND_U2_ARC_CALL_VIS: u32 = 428;
-pub const GSP_BIND_U2_ARC_FAIL_VIS: u32 = 429;
-pub const GSP_BIND_U2_ARC_WORK_VIS: u32 = 430;
-pub const GSP_BIND_U2_NAME: u32 = 431;
-pub const GSP_BIND_U2_PCT: u32 = 432;
-pub const GSP_BIND_U2_RESET: u32 = 433;
-pub const GSP_BIND_U2_VIS: u32 = 434;
-pub const GSP_BIND_U3_ARC_CALL_VIS: u32 = 435;
-pub const GSP_BIND_U3_ARC_FAIL_VIS: u32 = 436;
-pub const GSP_BIND_U3_ARC_WORK_VIS: u32 = 437;
-pub const GSP_BIND_U3_NAME: u32 = 438;
-pub const GSP_BIND_U3_PCT: u32 = 439;
-pub const GSP_BIND_U3_RESET: u32 = 440;
-pub const GSP_BIND_U3_VIS: u32 = 441;
-pub const GSP_BIND_USAGE_EMPTY_VIS: u32 = 442;
-pub const GSP_BIND_USAGE_UPDATED: u32 = 443;
-pub const GSP_BIND_WF_META0: u32 = 444;
-pub const GSP_BIND_WF_META1: u32 = 445;
-pub const GSP_BIND_WF_META2: u32 = 446;
-pub const GSP_BIND_WF_META3: u32 = 447;
-pub const GSP_BIND_WF_META4: u32 = 448;
-pub const GSP_BIND_WF_META5: u32 = 449;
-pub const GSP_BIND_WF_NAME0: u32 = 450;
-pub const GSP_BIND_WF_NAME1: u32 = 451;
-pub const GSP_BIND_WF_NAME2: u32 = 452;
-pub const GSP_BIND_WF_NAME3: u32 = 453;
-pub const GSP_BIND_WF_NAME4: u32 = 454;
-pub const GSP_BIND_WF_NAME5: u32 = 455;
-pub const GSP_BIND_WF_NOTE: u32 = 456;
-pub const GSP_BIND_WF_ROW0_VIS: u32 = 457;
-pub const GSP_BIND_WF_ROW1_VIS: u32 = 458;
-pub const GSP_BIND_WF_ROW2_VIS: u32 = 459;
-pub const GSP_BIND_WF_ROW3_VIS: u32 = 460;
-pub const GSP_BIND_WF_ROW4_VIS: u32 = 461;
-pub const GSP_BIND_WF_ROW5_VIS: u32 = 462;
-pub const GSP_BIND_WF_SIG0_0: u32 = 463;
-pub const GSP_BIND_WF_SIG0_1: u32 = 464;
-pub const GSP_BIND_WF_SIG0_2: u32 = 465;
-pub const GSP_BIND_WF_SIG1_0: u32 = 466;
-pub const GSP_BIND_WF_SIG1_1: u32 = 467;
-pub const GSP_BIND_WF_SIG1_2: u32 = 468;
-pub const GSP_BIND_WF_SIG2_0: u32 = 469;
-pub const GSP_BIND_WF_SIG2_1: u32 = 470;
-pub const GSP_BIND_WF_SIG2_2: u32 = 471;
-pub const GSP_BIND_WF_SIG3_0: u32 = 472;
-pub const GSP_BIND_WF_SIG3_1: u32 = 473;
-pub const GSP_BIND_WF_SIG3_2: u32 = 474;
-pub const GSP_BIND_WF_SIG4_0: u32 = 475;
-pub const GSP_BIND_WF_SIG4_1: u32 = 476;
-pub const GSP_BIND_WF_SIG4_2: u32 = 477;
-pub const GSP_BIND_WF_SIG5_0: u32 = 478;
-pub const GSP_BIND_WF_SIG5_1: u32 = 479;
-pub const GSP_BIND_WF_SIG5_2: u32 = 480;
+pub const GSP_BIND_SCAN_PREVIEW: u32 = 392;
+pub const GSP_BIND_ST_INPUT_VIS: u32 = 393;
+pub const GSP_BIND_ST_LINK_VIS: u32 = 394;
+pub const GSP_BIND_ST_NETINFO_VIS: u32 = 395;
+pub const GSP_BIND_ST_NOPASEO_VIS: u32 = 396;
+pub const GSP_BIND_ST_NOWIFI_DOT: u32 = 397;
+pub const GSP_BIND_ST_NOWIFI_LIT0_VIS: u32 = 398;
+pub const GSP_BIND_ST_NOWIFI_LIT1_VIS: u32 = 399;
+pub const GSP_BIND_ST_NOWIFI_LIT2_VIS: u32 = 400;
+pub const GSP_BIND_ST_NOWIFI_REASON: u32 = 401;
+pub const GSP_BIND_ST_NOWIFI_SAVED: u32 = 402;
+pub const GSP_BIND_ST_NOWIFI_VIS: u32 = 403;
+pub const GSP_BIND_ST_NP_FOOT: u32 = 404;
+pub const GSP_BIND_ST_NP_REASON: u32 = 405;
+pub const GSP_BIND_ST_NP_RETRY: u32 = 406;
+pub const GSP_BIND_ST_PAIR_CODE: u32 = 407;
+pub const GSP_BIND_ST_PAIR_TITLE: u32 = 408;
+pub const GSP_BIND_ST_PAIR_URL: u32 = 409;
+pub const GSP_BIND_ST_PAIR_VIS: u32 = 410;
+pub const GSP_BIND_ST_SCAN_VIS: u32 = 411;
+pub const GSP_BIND_ST_WELCOME_NAME: u32 = 412;
+pub const GSP_BIND_ST_WELCOME_VIS: u32 = 413;
+pub const GSP_BIND_ST_WIFI_VIS: u32 = 414;
+pub const GSP_BIND_U0_ARC_CALL_VIS: u32 = 415;
+pub const GSP_BIND_U0_ARC_FAIL_VIS: u32 = 416;
+pub const GSP_BIND_U0_ARC_WORK_VIS: u32 = 417;
+pub const GSP_BIND_U0_NAME: u32 = 418;
+pub const GSP_BIND_U0_PCT: u32 = 419;
+pub const GSP_BIND_U0_RESET: u32 = 420;
+pub const GSP_BIND_U0_VIS: u32 = 421;
+pub const GSP_BIND_U1_ARC_CALL_VIS: u32 = 422;
+pub const GSP_BIND_U1_ARC_FAIL_VIS: u32 = 423;
+pub const GSP_BIND_U1_ARC_WORK_VIS: u32 = 424;
+pub const GSP_BIND_U1_NAME: u32 = 425;
+pub const GSP_BIND_U1_PCT: u32 = 426;
+pub const GSP_BIND_U1_RESET: u32 = 427;
+pub const GSP_BIND_U1_VIS: u32 = 428;
+pub const GSP_BIND_U2_ARC_CALL_VIS: u32 = 429;
+pub const GSP_BIND_U2_ARC_FAIL_VIS: u32 = 430;
+pub const GSP_BIND_U2_ARC_WORK_VIS: u32 = 431;
+pub const GSP_BIND_U2_NAME: u32 = 432;
+pub const GSP_BIND_U2_PCT: u32 = 433;
+pub const GSP_BIND_U2_RESET: u32 = 434;
+pub const GSP_BIND_U2_VIS: u32 = 435;
+pub const GSP_BIND_U3_ARC_CALL_VIS: u32 = 436;
+pub const GSP_BIND_U3_ARC_FAIL_VIS: u32 = 437;
+pub const GSP_BIND_U3_ARC_WORK_VIS: u32 = 438;
+pub const GSP_BIND_U3_NAME: u32 = 439;
+pub const GSP_BIND_U3_PCT: u32 = 440;
+pub const GSP_BIND_U3_RESET: u32 = 441;
+pub const GSP_BIND_U3_VIS: u32 = 442;
+pub const GSP_BIND_USAGE_EMPTY_VIS: u32 = 443;
+pub const GSP_BIND_USAGE_UPDATED: u32 = 444;
+pub const GSP_BIND_WF_META0: u32 = 445;
+pub const GSP_BIND_WF_META1: u32 = 446;
+pub const GSP_BIND_WF_META2: u32 = 447;
+pub const GSP_BIND_WF_META3: u32 = 448;
+pub const GSP_BIND_WF_META4: u32 = 449;
+pub const GSP_BIND_WF_META5: u32 = 450;
+pub const GSP_BIND_WF_NAME0: u32 = 451;
+pub const GSP_BIND_WF_NAME1: u32 = 452;
+pub const GSP_BIND_WF_NAME2: u32 = 453;
+pub const GSP_BIND_WF_NAME3: u32 = 454;
+pub const GSP_BIND_WF_NAME4: u32 = 455;
+pub const GSP_BIND_WF_NAME5: u32 = 456;
+pub const GSP_BIND_WF_NOTE: u32 = 457;
+pub const GSP_BIND_WF_ROW0_VIS: u32 = 458;
+pub const GSP_BIND_WF_ROW1_VIS: u32 = 459;
+pub const GSP_BIND_WF_ROW2_VIS: u32 = 460;
+pub const GSP_BIND_WF_ROW3_VIS: u32 = 461;
+pub const GSP_BIND_WF_ROW4_VIS: u32 = 462;
+pub const GSP_BIND_WF_ROW5_VIS: u32 = 463;
+pub const GSP_BIND_WF_SIG0_0: u32 = 464;
+pub const GSP_BIND_WF_SIG0_1: u32 = 465;
+pub const GSP_BIND_WF_SIG0_2: u32 = 466;
+pub const GSP_BIND_WF_SIG1_0: u32 = 467;
+pub const GSP_BIND_WF_SIG1_1: u32 = 468;
+pub const GSP_BIND_WF_SIG1_2: u32 = 469;
+pub const GSP_BIND_WF_SIG2_0: u32 = 470;
+pub const GSP_BIND_WF_SIG2_1: u32 = 471;
+pub const GSP_BIND_WF_SIG2_2: u32 = 472;
+pub const GSP_BIND_WF_SIG3_0: u32 = 473;
+pub const GSP_BIND_WF_SIG3_1: u32 = 474;
+pub const GSP_BIND_WF_SIG3_2: u32 = 475;
+pub const GSP_BIND_WF_SIG4_0: u32 = 476;
+pub const GSP_BIND_WF_SIG4_1: u32 = 477;
+pub const GSP_BIND_WF_SIG4_2: u32 = 478;
+pub const GSP_BIND_WF_SIG5_0: u32 = 479;
+pub const GSP_BIND_WF_SIG5_1: u32 = 480;
+pub const GSP_BIND_WF_SIG5_2: u32 = 481;
 pub const ESP_GSP_FIELD_MAX_SCENES: esp_gsp_config_field_id_t = 0;
 pub const ESP_GSP_FIELD_MAX_TIMERS: esp_gsp_config_field_id_t = 1;
 pub const ESP_GSP_FIELD_MAX_WIDGETS: esp_gsp_config_field_id_t = 2;
@@ -3051,5 +3053,348 @@ unsafe extern "C" {
         to: i32,
         duration_ms: u32,
         ease: esp_gsp_ease_t,
+    ) -> esp_gsp_err_t;
+}
+pub const ESP_GSP_CANVAS_CHECK: esp_gsp_canvas_operation_t = 0;
+pub const ESP_GSP_CANVAS_SET_DRAW: esp_gsp_canvas_operation_t = 1;
+pub const ESP_GSP_CANVAS_PUSH_FRAME: esp_gsp_canvas_operation_t = 2;
+pub const ESP_GSP_CANVAS_INVALIDATE: esp_gsp_canvas_operation_t = 3;
+pub const ESP_GSP_CANVAS_STOP: esp_gsp_canvas_operation_t = 4;
+pub type esp_gsp_canvas_operation_t = core::ffi::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct esp_gsp_canvas_result_t {
+    pub struct_size: usize,
+    pub request_id: u32,
+    pub scene_id: u16,
+    pub bind: u16,
+    pub operation: esp_gsp_canvas_operation_t,
+    pub status: gsp_err_t,
+}
+impl Default for esp_gsp_canvas_result_t {
+    fn default() -> Self {
+        let mut s = ::core::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::core::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
+pub const ESP_GSP_EXTENSION_APP_CREATED: esp_gsp_extension_kind_t = 0;
+pub const ESP_GSP_EXTENSION_APP_DESTROYING: esp_gsp_extension_kind_t = 1;
+pub const ESP_GSP_EXTENSION_SCENE_CHANGED: esp_gsp_extension_kind_t = 2;
+pub const ESP_GSP_EXTENSION_ACTION: esp_gsp_extension_kind_t = 3;
+pub const ESP_GSP_EXTENSION_CANVAS_RESULT: esp_gsp_extension_kind_t = 4;
+pub const ESP_GSP_EXTENSION_RENDER_ERROR: esp_gsp_extension_kind_t = 5;
+pub type esp_gsp_extension_kind_t = core::ffi::c_uint;
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct esp_gsp_extension_event_t {
+    pub struct_size: usize,
+    pub kind: esp_gsp_extension_kind_t,
+    pub data: esp_gsp_extension_event_t__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union esp_gsp_extension_event_t__bindgen_ty_1 {
+    pub scene: esp_gsp_extension_event_t__bindgen_ty_1__bindgen_ty_1,
+    pub action: esp_gsp_event_t,
+    pub canvas: esp_gsp_canvas_result_t,
+    pub render_error: gsp_err_t,
+}
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct esp_gsp_extension_event_t__bindgen_ty_1__bindgen_ty_1 {
+    pub previous: u16,
+    pub current: u16,
+}
+impl Default for esp_gsp_extension_event_t__bindgen_ty_1 {
+    fn default() -> Self {
+        let mut s = ::core::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::core::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
+impl Default for esp_gsp_extension_event_t {
+    fn default() -> Self {
+        let mut s = ::core::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::core::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
+pub type esp_gsp_extension_cb_t = ::core::option::Option<
+    unsafe extern "C" fn(
+        gsp: esp_gsp_handle_t,
+        event: *const esp_gsp_extension_event_t,
+        user_ctx: *mut core::ffi::c_void,
+    ),
+>;
+unsafe extern "C" {
+    pub fn esp_gsp_on_extension_event(
+        gsp: esp_gsp_handle_t,
+        callback: esp_gsp_extension_cb_t,
+        user_ctx: *mut core::ffi::c_void,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_on_extension_event_ex(
+        gsp: esp_gsp_handle_t,
+        callback: esp_gsp_extension_cb_t,
+        user_ctx: *mut core::ffi::c_void,
+        event_mask: u32,
+        canvas_operation_mask: u32,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_canvas_check(
+        gsp: esp_gsp_handle_t,
+        bind: u16,
+        request_id: u32,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_canvas_set_draw_cb_ex(
+        gsp: esp_gsp_handle_t,
+        bind: u16,
+        draw_cb: esp_gsp_canvas_draw_cb_t,
+        user_ctx: *mut core::ffi::c_void,
+        request_id: u32,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_hook_app_created(gsp: esp_gsp_handle_t);
+}
+unsafe extern "C" {
+    pub fn esp_gsp_hook_app_destroying(gsp: esp_gsp_handle_t);
+}
+unsafe extern "C" {
+    pub fn esp_gsp_hook_scene_changed(
+        gsp: esp_gsp_handle_t,
+        previous_scene: u16,
+        current_scene: u16,
+    );
+}
+unsafe extern "C" {
+    pub fn esp_gsp_hook_action(gsp: esp_gsp_handle_t, event: *const esp_gsp_event_t);
+}
+unsafe extern "C" {
+    pub fn esp_gsp_hook_canvas_result(
+        gsp: esp_gsp_handle_t,
+        result: *const esp_gsp_canvas_result_t,
+    );
+}
+unsafe extern "C" {
+    pub fn esp_gsp_hook_render_error(gsp: esp_gsp_handle_t, error: gsp_err_t);
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct esp_gsp_assets {
+    _unused: [u8; 0],
+}
+pub type esp_gsp_assets_t = esp_gsp_assets;
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct esp_gsp_asset_ref_t {
+    pub name_hash: u32,
+    pub first_member: u16,
+    pub member_count: u16,
+}
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct esp_gsp_assets_config_t {
+    pub read_budget_bytes: usize,
+    pub task_stack_size: u32,
+    pub task_priority: u32,
+}
+pub const ESP_GSP_ASSET_IMAGE: esp_gsp_asset_target_kind_t = 0;
+pub const ESP_GSP_ASSET_ROW: esp_gsp_asset_target_kind_t = 1;
+pub const ESP_GSP_ASSET_WIDGET: esp_gsp_asset_target_kind_t = 2;
+pub type esp_gsp_asset_target_kind_t = core::ffi::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct esp_gsp_asset_target_t {
+    pub kind: esp_gsp_asset_target_kind_t,
+    pub bind: u16,
+    pub resource_slot: u16,
+    pub row: esp_gsp_row_t,
+}
+impl Default for esp_gsp_asset_target_t {
+    fn default() -> Self {
+        let mut s = ::core::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::core::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
+pub const ESP_GSP_ASSET_QUEUED: esp_gsp_asset_state_t = 0;
+pub const ESP_GSP_ASSET_READING: esp_gsp_asset_state_t = 1;
+pub const ESP_GSP_ASSET_DECODING: esp_gsp_asset_state_t = 2;
+pub const ESP_GSP_ASSET_READY: esp_gsp_asset_state_t = 3;
+pub const ESP_GSP_ASSET_FAILED: esp_gsp_asset_state_t = 4;
+pub const ESP_GSP_ASSET_STOPPING: esp_gsp_asset_state_t = 5;
+pub const ESP_GSP_ASSET_STOPPED: esp_gsp_asset_state_t = 6;
+pub const ESP_GSP_ASSET_FINISHED: esp_gsp_asset_state_t = 7;
+pub type esp_gsp_asset_state_t = core::ffi::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct esp_gsp_asset_status_t {
+    pub state: esp_gsp_asset_state_t,
+    pub request_id: u32,
+    pub last_error: gsp_err_t,
+    pub failed_stage: esp_gsp_asset_state_t,
+    pub system_errno: core::ffi::c_int,
+    pub required_bytes: usize,
+    pub pending: bool,
+}
+impl Default for esp_gsp_asset_status_t {
+    fn default() -> Self {
+        let mut s = ::core::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::core::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct esp_gsp_asset_publication_t {
+    pub request_id: u32,
+    pub has_frame: bool,
+}
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct esp_gsp_assets_stats_t {
+    pub encoded_bytes: usize,
+    pub encoded_peak_bytes: usize,
+    pub encoded_budget_bytes: usize,
+    pub decoded_bytes: usize,
+    pub decoded_peak_bytes: usize,
+    pub index_bytes: usize,
+    pub read_bytes: u64,
+    pub load_us: u64,
+    pub submitted_frames: u32,
+    pub queue_retries: u32,
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_open(
+        path: *const core::ffi::c_char,
+        index_crc: u32,
+        config: *const esp_gsp_assets_config_t,
+        out_assets: *mut *mut esp_gsp_assets_t,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_show(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        bind: u16,
+        asset: esp_gsp_asset_ref_t,
+        once: bool,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_show_name(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        bind: u16,
+        name: *const core::ffi::c_char,
+        once: bool,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_show_row(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        row: esp_gsp_row_t,
+        slot: u16,
+        asset: esp_gsp_asset_ref_t,
+        once: bool,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_show_widget(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        widget: esp_gsp_widget_t,
+        slot: u16,
+        asset: esp_gsp_asset_ref_t,
+        once: bool,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_show_target(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        target: esp_gsp_asset_target_t,
+        asset: esp_gsp_asset_ref_t,
+        once: bool,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_show_target_name(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        target: esp_gsp_asset_target_t,
+        name: *const core::ffi::c_char,
+        once: bool,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_get_status(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        target: esp_gsp_asset_target_t,
+        out_status: *mut esp_gsp_asset_status_t,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_get_publication(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        target: esp_gsp_asset_target_t,
+        out_publication: *mut esp_gsp_asset_publication_t,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_stop_target(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        target: esp_gsp_asset_target_t,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_get_stats(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        out_stats: *mut esp_gsp_assets_stats_t,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_status(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        bind: u16,
+        out_pending: *mut bool,
+    ) -> gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_stop(
+        assets: *mut esp_gsp_assets_t,
+        gsp: esp_gsp_handle_t,
+        bind: u16,
+    ) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_close(assets: *mut esp_gsp_assets_t) -> esp_gsp_err_t;
+}
+unsafe extern "C" {
+    pub fn esp_gsp_assets_close_wait(
+        assets: *mut esp_gsp_assets_t,
+        timeout_ms: u32,
     ) -> esp_gsp_err_t;
 }

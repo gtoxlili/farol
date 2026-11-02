@@ -5048,14 +5048,16 @@
    "bind_target": "visible"
   },
   {
-   "type": "rect",
+   "type": "image",
+   "name": "scan_preview",
    "x": 60,
    "y": 74,
    "w": 360,
    "h": 360,
-   "bg_color": "#141516",
-   "radius": 0,
-   "name": "scan_view",
+   "image": "images/scan_preview.png",
+   "codec": "raw",
+   "bind": "scan_preview",
+   "canvas": "push",
    "parent_name": "st_scan"
   },
   {
