@@ -1615,6 +1615,10 @@ impl App {
         {
             level = (15 + u16::from(ambient) * 85 / 100) as u8;
         }
+        // Burn-in guard: the screen stays dim through the quiet hours.
+        if self.quiet_hours() {
+            level = level.min(DIM_PERCENT);
+        }
         let alert = self.now < self.alert_until;
         let wanted = if self.module {
             let last = self.last_touch.max(self.last_presence);
@@ -2018,6 +2022,27 @@ mod tests {
         assert!(app.prefs.sound && app.session.prefs_pending());
         app.apply(with(2, false), &mut sys);
         assert!(app.prefs.sound);
+    }
+
+    #[test]
+    fn quiet_hours_dim_the_screen() {
+        let (mut app, mut ui, mut sys) = board(vec![]);
+        let quiet = Snapshot {
+            v: VERSION,
+            now: T,
+            tz: 480,
+            settings: Some(Settings {
+                rev: 1,
+                sound: true,
+                led_brightness: 60,
+                quiet_start: 540,
+                quiet_end: 600,
+            }),
+            ..Default::default()
+        };
+        app.apply(quiet, &mut sys);
+        app.poll(1, &mut ui, &mut sys);
+        assert_eq!(sys.display, Some(Display::On(DIM_PERCENT)));
     }
 
     #[test]
