@@ -35,9 +35,10 @@ use logic::ui::GspUi;
 /// Events waiting for the logic task; a full queue drops the newest input, as
 /// a busy UI would.
 const QUEUE_LENGTH: u32 = 24;
-/// Stack of the logic task, in internal RAM: JSON decoding, text layout and
-/// formatting run here. The health line reports what stays unused.
-const TASK_STACK_BYTES: u32 = 16 * 1024;
+/// Stack of the logic task, in internal RAM (it writes NVS): JSON decoding,
+/// text layout and formatting run here. 16 KiB left 13.8 KiB unused on the
+/// board; the health line reports what stays unused.
+const TASK_STACK_BYTES: u32 = 8 * 1024;
 /// Above GSP's render task (priority 4), so a tap's setters are queued before
 /// the render task takes its next frame.
 const TASK_PRIORITY: u32 = 5;

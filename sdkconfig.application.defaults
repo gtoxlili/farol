@@ -12,3 +12,8 @@ CONFIG_ESP_GSP_FREETYPE_CACHE_GLYPHS=512
 # The first frame and page changes write a few hundred setters at once; GSP's
 # default queue of 24 overflowed on the board (ESP_GSP_ERR_TIMEOUT).
 CONFIG_ESP_GSP_QUEUE_DEPTH=128
+
+# Internal RAM is the scarce heap (Wi-Fi, TLS, DMA): the 32 KiB FreeType render
+# stack goes to PSRAM. Farol's render-task callbacks only queue events and never
+# touch flash, NVS or files, which PSRAM stacks require.
+CONFIG_ESP_GSP_RENDER_TASK_STACK_PSRAM=y
