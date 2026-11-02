@@ -6,7 +6,8 @@
 import type { BoardPrefs, Snapshot } from "../shared/protocol";
 import type { Board } from "../shared/settings";
 
-export const POLL_MS = 25_000;
+/** Under Paseo's 30 s plugin RPC timeout with room for a slow network. */
+export const POLL_MS = 20_000;
 /** 220 ms rather than 200: five per second holds at the board even with network jitter. */
 export const FLUSH_MS = 220;
 /** A board with no poll for this long is shown offline. */

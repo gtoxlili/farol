@@ -141,7 +141,7 @@ export const ActResultSchema = z.object({
 });
 export type ActResult = z.infer<typeof ActResultSchema>;
 
-/** Long poll: answers when the board's view changed past `cursor`, else idle within 25 s. */
+/** Long poll: answers when the board's view changed past `cursor`, else idle within 20 s. */
 export const nextRpc = defineRpc({ name: "farol.next", input: NextSchema, output: SnapshotSchema });
 
 /** The card on screen changed; wakes the device's waiting `farol.next`. */

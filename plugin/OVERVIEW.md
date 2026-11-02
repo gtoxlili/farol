@@ -36,3 +36,5 @@ and scan the code with the board. Requires Paseo 0.14 or newer.
 - Stopping a turn runs the `paseo stop` command on this Mac. Without the CLI on
   the daemon's PATH the board offers no stop.
 - Each answer or stop made on a board adds a line to that agent's timeline.
+- Boards wait for news with a 20-second request, which the daemon log lists as a
+  slow request; that is expected.

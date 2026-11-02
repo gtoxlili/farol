@@ -31,7 +31,9 @@ running.
 - `cursor` is the `rev` of the last snapshot the board received (0 at start).
 - The plugin answers at once when the board is behind (its cursor is not the
   last rev sent to that device: first poll, reconnect, plugin restart), as soon
-  as that board's snapshot changes, or after 25 s with an idle snapshot.
+  as that board's snapshot changes, or after 20 s with an idle snapshot (Paseo
+  times plugin RPCs out at 30 s; each held poll shows in the daemon log as a
+  slow request, which is expected).
 - Full snapshots to one board are at least 220 ms apart (at most 5 per second,
   with margin for network jitter).
 - One waiting poll per `device`; a newer poll answers the older one idle.
