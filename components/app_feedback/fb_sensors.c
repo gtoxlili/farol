@@ -82,9 +82,15 @@ void fb_button_service(uint32_t notified)
         ESP_LOGI(TAG, "AI key long");
         fb_emit(APP_FEEDBACK_EVENT_BUTTON, APP_FEEDBACK_BUTTON_AI_LONG);
     }
-    if ((notified & FB_NOTIFY_AI_UP) && !s_ai.long_fired) {
-        ESP_LOGI(TAG, "AI key click");
-        fb_emit(APP_FEEDBACK_EVENT_BUTTON, APP_FEEDBACK_BUTTON_AI_CLICK);
+    if (notified & FB_NOTIFY_AI_UP) {
+        if (s_ai.long_fired) {
+            ESP_LOGI(TAG, "AI key released");
+            fb_emit(APP_FEEDBACK_EVENT_BUTTON, APP_FEEDBACK_BUTTON_AI_RELEASE);
+        } else {
+            ESP_LOGI(TAG, "AI key click");
+            fb_emit(APP_FEEDBACK_EVENT_BUTTON, APP_FEEDBACK_BUTTON_AI_CLICK);
+        }
+        s_ai.long_fired = false;
     }
 }
 

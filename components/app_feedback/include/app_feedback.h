@@ -2,6 +2,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "esp_err.h"
@@ -45,9 +46,10 @@ typedef enum {
 
 typedef enum {
     APP_FEEDBACK_BUTTON_AI_CLICK = 0,
-    APP_FEEDBACK_BUTTON_AI_LONG,
-    APP_FEEDBACK_BUTTON_PREV, /*!< interaction module touch key */
-    APP_FEEDBACK_BUTTON_NEXT, /*!< interaction module touch key */
+    APP_FEEDBACK_BUTTON_AI_LONG,    /*!< held past the long-press time */
+    APP_FEEDBACK_BUTTON_PREV,       /*!< interaction module touch key */
+    APP_FEEDBACK_BUTTON_NEXT,       /*!< interaction module touch key */
+    APP_FEEDBACK_BUTTON_AI_RELEASE, /*!< let go after AI_LONG */
 } app_feedback_button_t;
 
 typedef enum {
@@ -109,6 +111,26 @@ esp_err_t app_feedback_led_brightness(uint8_t percent);
 /** Panel on at `percent` brightness (0..100), or off. The latest request wins;
  * the panel is driven through app_display. */
 esp_err_t app_feedback_display(bool on, uint8_t percent);
+
+/** Microphone audio. `pcm` holds `length` bytes of 16 kHz mono signed 16-bit
+ * little-endian samples and is valid only during the call; `pcm == NULL`
+ * (length 0) ends a recording. Called on the `chime` task: copy and return. */
+typedef void (*app_feedback_audio_cb_t)(const uint8_t *pcm, size_t length, void *ctx);
+
+/** Where recordings go; set once, before the first app_feedback_listen.
+ * @return ESP_OK; ESP_ERR_INVALID_ARG without a callback. */
+esp_err_t app_feedback_on_audio(app_feedback_audio_cb_t on_audio, void *ctx);
+
+/** Start or stop recording. A recording delivers APP_FEEDBACK_AUDIO_CHUNK
+ * bytes at a time, stops by itself after APP_FEEDBACK_LISTEN_MAX_MS, and
+ * always ends with the NULL call (at once when the microphone did not
+ * start). Chimes are dropped while it runs: the speaker sits next to the
+ * microphone. */
+esp_err_t app_feedback_listen(bool on);
+
+/** Bytes per audio callback: 0.5 s. */
+#define APP_FEEDBACK_AUDIO_CHUNK 16000
+#define APP_FEEDBACK_LISTEN_MAX_MS 60000
 
 #ifdef __cplusplus
 }
