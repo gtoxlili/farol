@@ -1,7 +1,7 @@
-//! The board's side of [`logic::sys::Sys`]: C services of this application
-//! (`components/app_display`) and ESP-IDF storage, identity and diagnostics.
+//! The board's side of [`logic::sys::Sys`]: the build flavour, ESP-IDF
+//! storage, identity and diagnostics.
 //!
-//! Prototypes: `app_display.h` (this repo), `nvs.h`, `esp_mac.h`,
+//! Prototypes: `app_logic.h` (this repo), `nvs.h`, `esp_mac.h`,
 //! `esp_heap_caps.h`, FreeRTOS `task.h` (pinned IDF 7b9cc1ac).
 //!
 //! Saved state lives in the application's `nvs` partition, namespace
@@ -38,8 +38,6 @@ const PASEO_RECORD_MAX: usize = 1024;
 
 unsafe extern "C" {
     fn app_logic_demo_build() -> bool;
-    fn app_display_set_brightness(percent: u8) -> EspErr;
-    fn app_display_set_enabled(enabled: bool) -> EspErr;
 
     fn nvs_open(namespace: *const c_char, mode: c_int, handle: *mut u32) -> EspErr;
     fn nvs_get_blob(
@@ -68,21 +66,7 @@ fn warn(what: &str, err: EspErr) {
     );
 }
 
-// ---------------------------------------------------------------- display
-
-pub fn set_brightness(percent: u8) {
-    let err = unsafe { app_display_set_brightness(percent.min(100)) };
-    if err != ESP_OK {
-        warn("brightness", err);
-    }
-}
-
-pub fn set_display_enabled(enabled: bool) {
-    let err = unsafe { app_display_set_enabled(enabled) };
-    if err != ESP_OK {
-        warn("display power", err);
-    }
-}
+// ---------------------------------------------------------------- build
 
 /// A development build that runs the demo fleet (`CONFIG_FAROL_DEMO`).
 pub fn demo_build() -> bool {

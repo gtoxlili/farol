@@ -6,7 +6,8 @@
 //! FreeRTOS queue without blocking. The `logic` task waits on that queue until
 //! the app's next deadline, then runs [`App::handle`] and [`App::poll`], whose
 //! setters GSP applies asynchronously before its next frame. Wi-Fi and link
-//! reports arrive the same way from the C components' tasks ([`net`]). Only
+//! reports arrive the same way from the C components' tasks ([`net`],
+//! [`feedback`]). Only
 //! the `logic` task touches the `App`; the render task reads one atomic,
 //! [`SCREEN_ON`].
 #![no_std]
@@ -14,6 +15,7 @@
 extern crate alloc;
 
 mod board;
+mod feedback;
 mod heap;
 mod idf;
 mod net;
@@ -56,8 +58,8 @@ static PRESSED: AtomicBool = AtomicBool::new(false);
 static SWALLOWING: AtomicBool = AtomicBool::new(false);
 
 /// Effects on the board. The link and Wi-Fi go to app_link and app_net
-/// ([`net`]); the camera, haptics, sound and LEDs arrive with their components
-/// (app_camera, app_feedback), and until then those effects are logged.
+/// ([`net`]); haptics, sound, LEDs and the panel to app_feedback
+/// ([`feedback`]); the camera arrives with app_camera, and is logged until then.
 struct Board {
     display: Option<Display>,
 }
@@ -72,28 +74,20 @@ impl Sys for Board {
     fn link(&mut self, out: Out) {
         net::link(out);
     }
-    fn haptic(&mut self, _haptic: Haptic) {}
-    fn chime(&mut self, _chime: Chime) {}
-    fn glow(&mut self, _glow: Glow) {}
-    fn led_brightness(&mut self, _percent: u8) {}
+    fn haptic(&mut self, haptic: Haptic) {
+        feedback::haptic(haptic);
+    }
+    fn chime(&mut self, chime: Chime) {
+        feedback::chime(chime);
+    }
+    fn glow(&mut self, glow: Glow) {
+        feedback::glow(glow);
+    }
+    fn led_brightness(&mut self, percent: u8) {
+        feedback::led_brightness(percent);
+    }
     fn display(&mut self, display: Display) {
-        if self.display == Some(display) {
-            return;
-        }
-        match display {
-            Display::On(level) => {
-                board::set_brightness(level);
-                if self.display.is_none_or(|d| d == Display::Off) {
-                    board::set_display_enabled(true);
-                }
-                SCREEN_ON.store(true, Ordering::Release);
-            }
-            Display::Off => {
-                SCREEN_ON.store(false, Ordering::Release);
-                board::set_display_enabled(false);
-            }
-        }
-        self.display = Some(display);
+        feedback::display(&mut self.display, display);
     }
     fn save_config(&mut self, config: Option<&Config>) {
         board::save_config(config);
@@ -311,6 +305,7 @@ pub unsafe extern "C" fn app_logic_start(handle: gsp::esp_gsp_handle_t) -> i32 {
     }
     // Reports wait in the queue until the task below runs.
     net::subscribe(queue);
+    feedback::start(queue);
     let arg = Box::into_raw(task).cast::<c_void>();
     if !idf::spawn(c"logic", TASK_STACK_BYTES, TASK_PRIORITY, logic_task, arg) {
         // The callbacks stay registered on the leaked queue, which nobody
