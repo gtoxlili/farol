@@ -51,6 +51,9 @@ const ORDER_REFRESH_MS: u64 = 60_000;
 /// A change of urgency glides the lamp to its new color this long. GSP cannot
 /// tween the orb's color, so the logic steps it every [`FADE_STEP_MS`].
 const LAMP_FADE_MS: u64 = 600;
+/// Ripple strength (0..100) for a tool call and for a tap on an empty lamp.
+const RIPPLE_TOOL: i32 = 55;
+const RIPPLE_EMPTY: i32 = 95;
 const FADE_STEP_MS: u64 = 33;
 
 /// A color glide on the logic's clock.
@@ -180,6 +183,8 @@ pub struct App {
     demo: Option<Demo>,
     /// The lamp's color glide; the view advances it while drawing.
     pub(crate) lamp_fade: Cell<Option<Fade>>,
+    /// A running agent started a new tool call since the last frame.
+    ripple: bool,
     /// Phase of the "connecting" Wi-Fi arcs, advanced by `poll`.
     pub(crate) wifi_phase: u8,
     last_second: u64,
@@ -230,6 +235,7 @@ impl App {
             host: String::new(),
             demo: None,
             lamp_fade: Cell::new(None),
+            ripple: false,
             wifi_phase: 0,
             last_second: now_ms / 1000,
         };
@@ -420,6 +426,13 @@ impl App {
         self.update_overlay();
         self.apply_power(sys);
         self.apply_glow(sys);
+        if core::mem::take(&mut self.ripple) {
+            self.painter.run(ui.set_i32(
+                gsp::GSP_OBJ_KEY_LAMP,
+                gsp::GSP_PROP_KEY_RIPPLE,
+                RIPPLE_TOOL,
+            ));
+        }
         self.render(ui);
     }
 
@@ -723,6 +736,13 @@ impl App {
                 .any(|a| &a.id == id && a.ask.as_ref().is_some_and(|q| &q.request_id == request))
         });
         self.cue_changes(&snapshot, sys);
+        self.ripple |= snapshot.agents.iter().any(|a| {
+            a.state == State::Work
+                && !a.now.is_empty()
+                && self
+                    .agent(&a.id)
+                    .is_some_and(|b| b.state == State::Work && b.now != a.now)
+        });
         let current = self.current_agent().map(|a| a.id.clone());
         self.clock = Some((snapshot.now, self.now));
         self.tz = snapshot.tz;
@@ -874,8 +894,11 @@ impl App {
 
     fn jump_to_urgent(&mut self, ui: &mut impl Ui, sys: &mut impl Sys) {
         if self.order.is_empty() {
-            self.painter
-                .run(ui.set_i32(gsp::GSP_OBJ_KEY_LAMP, gsp::GSP_PROP_KEY_RIPPLE, 95));
+            self.painter.run(ui.set_i32(
+                gsp::GSP_OBJ_KEY_LAMP,
+                gsp::GSP_PROP_KEY_RIPPLE,
+                RIPPLE_EMPTY,
+            ));
             self.feel(Haptic::Tick, sys);
             return;
         }
@@ -1402,6 +1425,25 @@ mod tests {
         assert_eq!(app.next_deadline_ms(), 1_300 + FADE_STEP_MS);
         app.now = 1_600;
         assert_eq!(app.lamp_color(0x0000FF), 0x0000FF);
+    }
+
+    #[test]
+    fn a_new_tool_call_ripples_the_lamp_once() {
+        let working = |now: &str| Agent {
+            now: now.into(),
+            ..agent("a", State::Work, 1)
+        };
+        let fleet = |now: &str| Snapshot {
+            v: VERSION,
+            now: T,
+            agents: vec![working(now)],
+            ..Default::default()
+        };
+        let (mut app, _, mut sys) = board(vec![working("read  a.rs")]);
+        app.apply(fleet("read  a.rs"), &mut sys);
+        assert!(!app.ripple);
+        app.apply(fleet("edit  a.rs"), &mut sys);
+        assert!(app.ripple);
     }
 
     #[test]
