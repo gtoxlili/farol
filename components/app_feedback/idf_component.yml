@@ -1,0 +1,12 @@
+dependencies:
+  idf: ">=6.2"
+  esp-mosaico-bsp:
+    version: "*"
+    override_path: "../../../../submodule/esp-mosaico-bsp/components/esp-mosaico-bsp"
+  # Interaction module driver and the slot manager it claims through.
+  mosaico_module_interact:
+    version: "*"
+    override_path: "../../../../submodule/esp-mosaico-bsp/components/mosaico_module_interact"
+  mosaico_module_mgr:
+    version: "*"
+    override_path: "../../../../submodule/esp-mosaico-bsp/components/mosaico_module_mgr"
