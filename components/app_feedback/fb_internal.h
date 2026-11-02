@@ -56,3 +56,6 @@ esp_err_t fb_chime_start(void);
 esp_err_t fb_chime_post(app_feedback_chime_t chime);
 /** Let the chime task bring up the speaker (after the feedback task's BSP init). */
 void fb_chime_release(void);
+/* Microphone (fb_chime.c, on the chime task, which owns the codec). */
+esp_err_t fb_mic_listen(bool on);
+esp_err_t fb_mic_on_audio(app_feedback_audio_cb_t on_audio, void *ctx);

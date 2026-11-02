@@ -367,6 +367,16 @@ esp_err_t app_feedback_display(bool on, uint8_t percent)
     return post(write_display, on, percent);
 }
 
+esp_err_t app_feedback_on_audio(app_feedback_audio_cb_t on_audio, void *ctx)
+{
+    return fb_mic_on_audio(on_audio, ctx);
+}
+
+esp_err_t app_feedback_listen(bool on)
+{
+    return fb_mic_listen(on);
+}
+
 esp_err_t app_feedback_start(app_feedback_event_cb_t on_event, void *ctx)
 {
     ESP_RETURN_ON_FALSE(on_event, ESP_ERR_INVALID_ARG, TAG, "no event callback");
