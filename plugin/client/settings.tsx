@@ -1,12 +1,14 @@
-// Settings › Plugins › Farol: recent boards, where sessions started on a board
-// go, and what boards may do. Boards connect to Paseo on their own (direct or
-// relay), so nothing here pairs them. React Native primitives and host
-// settings rows only.
+// Settings › Plugins › farol › Settings. Laid out the way Paseo's own settings
+// are: a muted heading per section, rows on a card, status as a small pill.
+// Paseo owns the header, scrolling, safe areas and the centred column, so this
+// renders sections only. Boards connect to Paseo on their own (direct or
+// relay), so nothing here pairs them.
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { usePaseo, useRpc, useSettings, useTranslation } from "@getpaseo/plugin/client";
 import {
-  ScrollView,
+  Loading,
   SettingsAction,
+  SettingsCard,
   SettingsInput,
   SettingsRow,
   SettingsSection,
@@ -14,12 +16,13 @@ import {
   SettingsSwitch,
 } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
-import { Text } from "react-native";
+import { useState } from "react";
+import { Text, View } from "react-native";
 import { farolSettings, type Settings, statusRpc } from "../shared/settings";
 import { type Messages, messages } from "./messages";
+import { WorkspacePicker } from "./workspace-picker";
 
-type HostProps = Pick<PluginSurfaceProps, "theme" | "layout">;
+type Theme = PluginSurfaceProps["theme"];
 type T = ReturnType<typeof useTranslation<Messages>>["t"];
 
 function ago(t: T, ms: number, now: number): string {
@@ -30,74 +33,90 @@ function ago(t: T, ms: number, now: number): string {
   return new Date(ms).toLocaleDateString();
 }
 
-function Boards({ theme }: HostProps) {
-  const { t } = useTranslation(messages);
+/** `color` at `alpha`, for a pill's fill; theme colors are #rrggbb. */
+function tint(color: string, alpha: number): string {
+  if (!/^#[0-9a-f]{6}$/i.test(color)) return "transparent";
+  return `${color}${Math.round(alpha * 255)
+    .toString(16)
+    .padStart(2, "0")}`;
+}
+
+/** A status pill, as Paseo shows "running" on a plugin. */
+function Pill({ theme, text, on }: { theme: Theme; text: string; on: boolean }) {
+  const color = on ? theme.colors.statusSuccess : theme.colors.foregroundMuted;
+  return (
+    <View
+      style={{
+        backgroundColor: on ? tint(color, 0.16) : theme.colors.surface2,
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+      }}
+    >
+      <Text style={{ color, fontSize: 13 }}>{text}</Text>
+    </View>
+  );
+}
+
+function useStatus() {
   const status = useRpc(statusRpc);
-  const query = useQuery({
+  return useQuery({
     queryKey: ["farol", "status"],
     queryFn: () => status({}),
     refetchInterval: 5000,
   });
+}
+
+function Boards({ theme }: { theme: Theme }) {
+  const { t } = useTranslation(messages);
+  const query = useStatus();
   const now = Date.now();
   const boards = query.data?.boards ?? [];
   const onOff = (on: boolean) => (on ? t("boards.on") : t("boards.off"));
   return (
     <SettingsSection title={t("boards.title")}>
-      {query.isError ? (
-        <SettingsRow label={t("boards.title")} error={t("boards.unreadable", { error: String(query.error) })} />
-      ) : null}
-      {boards.length === 0 && !query.isError ? <SettingsRow label={t("boards.none")} /> : null}
-      {boards.map((b) => (
-        <SettingsRow
-          key={b.device}
-          label={b.device}
-          hint={[
-            b.online ? t("boards.online") : t("boards.offline"),
-            b.fw ? t("boards.firmware", { version: b.fw }) : null,
-            t("boards.lastSeen", { when: ago(t, b.lastSeen, now) }),
-            b.prefs
-              ? t("boards.prefs", {
-                  sound: onOff(b.prefs.sound),
-                  haptic: onOff(b.prefs.haptic),
-                  brightness: b.prefs.brightness,
-                }) + (b.prefs.dnd ? ` · ${t("boards.dnd")}` : "")
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        />
-      ))}
-      {query.data && !query.data.canStop ? <SettingsRow label={t("boards.stop")} hint={t("boards.noStop")} /> : null}
+      <SettingsCard>
+        {query.isError ? (
+          <SettingsRow label={t("boards.title")} error={t("boards.unreadable", { error: String(query.error) })} />
+        ) : null}
+        {boards.length === 0 && !query.isError ? <SettingsRow label={t("boards.none")} hint={t("boards.noneHint")} /> : null}
+        {boards.map((b) => (
+          <SettingsRow
+            key={b.device}
+            label={b.device.startsWith("farol-") ? b.device : `farol-${b.device}`}
+            hint={[
+              b.fw ? t("boards.firmware", { version: b.fw }) : null,
+              t("boards.lastSeen", { when: ago(t, b.lastSeen, now) }),
+              b.prefs
+                ? t("boards.prefs", {
+                    sound: onOff(b.prefs.sound),
+                    haptic: onOff(b.prefs.haptic),
+                    brightness: b.prefs.brightness,
+                  }) + (b.prefs.dnd ? ` · ${t("boards.dnd")}` : "")
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          >
+            <Pill theme={theme} on={b.online} text={b.online ? t("boards.online") : t("boards.offline")} />
+          </SettingsRow>
+        ))}
+        {query.data && !query.data.canStop ? <SettingsRow label={t("boards.stop")} hint={t("boards.noStop")} /> : null}
+      </SettingsCard>
     </SettingsSection>
   );
 }
 
 /** The default workspace and agent profile for sessions started on a board. */
-function Sessions({ values, save }: HostProps & { values: Settings; save(next: Settings): void }) {
+function Sessions({ theme, values, save }: { theme: Theme; values: Settings; save(next: Settings): void }) {
   const { t } = useTranslation(messages);
   const paseo = usePaseo();
-  const workspaces = useQuery({
-    queryKey: ["farol", "workspaces"],
-    queryFn: () => paseo.workspaces.list(),
-  });
   const profiles = useQuery({
     queryKey: ["farol", "profiles"],
     queryFn: async () => (await paseo.config.get()).config.agentProfiles ?? [],
   });
-  const none = { label: t("session.none"), value: "" };
-  const workspaceOptions = [
-    none,
-    ...(workspaces.data?.entries ?? []).map((w) => ({
-      label: w.projectDisplayName && w.projectDisplayName !== w.name ? `${w.name} · ${w.projectDisplayName}` : w.name,
-      value: w.id,
-    })),
-  ];
-  // A saved choice that is no longer listed still shows (by id) until changed.
-  if (values.workspaceId && !workspaceOptions.some((o) => o.value === values.workspaceId)) {
-    workspaceOptions.push({ label: values.workspaceId, value: values.workspaceId });
-  }
   const profileOptions = [
-    none,
+    { label: t("session.none"), value: "" },
     ...(profiles.data ?? []).map((p) => ({ label: p.name || p.id, value: p.id })),
   ];
   if (values.profileId && !profileOptions.some((o) => o.value === values.profileId)) {
@@ -105,35 +124,36 @@ function Sessions({ values, save }: HostProps & { values: Settings; save(next: S
   }
   return (
     <SettingsSection title={t("session.title")} info={t("session.hint")}>
-      <SettingsSelect
-        label={t("session.workspace")}
-        value={values.workspaceId}
-        options={workspaceOptions}
-        disabled={workspaces.isLoading}
-        onValueChange={(workspaceId) => save({ ...values, workspaceId })}
-      />
-      <SettingsSelect
-        label={t("session.profile")}
-        value={values.profileId}
-        options={profileOptions}
-        disabled={profiles.isLoading}
-        onValueChange={(profileId) => save({ ...values, profileId })}
-      />
-      {profiles.data && profiles.data.length === 0 ? <SettingsRow label={t("session.noProfilesTitle")} hint={t("session.noProfiles")} /> : null}
+      <SettingsCard>
+        <WorkspacePicker theme={theme} value={values.workspaceId} onChange={(workspaceId) => save({ ...values, workspaceId })} />
+        {profiles.data && profiles.data.length === 0 ? (
+          <SettingsRow label={t("session.profile")} hint={t("session.noProfiles")} />
+        ) : (
+          <SettingsSelect
+            label={t("session.profile")}
+            value={values.profileId}
+            options={profileOptions}
+            disabled={profiles.isLoading}
+            onValueChange={(profileId) => save({ ...values, profileId })}
+          />
+        )}
+      </SettingsCard>
     </SettingsSection>
   );
 }
 
 const BRIGHTNESS = ["0", "20", "40", "60", "80", "100"] as const;
 
-function Preferences({ values, save, language }: { values: Settings; save(next: Settings): void; language: "zh" | "en" | null }) {
+function Behaviour({
+  values,
+  save,
+  language,
+}: {
+  values: Settings;
+  save(next: Settings): void;
+  language: "zh" | "en" | null;
+}) {
   const { t } = useTranslation(messages);
-  const [timeZone, setTimeZone] = useState(values.timeZone);
-  const [quietStart, setQuietStart] = useState(values.quietHours.start);
-  const [quietEnd, setQuietEnd] = useState(values.quietHours.end);
-  const valid = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
-  const dirty =
-    timeZone !== values.timeZone || quietStart !== values.quietHours.start || quietEnd !== values.quietHours.end;
   const set = (patch: Partial<Settings>) => save({ ...values, ...patch });
   const auto =
     values.boardLanguage === "auto" && language
@@ -141,117 +161,119 @@ function Preferences({ values, save, language }: { values: Settings; save(next: 
       : t("board.languageAuto");
   return (
     <SettingsSection title={t("board.title")}>
-      <SettingsSwitch
-        label={t("board.actions")}
-        hint={t("board.actionsHint")}
-        value={values.allowActions}
-        onValueChange={(v) => set({ allowActions: v })}
-      />
-      <SettingsSelect
-        label={t("board.language")}
-        value={values.boardLanguage}
-        options={[
-          { label: auto, value: "auto" as const },
-          { label: t("language.zh"), value: "zh" as const },
-          { label: t("language.en"), value: "en" as const },
-        ]}
-        onValueChange={(boardLanguage) => set({ boardLanguage })}
-      />
-      <SettingsSwitch
-        label={t("board.preview")}
-        hint={t("board.previewHint")}
-        value={values.replyPreview}
-        onValueChange={(v) => set({ replyPreview: v })}
-      />
-      <SettingsSwitch
-        label={t("board.background")}
-        value={values.includeBackground}
-        onValueChange={(v) => set({ includeBackground: v })}
-      />
-      <SettingsSwitch label={t("board.sound")} value={values.sound} onValueChange={(v) => set({ sound: v })} />
-      <SettingsSelect
-        label={t("board.led")}
-        value={String(values.ledBrightness) as (typeof BRIGHTNESS)[number]}
-        options={BRIGHTNESS.map((v) => ({ label: `${v}%`, value: v }))}
-        onValueChange={(v) => set({ ledBrightness: Number(v) })}
-      />
-      <SettingsSwitch
-        label={t("board.quiet")}
-        hint={t("board.quietHint")}
-        value={values.quietHours.enabled}
-        onValueChange={(v) => set({ quietHours: { ...values.quietHours, enabled: v } })}
-      />
-      <SettingsInput label={t("board.start")} initialValue={values.quietHours.start} placeholder="22:00" onChangeText={setQuietStart} />
-      <SettingsInput label={t("board.end")} initialValue={values.quietHours.end} placeholder="08:00" onChangeText={setQuietEnd} />
-      <SettingsInput
-        label={t("board.timeZone")}
-        hint={t("board.timeZoneHint")}
-        initialValue={values.timeZone}
-        placeholder="Asia/Shanghai"
-        onChangeText={setTimeZone}
-      />
-      <SettingsAction
-        label={t("board.saveLabel")}
-        error={!valid(quietStart) || !valid(quietEnd) ? t("board.badTime") : null}
-        actionLabel={t("board.save")}
-        disabled={!dirty || !valid(quietStart) || !valid(quietEnd)}
-        onPress={() =>
-          set({
-            timeZone: timeZone.trim(),
-            quietHours: { ...values.quietHours, start: quietStart, end: quietEnd },
-          })
-        }
-      />
+      <SettingsCard>
+        <SettingsSwitch
+          label={t("board.actions")}
+          hint={t("board.actionsHint")}
+          value={values.allowActions}
+          onValueChange={(v) => set({ allowActions: v })}
+        />
+        <SettingsSelect
+          label={t("board.language")}
+          value={values.boardLanguage}
+          options={[
+            { label: auto, value: "auto" as const },
+            { label: t("language.zh"), value: "zh" as const },
+            { label: t("language.en"), value: "en" as const },
+          ]}
+          onValueChange={(boardLanguage) => set({ boardLanguage })}
+        />
+        <SettingsSwitch
+          label={t("board.preview")}
+          hint={t("board.previewHint")}
+          value={values.replyPreview}
+          onValueChange={(v) => set({ replyPreview: v })}
+        />
+        <SettingsSwitch
+          label={t("board.background")}
+          value={values.includeBackground}
+          onValueChange={(v) => set({ includeBackground: v })}
+        />
+        <SettingsSwitch label={t("board.sound")} value={values.sound} onValueChange={(v) => set({ sound: v })} />
+        <SettingsSelect
+          label={t("board.led")}
+          value={String(values.ledBrightness) as (typeof BRIGHTNESS)[number]}
+          options={BRIGHTNESS.map((v) => ({ label: `${v}%`, value: v }))}
+          onValueChange={(v) => set({ ledBrightness: Number(v) })}
+        />
+      </SettingsCard>
     </SettingsSection>
   );
 }
 
-function useFarolSettings() {
-  const state = useSettings(farolSettings);
-  const values = state.status === "ready" ? state.values : null;
-  const save = (next: Settings) => {
-    if (state.status === "ready") void state.save(next, state.revision);
-  };
-  return { state, values, save };
-}
-
-function Shell({ theme, layout, children }: HostProps & { children: ReactNode }) {
+function QuietHours({ values, save }: { values: Settings; save(next: Settings): void }) {
+  const { t } = useTranslation(messages);
+  const [timeZone, setTimeZone] = useState(values.timeZone);
+  const [quietStart, setQuietStart] = useState(values.quietHours.start);
+  const [quietEnd, setQuietEnd] = useState(values.quietHours.end);
+  const valid = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+  const dirty =
+    timeZone !== values.timeZone || quietStart !== values.quietHours.start || quietEnd !== values.quietHours.end;
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.colors.surface0 }}
-      contentContainerStyle={{ padding: layout.compact ? 16 : 24, gap: 24 }}
-    >
-      {children}
-    </ScrollView>
+    <SettingsSection title={t("quiet.title")}>
+      <SettingsCard>
+        <SettingsSwitch
+          label={t("board.quiet")}
+          hint={t("board.quietHint")}
+          value={values.quietHours.enabled}
+          onValueChange={(v) => save({ ...values, quietHours: { ...values.quietHours, enabled: v } })}
+        />
+        <SettingsInput label={t("board.start")} initialValue={values.quietHours.start} placeholder="22:00" onChangeText={setQuietStart} />
+        <SettingsInput label={t("board.end")} initialValue={values.quietHours.end} placeholder="08:00" onChangeText={setQuietEnd} />
+        <SettingsInput
+          label={t("board.timeZone")}
+          hint={t("board.timeZoneHint")}
+          initialValue={values.timeZone}
+          placeholder="Asia/Shanghai"
+          onChangeText={setTimeZone}
+        />
+        <SettingsAction
+          label={t("board.saveLabel")}
+          error={!valid(quietStart) || !valid(quietEnd) ? t("board.badTime") : null}
+          actionLabel={t("board.save")}
+          disabled={!dirty || !valid(quietStart) || !valid(quietEnd)}
+          onPress={() =>
+            save({
+              ...values,
+              timeZone: timeZone.trim(),
+              quietHours: { ...values.quietHours, start: quietStart, end: quietEnd },
+            })
+          }
+        />
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 
-function Status({ theme, state }: HostProps & { state: ReturnType<typeof useFarolSettings>["state"] }) {
+export function SettingsScreen({ theme }: PluginSurfaceProps) {
   const { t } = useTranslation(messages);
-  const style = { color: theme.colors.foregroundMuted, fontSize: 13 };
-  if (state.status === "loading") return <Text style={style}>{t("status.loading")}</Text>;
+  const state = useSettings(farolSettings);
+  const language = useStatus().data?.boardLanguage ?? null;
+  if (state.status === "loading") return <Loading />;
   if (state.status === "error" || state.status === "invalid") {
-    return <Text style={{ ...style, color: theme.colors.statusDanger }}>{t("status.failed", { error: state.error })}</Text>;
+    return (
+      <SettingsSection title={t("status.title")}>
+        <SettingsCard>
+          <SettingsRow label={t("status.title")} error={t("status.failed", { error: state.error })} />
+        </SettingsCard>
+      </SettingsSection>
+    );
   }
-  if (state.saveError) return <Text style={{ ...style, color: theme.colors.statusDanger }}>{state.saveError}</Text>;
-  return null;
-}
-
-export function SettingsScreen({ theme, layout }: PluginSurfaceProps) {
-  const { state, values, save } = useFarolSettings();
-  const status = useRpc(statusRpc);
-  const language = useQuery({
-    queryKey: ["farol", "status"],
-    queryFn: () => status({}),
-    refetchInterval: 5000,
-  }).data?.boardLanguage;
-  const key = state.status === "ready" ? state.revision : "-";
+  const values = state.values;
+  const save = (next: Settings) => void state.save(next, state.revision);
   return (
-    <Shell theme={theme} layout={layout}>
-      <Status theme={theme} layout={layout} state={state} />
-      <Boards theme={theme} layout={layout} />
-      {values ? <Sessions key={`s${key}`} theme={theme} layout={layout} values={values} save={save} /> : null}
-      {values ? <Preferences key={key} values={values} save={save} language={language ?? null} /> : null}
-    </Shell>
+    <>
+      {state.saveError ? (
+        <SettingsSection title={t("status.title")}>
+          <SettingsCard>
+            <SettingsRow label={t("status.title")} error={state.saveError} />
+          </SettingsCard>
+        </SettingsSection>
+      ) : null}
+      <Boards theme={theme} />
+      <Sessions key={`s${state.revision}`} theme={theme} values={values} save={save} />
+      <Behaviour values={values} save={save} language={language} />
+      <QuietHours key={`q${state.revision}`} values={values} save={save} />
+    </>
   );
 }

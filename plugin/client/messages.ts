@@ -3,6 +3,9 @@
 import { defineTranslations } from "@getpaseo/plugin/client";
 
 const en = {
+  screen: {
+    title: "Settings",
+  },
   ago: {
     now: "just now",
     minutes: "{{n}} min ago",
@@ -10,7 +13,8 @@ const en = {
   },
   boards: {
     title: "Recent boards",
-    none: "No board has connected yet.",
+    none: "No boards yet",
+    noneHint: "A board shows here once it connects to this Paseo.",
     unreadable: "Can't read the plugin's state: {{error}}",
     online: "online",
     offline: "offline",
@@ -29,9 +33,10 @@ const en = {
     workspace: "Workspace",
     profile: "Agent profile",
     none: "Off",
-    noProfilesTitle: "No agent profiles",
-    noProfiles: "Add one in Paseo first.",
-    loading: "Loading…",
+    noProfiles: "No agent profiles yet. Add one in Paseo first.",
+    choose: "Choose",
+    search: "Search workspaces",
+    noMatch: "No matching workspace",
   },
   board: {
     title: "Boards",
@@ -59,8 +64,11 @@ const en = {
     zh: "中文",
     en: "English",
   },
+  quiet: {
+    title: "Quiet hours and clock",
+  },
   status: {
-    loading: "Loading settings…",
+    title: "Settings",
     failed: "Can't read the settings: {{error}}",
   },
   timeline: {
@@ -70,6 +78,9 @@ const en = {
 };
 
 const zh: typeof en = {
+  screen: {
+    title: "设置",
+  },
   ago: {
     now: "刚刚",
     minutes: "{{n}} 分钟前",
@@ -77,7 +88,8 @@ const zh: typeof en = {
   },
   boards: {
     title: "最近的板子",
-    none: "还没有板子连过来。",
+    none: "还没有板子",
+    noneHint: "板子连上这台 Paseo 后会出现在这里。",
     unreadable: "读不到插件状态：{{error}}",
     online: "在线",
     offline: "离线",
@@ -96,9 +108,10 @@ const zh: typeof en = {
     workspace: "Workspace",
     profile: "Agent 配置",
     none: "关闭",
-    noProfilesTitle: "还没有 agent 配置",
-    noProfiles: "先在 Paseo 里添加一个。",
-    loading: "正在读取…",
+    noProfiles: "还没有 agent 配置，先在 Paseo 里添加一个。",
+    choose: "选择",
+    search: "搜索 workspace",
+    noMatch: "没有匹配的 workspace",
   },
   board: {
     title: "板子",
@@ -126,8 +139,11 @@ const zh: typeof en = {
     zh: "中文",
     en: "English",
   },
+  quiet: {
+    title: "安静时段和时钟",
+  },
   status: {
-    loading: "正在读取设置…",
+    title: "设置",
     failed: "设置读取失败：{{error}}",
   },
   timeline: {

@@ -1,4 +1,5 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
+import { messages } from "./client/messages";
 import { SettingsScreen } from "./client/settings";
 import { FarolRow } from "./client/timeline-row";
 import { languageRpc, TIMELINE_KIND, TimelineRowSchema } from "./shared/settings";
@@ -7,7 +8,7 @@ import { languageRpc, TIMELINE_KIND, TimelineRowSchema } from "./shared/settings
 const LANGUAGE_EVERY_MS = 60_000;
 
 export default function contribute(client: PluginClientContext) {
-  client.addSettingsScreen({ id: "farol", title: "Farol", icon: "Lamp", Component: SettingsScreen });
+  client.addSettingsScreen({ id: "farol", title: messages.message("screen.title"), icon: "Lamp", Component: SettingsScreen });
   client.addTimelineRenderer({
     kind: TIMELINE_KIND,
     version: 1,
