@@ -100,7 +100,7 @@ placeholder (+276 KB).
 - every 5 s while scanning: camera fps, preview fps (frames skipped because GSP
   still held both), QR searches per second and their average time, codes
   decoded and how many were new
-- `QR decoded: Farol|Wi-Fi|other code, N bytes`
+- `QR decoded: Paseo pairing|Paseo relay|Wi-Fi|other code, N bytes`
 - `camera off after N ms: frames, preview fps, codes reported`
 
 ## Threads and ownership

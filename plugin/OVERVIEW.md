@@ -5,19 +5,19 @@ stop a running turn, and mark finished agents as read.
 
 ## How it works
 
-The board connects to this daemon's WebSocket like the web app does, with the
-daemon password, and then only calls this plugin. The plugin reads agents,
+The board connects to this daemon the two ways Paseo's app does (scanning the
+pairing code for the encrypted relay, or a direct connection), signs in with
+the daemon password when one is set, and then only calls this plugin. The plugin reads agents,
 timelines and provider usage through Paseo's public SDK, sends the board a
 compact summary, and performs the board's actions after checking that the
 request is still open. It opens no port and stores no password.
 
 ## Setup
 
-The board needs an address it can reach: an HTTPS or WSS address that forwards
-WebSockets to this daemon (your reverse proxy, a tunnel), listed in the daemon's
-`hostnames`. Enter it under Settings › Plugins › Farol, then use "添加设备"
-(also in the Command Center as "Farol：添加设备"): type the daemon password once
-and scan the code with the board. Requires Paseo 0.14 or newer.
+Install this plugin, then connect the board on the board itself: "扫描二维码"
+reads the pairing code under Settings › this host › 配对设备 (the relay, nothing
+to expose), "直接连接" takes host, port, SSL and the daemon password. Requires
+Paseo 0.14 or newer.
 
 ## Settings
 

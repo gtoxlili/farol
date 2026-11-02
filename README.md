@@ -17,29 +17,40 @@ Farol is two parts, both in this repository:
 
 ## How the board talks to Paseo
 
-The board connects to the Paseo daemon's WebSocket the way the web app does and
-signs in with the **daemon password**. After that it only calls the Farol
-plugin's RPCs (`farol.next`, `farol.focus`, `farol.act`; the protocol is
-[farol/1](protocol/README.md)). The plugin opens no port and stores no password.
+The board connects to the Paseo daemon the two ways Paseo's own app offers
+when you add a host:
 
-> **The board stores the daemon password in plain text** in its flash (NVS).
-> Anyone holding the board and a USB cable can read it, and the password gives
-> full access to your daemon. Put Farol only on a board you keep. If a board is
-> lost, change the daemon password.
+- **Scan QR code**, an encrypted relay connection. The board scans the pairing
+  code Paseo shows under Settings › your host › 配对设备 and connects through
+  Paseo's relay, end-to-end encrypted to the daemon. Nothing has to be exposed.
+- **Direct connection**, on a local network or a VPN. You type the host, port,
+  SSL and daemon password on the board.
 
-The board has to reach the daemon over the network, usually from outside your
-Mac: an HTTPS address that forwards WebSockets to the daemon, listed in the
-daemon's `hostnames`. [docs/remote-access.md](docs/remote-access.md) has
-examples for Caddy, Cloudflare Tunnel and Tailscale Funnel. Certificates must be
-publicly trusted; self-signed endpoints are not supported.
+Either way it signs in with the **daemon password** when one is set, then only
+calls the Farol plugin's RPCs (`farol.next`, `farol.focus`, `farol.act`; the
+protocol is [farol/1](protocol/README.md)). The plugin opens no port and stores
+no password.
+
+> **The board keeps what it connects with in plain text** in its flash (NVS):
+> the daemon password, and for the relay the pairing code. Anyone holding the
+> board and a USB cable can read them. The password gives full access to your
+> daemon, and so does the pairing code when the daemon has no password (Paseo
+> asks you to guard it like a password). Put Farol only on a board you keep,
+> give the daemon a password, and change it if a board is lost.
+
+A direct connection from another network needs an HTTPS address that forwards
+WebSockets to the daemon; [docs/remote-access.md](docs/remote-access.md) has
+examples for Caddy, Cloudflare Tunnel and Tailscale Funnel. With SSL the
+certificate must be publicly trusted.
 
 ## What you need
 
-- An ESP-Mosaico board. The camera module in the left slot is used to scan the
-  setup codes; without it you type the address and password on the screen. The
+- An ESP-Mosaico board. The camera module in the left slot scans Wi-Fi and
+  Paseo's pairing codes; without it, connect directly (typed on the screen). The
   interaction module in the right slot is optional: with it the screen follows
   your presence, adapts to the room's light and the LEDs show the lamp's state.
-- A Paseo daemon, 0.14 or newer, with plugins enabled.
+- A Paseo daemon, 0.14 or newer, with plugins enabled. For the QR code, its
+  relay enabled (Paseo asks the first time it shows the pairing code).
 - An [ESP-Mosaico workspace](https://github.com/esp-mosaico/esp-mosaico-vibe)
   with its submodules, ESP-IDF at the workspace's pinned commit, Python 3.10+,
   and Rust stable with the `riscv32imafc-unknown-none-elf` target
@@ -72,19 +83,16 @@ Verified with: workspace `esp-mosaico-vibe` 1872fd8, ESP-IDF 7b9cc1ac, ESP-GSP
    paseo plugin install "$PWD" --id farol
    ```
 
-3. Address. Make the daemon reachable from the board
-   ([docs/remote-access.md](docs/remote-access.md)) and enter that address in
-   Paseo under Settings › Plugins › Farol.
-
 ## Connect a board
 
 1. Wi-Fi (2.4 GHz). On the board's "no Wi-Fi" page, scan the network code your
    phone shows under its Wi-Fi settings, or choose a network and type its
    password.
-2. Paseo. In Paseo choose "添加设备" (Settings › Plugins › Farol, or "Farol：添加设备"
-   in the Command Center), type the daemon password once, and scan the code with
-   the board. Without a camera, choose "手动输入" and type the address and the
-   password. The board shows which Paseo it is about to join; tap "连接".
+2. Paseo. On the board choose "扫描二维码" and scan the code Paseo shows under
+   Settings › your host › 配对设备, or choose "直接连接" and type the host, port
+   (6767 by default), SSL and the daemon password. The board shows which Paseo
+   it is about to join; tap "连接". When the daemon has a password the code did
+   not carry, the board asks for it.
 
 ## Using it
 
@@ -117,6 +125,7 @@ python tools/dev.py check                      # scripted scenario (screenshots)
 python tools/simdrive.py                       # long-press, keyboard and page flows
 python tools/dev.py scene                      # after editing tools/ui/gen_scene.py
 cd plugin && npm run check                     # plugin typecheck and tests
+node tools/relay_vectors.mjs > protocol/fixtures/relay.json   # after Paseo changes its relay
 ```
 
 The simulator runs the same Rust logic as the board on a built-in demo fleet.
@@ -132,7 +141,8 @@ frame timings ([components/app_bench/README.md](components/app_bench/README.md))
 - `components/app_logic`: the scene (`ui/main.json`, generated by
   `tools/ui/gen_scene.py`), fonts, and the Rust build; `host/` is the simulator
   backend.
-- `components/app_net`, `app_link`: Wi-Fi and the WebSocket to Paseo.
+- `components/app_net`, `app_link`: Wi-Fi and the WebSocket to Paseo (direct or
+  relay; the relay's encryption is in `rust/logic/src/relay.rs`).
 - `components/app_feedback`, `app_camera`: vibration, sound, the interaction
   module, sensors; the camera and QR decoding.
 - `components/app_bench`: the frame benchmark harness (off by default).

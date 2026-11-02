@@ -1,8 +1,10 @@
 # farol/1
 
 The board talks to the Farol Paseo plugin with plugin RPCs over the daemon's own
-WebSocket. The board connects like Paseo's web app: one WebSocket to `<address>`
-(the daemon's `/ws`), a `hello` with the daemon password, then only
+WebSocket, which it reaches the two ways Paseo's app does (see
+[Connecting](#connecting)): straight to the daemon's `/ws`, or through a Paseo
+relay with Paseo's end-to-end encryption around every frame. Either way it sends
+a `hello` (with the daemon password when one is set), then only
 `plugin.rpc.invoke.request` frames with `pluginId: "farol"`. The plugin opens no
 port and stores no password.
 
@@ -138,21 +140,35 @@ reach every board through `settings` (a newer `rev` replaces the board's own
 sound, LED brightness and quiet hours); a later change on a board stays on that
 board.
 
-## Connection code
+## Connecting
 
-The plugin's settings page shows a QR code with
+The board takes what Paseo's app takes when adding a host
+(`rust/logic/src/endpoint.rs`):
 
-```
-farol://connect?u=<url>&p=<password>&n=<host>
-```
+- Direct connection (local network or VPN): host, port (6767 by default), SSL
+  and the daemon password, typed on the board. The board opens
+  `ws[s]://<host>:<port>/ws`.
+- Paseo's pairing QR (Settings › host › 配对设备):
+  `https://app.paseo.sh/#offer=<base64url JSON>` with the daemon's relay id, its
+  X25519 public key and the relay. The board also reads `relay://` links as
+  `paseo daemon pair` prints them (they may carry the password) and `#connect=`
+  links. It opens `wss://<relay>/ws?serverId=<id>&role=client&v=2` and runs
+  Paseo's "protected" relay encryption: Noise_NK_25519_ChaChaPoly_SHA256 against
+  the daemon's key in the `e2ee_hello` / `e2ee_ready` exchange, then Paseo's
+  record framing for every frame, as base64 text (`rust/logic/src/relay.rs`).
+  A daemon without it (before Paseo 0.13) is refused. A pairing code carries no
+  password; when the daemon asks for one (`hello.rejected`, which the board
+  requests because a relay replaces close codes), the board asks for it.
 
-each value percent-encoded; `p` and `n` are optional. `u` must be `ws://` or
-`wss://` (the daemon's `/ws`). The board also scans phones' Wi-Fi share codes
-(`WIFI:T:WPA;S:<ssid>;P:<password>;;`). Parser: `rust/logic/src/qr.rs`.
+The board also scans phones' Wi-Fi share codes (`WIFI:T:WPA;S:<ssid>;P:<password>;;`).
+Parser: `rust/logic/src/qr.rs`.
 
 ## Fixtures
 
 - `fixtures/snapshot.json`: a snapshot the board parses (`model.rs` tests).
+- `fixtures/relay.json`: a relay handshake, records in both directions and
+  pairing links, made by Paseo's own code (`node tools/relay_vectors.mjs`); the
+  board's relay and endpoint tests require them byte for byte.
 - `fixtures/digest-input.json`: Paseo-shaped facts (agent snapshots, timeline
   items, usage, settings). The plugin's tests digest them and require exactly
   `snapshot.json`, so both sides agree on the same bytes.
