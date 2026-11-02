@@ -33,3 +33,9 @@ Measured on this path (`.agents/analysis/bench-results.md`): a full 480x480 fram
 takes 23.7 ms on the wire, more than one 16.7 ms TE period, so whole-screen motion
 runs at about 27–30 fps; small damaged regions are cheap. Iris screenshots capture
 the pixel buffer before the panel transfer and cannot show panel-side defects.
+
+After creation, `app_display_set_brightness(percent)` writes the CO5300
+brightness register (0..100 %) and `app_display_set_enabled(on)` switches panel
+scanning, keeping brightness and GSP state. Like the factory display service,
+both send their commands to the panel directly while the presenter runs; each
+returns `ESP_ERR_INVALID_STATE` before `app_display_create` succeeded.
