@@ -20,7 +20,7 @@ use alloc::vec::Vec;
 
 use serde_json::{Value, json};
 
-use crate::model::{self, Act, ActResult, Snapshot};
+use crate::model::{self, Act, ActResult, BoardPrefs, Snapshot};
 
 /// Plugin id the RPCs address.
 pub const PLUGIN_ID: &str = "farol";
@@ -62,6 +62,8 @@ pub enum Down {
     Auth,
     /// The daemon does not speak this protocol version.
     Incompatible,
+    /// The Farol plugin answers in another farol/N (its version).
+    PluginVersion(u32),
     /// Connected, but the Farol plugin is not installed or not running.
     PluginMissing,
     /// The socket closed (code) or went silent.
@@ -106,6 +108,10 @@ pub struct Session {
     acts: BTreeMap<String, u32>,
     cursor: u64,
     focus: Option<String>,
+    /// Board settings the plugin has not confirmed yet.
+    prefs: Option<BoardPrefs>,
+    /// The poll in flight carries `prefs`.
+    prefs_in_poll: bool,
     last_rx: u64,
     last_ping: u64,
     ping_at: Option<u64>,
@@ -129,6 +135,8 @@ impl Session {
             acts: BTreeMap::new(),
             cursor: 0,
             focus: None,
+            prefs: None,
+            prefs_in_poll: false,
             last_rx: 0,
             last_ping: 0,
             ping_at: None,
@@ -323,8 +331,12 @@ impl Session {
             self.poll = None;
             match serde_json::from_value::<Snapshot>(output.clone()) {
                 Ok(snapshot) if snapshot.v == model::VERSION => {
-                    if self.down == Down::PluginMissing {
+                    if matches!(self.down, Down::PluginMissing | Down::PluginVersion(_)) {
                         self.set_down(Down::None);
+                    }
+                    // The plugin has seen what this poll carried.
+                    if self.prefs_in_poll {
+                        self.prefs = None;
                     }
                     self.cursor = snapshot.rev;
                     if !snapshot.idle {
@@ -333,7 +345,10 @@ impl Session {
                     self.send_poll(now);
                 }
                 _ => {
-                    self.set_down(Down::Incompatible);
+                    let v = output["v"]
+                        .as_u64()
+                        .map_or(0, |v| v.min(u64::from(u32::MAX)) as u32);
+                    self.set_down(Down::PluginVersion(v));
                     self.poll_retry_at = Some(now + PLUGIN_MISSING_RETRY_MS);
                 }
             }
@@ -440,10 +455,28 @@ impl Session {
             return;
         }
         self.focus = focus.map(ToString::to_string);
+        self.send_focus();
+    }
+
+    /// Settings changed on the board that the plugin has not confirmed yet.
+    pub fn prefs_pending(&self) -> bool {
+        self.prefs.is_some()
+    }
+
+    /// Board settings changed on the board: sent now and with every poll
+    /// until one is answered.
+    pub fn set_prefs(&mut self, prefs: BoardPrefs) {
+        self.prefs = Some(prefs);
+        self.prefs_in_poll = false;
+        self.send_focus();
+    }
+
+    fn send_focus(&mut self) {
         if self.phase == Phase::Ready {
             let input = serde_json::to_value(model::Focus {
-                focus,
+                focus: self.focus.as_deref(),
                 device: &self.device,
+                prefs: self.prefs,
             })
             .unwrap_or(Value::Null);
             self.rpc("farol.focus", input);
@@ -451,11 +484,13 @@ impl Session {
     }
 
     fn send_poll(&mut self, _now: u64) {
+        self.prefs_in_poll = self.prefs.is_some();
         let input = serde_json::to_value(model::Next {
             v: model::VERSION,
             cursor: self.cursor,
             focus: self.focus.as_deref(),
             device: &self.device,
+            prefs: self.prefs,
         })
         .unwrap_or(Value::Null);
         let id = self.rpc("farol.next", input);
@@ -588,6 +623,41 @@ mod tests {
         let next = &sent(&mut s)[0]["message"];
         assert_eq!(next["method"], "farol.next");
         assert_eq!(next["input"]["cursor"], 7);
+    }
+
+    #[test]
+    fn board_settings_ride_the_polls_until_one_is_answered() {
+        let mut s = ready();
+        let first = sent(&mut s)[0]["message"]["requestId"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let prefs = BoardPrefs {
+            sound: false,
+            haptic: true,
+            brightness: 70,
+            dnd: false,
+        };
+        s.set_prefs(prefs);
+        let focus = &sent(&mut s)[0]["message"];
+        assert_eq!(focus["method"], "farol.focus");
+        assert_eq!(focus["input"]["prefs"]["sound"], false);
+        // The poll in flight was sent before the change: its answer confirms nothing.
+        let answer = |id: &str, rev| {
+            format!(
+                r#"{{"type":"session","message":{{"type":"plugin.rpc.invoke.response","payload":{{"requestId":"{id}","output":{{"v":1,"rev":{rev},"now":1000}}}}}}}}"#
+            )
+        };
+        s.on_text(30, &answer(&first, 1));
+        assert!(s.prefs_pending());
+        let next = sent(&mut s)
+            .into_iter()
+            .find(|f| f["message"]["method"] == "farol.next")
+            .unwrap();
+        assert_eq!(next["message"]["input"]["prefs"]["brightness"], 70);
+        let id = next["message"]["requestId"].as_str().unwrap().to_string();
+        s.on_text(40, &answer(&id, 2));
+        assert!(!s.prefs_pending());
     }
 
     #[test]

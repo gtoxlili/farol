@@ -60,6 +60,9 @@ impl Sys for SimSys {
     fn glow(&mut self, glow: Glow) {
         eprintln!("farol sim: glow {glow:?}");
     }
+    fn led_brightness(&mut self, percent: u8) {
+        eprintln!("farol sim: led brightness {percent}");
+    }
     fn display(&mut self, display: Display) {
         eprintln!("farol sim: display {display:?}");
     }

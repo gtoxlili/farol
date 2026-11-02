@@ -74,6 +74,7 @@ impl Sys for Board {
     fn haptic(&mut self, _haptic: Haptic) {}
     fn chime(&mut self, _chime: Chime) {}
     fn glow(&mut self, _glow: Glow) {}
+    fn led_brightness(&mut self, _percent: u8) {}
     fn display(&mut self, display: Display) {
         if self.display == Some(display) {
             return;

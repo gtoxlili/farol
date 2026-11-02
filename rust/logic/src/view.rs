@@ -694,6 +694,8 @@ fn down_text(down: &Down) -> &'static str {
         Down::Refused(_) => "地址拒绝了连接",
         Down::Auth => "daemon 密码不对",
         Down::Incompatible => "Paseo 版本不兼容，需要更新",
+        Down::PluginVersion(v) if *v > VERSION => "Farol 插件比固件新：请更新板子的固件",
+        Down::PluginVersion(_) => "Farol 插件比固件旧：请在 Paseo 里更新插件",
         Down::PluginMissing => "Paseo 里没有运行 Farol 插件",
         Down::Closed(_) => "连接断开了",
     }
@@ -798,12 +800,7 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     );
 
     // No Paseo.
-    let reason = match app.plugin_version {
-        Some(v) if v > VERSION => "Farol 插件比固件新：请更新板子的固件",
-        Some(_) => "Farol 插件比固件旧：请在 Paseo 里更新插件",
-        None => down_text(app.down()),
-    };
-    p.text(ui, bind(gsp::GSP_BIND_ST_NP_REASON), reason);
+    p.text(ui, bind(gsp::GSP_BIND_ST_NP_REASON), down_text(app.down()));
     let retry = match app.session.retry_at() {
         Some(at) => format!(
             "已重试 {} 次，{} 秒后再试",

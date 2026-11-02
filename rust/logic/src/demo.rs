@@ -282,6 +282,7 @@ impl Demo {
             host: "demo".into(),
             read_only: false,
             idle: false,
+            settings: None,
             agents,
             usage: vec![
                 Window {

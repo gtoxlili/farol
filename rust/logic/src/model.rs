@@ -138,6 +138,9 @@ pub struct Snapshot {
     /// Nothing changed before the poll timed out; only `rev`/`now` are meaningful.
     #[serde(default)]
     pub idle: bool,
+    /// Board settings made in Paseo; absent from plugins that have none yet.
+    #[serde(default)]
+    pub settings: Option<Settings>,
     #[serde(default)]
     pub agents: Vec<Agent>,
     #[serde(default)]
@@ -189,14 +192,50 @@ pub struct Next<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub focus: Option<&'a str>,
     pub device: &'a str,
+    /// Settings changed on the board that the plugin has not confirmed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefs: Option<BoardPrefs>,
 }
 
-/// `farol.focus` input: wakes a waiting `farol.next` with the new focus.
+/// `farol.focus` input: wakes a waiting `farol.next` with the new focus, and
+/// carries settings changed on the board at once.
 #[derive(Serialize, Debug)]
 pub struct Focus<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub focus: Option<&'a str>,
     pub device: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefs: Option<BoardPrefs>,
+}
+
+/// Settings changed on the board (control centre), for the plugin to mirror
+/// in Paseo. Sent until a `farol.next` answer confirms them.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BoardPrefs {
+    pub sound: bool,
+    pub haptic: bool,
+    /// Screen brightness, 5..=100.
+    pub brightness: u8,
+    /// Do not disturb is on.
+    pub dnd: bool,
+}
+
+/// Board settings made in Paseo (the plugin's settings page), for every board.
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    /// Increases with every change made in Paseo; boards apply a newer one.
+    pub rev: u64,
+    pub sound: bool,
+    /// Interaction-module LED brightness, 0..=100.
+    pub led_brightness: u8,
+    /// Quiet hours, minutes after local midnight: no sound or vibration from
+    /// `quiet_start` until `quiet_end` (may wrap past midnight; equal = none).
+    #[serde(default)]
+    pub quiet_start: u16,
+    #[serde(default)]
+    pub quiet_end: u16,
 }
 
 #[cfg(test)]

@@ -205,6 +205,8 @@ pub trait Sys {
     fn haptic(&mut self, haptic: Haptic);
     fn chime(&mut self, chime: Chime);
     fn glow(&mut self, glow: Glow);
+    /// Interaction-module LED brightness, 0..=100 (set in Paseo; default 60).
+    fn led_brightness(&mut self, percent: u8);
     fn display(&mut self, display: Display);
     fn save_config(&mut self, config: Option<&Config>);
     fn save_prefs(&mut self, prefs: &Prefs);
