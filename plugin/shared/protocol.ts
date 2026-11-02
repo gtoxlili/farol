@@ -45,6 +45,8 @@ export const AgentSchema = z.object({
   body: z.string().optional(),
   error: z.string().optional(),
   stoppable: z.boolean().optional(),
+  /** The running turn's id; a board's stop names it so only that turn stops. */
+  turn: z.string().max(80).optional(),
 });
 export type Agent = z.infer<typeof AgentSchema>;
 
@@ -128,6 +130,8 @@ export const ActSchema = z.object({
   kind: z.enum(["answer", "stop", "seen"]),
   requestId: z.string().optional(),
   choice: u8.optional(),
+  /** For a stop: the turn the board showed (Agent.turn); absent from older boards. */
+  turn: z.string().max(80).optional(),
 });
 export type Act = z.infer<typeof ActSchema>;
 

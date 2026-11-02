@@ -237,6 +237,7 @@ function digestAgent(entry: Entry, input: DigestInput, focused: boolean): Agent 
       if (live?.todo && live.todo.total > 0) out.todo = live.todo;
     }
     out.stoppable = input.canStop;
+    if (a.activeTurn?.turnId) out.turn = a.activeTurn.turnId;
   }
   const ctx = ctxOf(a);
   if (ctx != null) out.ctx = ctx;

@@ -60,16 +60,24 @@ the card's history first. Carries `screen` (as in `farol.next`) and may carry
 
 ### `farol.act`
 
-`{ "agent": "id", "device": "farol-3a1f", "kind": "answer" | "stop" | "seen", "requestId": "…", "choice": 0 }`
+`{ "agent": "id", "device": "farol-3a1f", "kind": "answer" | "stop" | "seen", "requestId": "…", "choice": 0, "turn": "…" }`
 
 `device` is the acting board as Paseo knows it (its client id); the plugin
 names it in the row it adds to the agent's timeline ("在 farol-3a1f 上回答：…").
 Older boards omit it and the row says "Farol".
 
 - `answer`: option `choice` of the pending `ask` whose `requestId` matches. At
-  most once per request.
-- `stop`: interrupts the running turn (the plugin runs `paseo stop <id>`, as
-  Paseo's public SDK has no cancel).
+  most once per request. Paseo applies one response per request; the plugin
+  waits for its `agent.permission_resolved` report (up to 3 s) and answers
+  `ok` only when the applied response is the board's, `already_resolved` when
+  another client's won.
+- `stop`: interrupts the turn named by `turn` (the card's `Agent.turn`). The
+  plugin runs `paseo stop <id>`, as Paseo's public SDK has no cancel; that
+  cancels whatever turn is current, so the plugin first re-reads the agent from
+  the daemon and refuses (`already_resolved`) when another turn has started.
+  The CLI cannot name a turn, so a turn started in the few milliseconds between
+  that check and the cancel would still be stopped. Boards that send no `turn`
+  stop the current turn.
 - `seen`: the user read a finished or failed card. The plugin keeps that
   (agent, `since`) pair, and the card stays `seen` until a newer turn ends.
 
@@ -120,6 +128,7 @@ message).
 | `body` | Finished, failed and read cards: the start of the last reply (when reply preview is on). |
 | `error` | Failed cards: Paseo's last error. |
 | `stoppable` | Working cards, when the plugin can run `paseo stop`. |
+| `turn` | Working cards: the running turn's id, which a board's stop names. |
 
 ### BoardPrefs
 

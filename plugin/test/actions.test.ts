@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Actions, type ActionPorts, responseFor } from "../server/actions";
+import { Actions, type ActionPorts, type PermissionResponse, responseFor } from "../server/actions";
 import type { AgentFacts, PermissionFacts } from "../server/digest";
 
 const question: PermissionFacts = {
@@ -26,12 +26,21 @@ function agent(patch: Partial<AgentFacts> = {}): AgentFacts {
   };
 }
 
+/** Ports over one agent; by default Paseo applies whatever the board sent. */
 function ports(current: AgentFacts | null, patch: Partial<ActionPorts> = {}): ActionPorts {
+  let sent: PermissionResponse | null = null;
   return {
     agent: () => current,
+    fresh: async () => current,
     allowActions: () => true,
     canStop: () => true,
-    respond: vi.fn(async () => {}),
+    respond: vi.fn(async (_agent: string, _request: string, response: PermissionResponse) => {
+      sent = response;
+    }),
+    resolution: vi.fn(async () => {
+      await Promise.resolve();
+      return sent;
+    }),
     stop: vi.fn(async () => {}),
     appendRow: vi.fn(async () => {}),
     markSeen: vi.fn(),
@@ -146,6 +155,38 @@ describe("Actions", () => {
     expect(p.markSeen).toHaveBeenCalledWith("a", Date.parse("2026-11-02T05:35:00.000Z"));
   });
 
+  it("reports an answer only when Paseo applied it, not when another client won", async () => {
+    const phone = responseFor(question, 1)!.response;
+    const p = ports(agent({ pendingPermissions: [question] }), { resolution: async () => phone });
+    expect(await new Actions(p).act({ agent: "a", kind: "answer", requestId: "q1", choice: 0 }, "")).toEqual({
+      ok: false,
+      reason: "already_resolved",
+    });
+    expect(p.appendRow).not.toHaveBeenCalled();
+  });
+
+  it("fails an answer Paseo never confirmed while the request is still pending", async () => {
+    const open = agent({ pendingPermissions: [question] });
+    const p = ports(open, { resolution: async () => null });
+    const actions = new Actions(p);
+    expect((await actions.act({ agent: "a", kind: "answer", requestId: "q1", choice: 0 }, "")).reason).toBe("failed");
+    expect(p.appendRow).not.toHaveBeenCalled();
+    expect(p.respond).toHaveBeenCalledTimes(1);
+    await actions.act({ agent: "a", kind: "answer", requestId: "q1", choice: 0 }, "");
+    expect(p.respond).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops only the turn the board showed", async () => {
+    const shown = agent({ status: "running", activeTurn: { turnId: "t1", startedAt: null } });
+    const now = agent({ status: "running", activeTurn: { turnId: "t2", startedAt: null } });
+    const p = ports(shown, { fresh: async () => now });
+    const actions = new Actions(p);
+    expect((await actions.act({ agent: "a", kind: "stop", turn: "t1" }, "")).reason).toBe("already_resolved");
+    expect(p.stop).not.toHaveBeenCalled();
+    expect(await actions.act({ agent: "a", kind: "stop", turn: "t2" }, "")).toEqual({ ok: true });
+    expect(p.stop).toHaveBeenCalledWith("a");
+  });
+
   it("lets a failed respond be retried", async () => {
     let calls = 0;
     const p = ports(agent({ pendingPermissions: [question] }), {
@@ -153,6 +194,7 @@ describe("Actions", () => {
         calls += 1;
         if (calls === 1) throw new Error("socket closed");
       }),
+      resolution: async () => responseFor(question, 0)!.response,
     });
     const actions = new Actions(p);
     expect((await actions.act({ agent: "a", kind: "answer", requestId: "q1", choice: 0 }, "")).reason).toBe("failed");

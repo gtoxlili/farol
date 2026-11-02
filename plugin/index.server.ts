@@ -1,6 +1,7 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { actRpc, focusRpc, nextRpc } from "./shared/protocol";
 import { connectCodeRpc, farolSettings, statusRpc } from "./shared/settings";
+import type { PermissionResponse } from "./server/actions";
 import { Farol } from "./server/farol";
 import { connectPayload, normalizeAddress, qrRows } from "./server/qr";
 
@@ -50,7 +51,8 @@ export default function contribute(server: PluginServerContext) {
   const offAsk = server.on("agent.permission_requested", (_event, { paseo }) => {
     void farol.ensure(paseo).then(() => farol.stream.changed());
   });
-  const offAnswer = server.on("agent.permission_resolved", (_event, { paseo }) => {
+  const offAnswer = server.on("agent.permission_resolved", ({ requestId, resolution }, { paseo }) => {
+    farol.resolved(requestId, resolution as PermissionResponse);
     void farol.ensure(paseo).then(() => farol.stream.changed());
   });
 
