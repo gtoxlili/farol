@@ -14,22 +14,31 @@ Farol 由两部分组成，都在这个仓库里：
 
 ## 板子怎么连 Paseo
 
-板子像网页版一样连 Paseo daemon 的 WebSocket，用 **daemon 密码**登录。之后只调用
-Farol 插件的接口（`farol.next`、`farol.focus`、`farol.act`，协议见
-[farol/1](protocol/README.md)）。插件不开端口，也不保存密码。
+板子连 Paseo daemon 的方式和 Paseo App 添加 Host 时一样，有两种：
 
-> **板子把 daemon 密码明文存在 flash（NVS）里。** 拿到板子和一根 USB 线的人就能读出来，
-> 而这个密码能完全控制你的 daemon。只把 Farol 装在你自己保管的板子上；板子丢了就改 daemon 密码。
+- **扫描二维码**，加密 relay 连接。板子扫 Paseo 在 设置 › 你的 Host › 配对设备 里出示的配对码，
+  经 Paseo 的中继连过去，和 daemon 之间端到端加密。什么都不用暴露到公网。
+- **直接连接**，本地网络或 VPN。在板子上填 Host、端口、是否用 SSL 和 daemon 密码。
 
-板子要通过网络连到 daemon，通常是从你的 Mac 之外：需要一个把 WebSocket 转发到 daemon 的
-HTTPS 地址，并把它加进 daemon 的 `hostnames`。[docs/remote-access.md](docs/remote-access.md)
-给了 Caddy、Cloudflare Tunnel、Tailscale Funnel 的写法。证书必须是公开信任的，不支持自签证书。
+两种方式都在 daemon 设了密码时用 **daemon 密码**登录，之后只调用 Farol 插件的接口
+（`farol.next`、`farol.focus`、`farol.act`，协议见 [farol/1](protocol/README.md)）。
+插件不开端口，也不保存密码。
+
+> **板子把连接用的东西明文存在 flash（NVS）里**：daemon 密码，以及走中继时的配对码。
+> 拿到板子和一根 USB 线的人就能读出来。密码能完全控制你的 daemon；daemon 没设密码时，
+> 配对码也一样（Paseo 也提醒要像密码一样保管它）。只把 Farol 装在你自己保管的板子上，
+> 给 daemon 设一个密码，板子丢了就改掉它。
+
+从别的网络直接连接时，需要一个把 WebSocket 转发到 daemon 的 HTTPS 地址，
+[docs/remote-access.md](docs/remote-access.md) 给了 Caddy、Cloudflare Tunnel、Tailscale Funnel
+的写法。用 SSL 时证书必须是公开信任的。
 
 ## 需要什么
 
-- 一块 ESP-Mosaico 板子。左槽的摄像头模块用来扫设置码；没有它就在屏幕上手动输入地址和密码。
+- 一块 ESP-Mosaico 板子。左槽的摄像头模块用来扫 Wi-Fi 码和 Paseo 的配对码；没有它就用直接连接，
+  在屏幕上输入。
   右槽的交互模块可选：插上后，屏幕随人亮灭、跟着环境光调亮度，LED 显示灯的状态。
-- Paseo daemon 0.14 或更新，并开启插件。
+- Paseo daemon 0.14 或更新，并开启插件。扫码连接还要启用它的中继（第一次打开配对码时 Paseo 会问）。
 - 一个 [ESP-Mosaico 工作区](https://github.com/esp-mosaico/esp-mosaico-vibe)（含子模块）、
   工作区固定提交的 ESP-IDF、Python 3.10+，以及 Rust stable 和
   `riscv32imafc-unknown-none-elf` 目标（`rust/rust-toolchain.toml` 会通过 rustup 装上）。
@@ -58,16 +67,13 @@ HTTPS 地址，并把它加进 daemon 的 `hostnames`。[docs/remote-access.md](
    paseo plugin install "$PWD" --id farol
    ```
 
-3. 地址。让板子能连到 daemon（[docs/remote-access.md](docs/remote-access.md)），
-   再在 Paseo 的 设置 › 插件 › Farol 里填上这个地址。
-
 ## 连接一块板子
 
 1. Wi-Fi（2.4 GHz）。在板子的“没有连上 Wi-Fi”页上，扫手机 Wi-Fi 设置里出示的网络二维码，
    或者选一个网络、输入密码。
-2. Paseo。在 Paseo 里选“添加设备”（设置 › 插件 › Farol，或 Command Center 里的
-   “Farol：添加设备”），输一次 daemon 密码，用板子扫出现的码。没有摄像头就选“手动输入”，
-   输入地址和密码。板子会先告诉你要连的是哪台 Paseo，点“连接”。
+2. Paseo。在板子上选“扫描二维码”，扫 Paseo 在 设置 › 你的 Host › 配对设备 里出示的码；
+   或者选“直接连接”，填 Host、端口（默认 6767）、是否用 SSL 和 daemon 密码。板子会先告诉你
+   要连的是哪台 Paseo，点“连接”。daemon 设了密码而码里没带时，板子会再问你要。
 
 ## 怎么用
 
@@ -98,6 +104,7 @@ python tools/dev.py check                      # 脚本化场景检查（截图�
 python tools/simdrive.py                       # 长按、键盘、各页面的交互流程
 python tools/dev.py scene                      # 改了 tools/ui/gen_scene.py 之后
 cd plugin && npm run check                     # 插件类型检查和测试
+node tools/relay_vectors.mjs > protocol/fixtures/relay.json   # Paseo 改了中继协议之后
 ```
 
 模拟器跑的是和板子上同一份 Rust 逻辑，数据来自内置的演示 agent。`plugin/dev/` 会起一个
@@ -111,7 +118,8 @@ cd plugin && npm run check                     # 插件类型检查和测试
 - `components/app_display`：CO5300 屏幕、presenter、触摸、亮度。
 - `components/app_logic`：场景（`ui/main.json`，由 `tools/ui/gen_scene.py` 生成）、字体和 Rust 构建；
   `host/` 是模拟器后端。
-- `components/app_net`、`app_link`：Wi-Fi，以及连 Paseo 的 WebSocket。
+- `components/app_net`、`app_link`：Wi-Fi，以及连 Paseo 的 WebSocket（直接连接或中继；
+  中继的加密在 `rust/logic/src/relay.rs`）。
 - `components/app_feedback`、`app_camera`：振动、声音、交互模块、传感器；摄像头和二维码识别。
 - `components/app_bench`：帧测量工具（默认关闭）。
 - `rust/logic`：板子上所有的判断，板子、模拟器和测试共用；`rust/platform`：板子这一侧；

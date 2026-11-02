@@ -1,7 +1,11 @@
-# Let the board reach your Paseo daemon
+# Reach the daemon directly from outside its network
 
-The board opens `wss://<host>/ws` and signs in with the daemon password, like
-Paseo's web app. It needs:
+Only for a direct connection from another network. With Paseo's pairing code
+(扫描二维码 on the board) the board goes through Paseo's relay and needs none of
+this.
+
+A direct connection with SSL opens `wss://<host>:<port>/ws` and signs in with
+the daemon password, like Paseo's app. It needs:
 
 - an HTTPS address with a **publicly trusted certificate** (a private CA or a
   self-signed certificate is rejected by the board);
@@ -9,11 +13,11 @@ Paseo's web app. It needs:
   address (`daemon.listen` in the daemon's `config.json`, `127.0.0.1:6767` by
   default);
 - the host name in the daemon's `daemon.hostnames`. The daemon answers other
-  names with HTTP 403, which the board reports as "daemon 不认这个域名（hostnames）".
+  names with HTTP 403, which the board reports as "daemon 不认这个 Host（hostnames）".
 
-Use the same address in the plugin's settings page (Settings › Plugins › Farol);
-the code the page shows carries it to the board. Plain `ws://` works on a
-trusted local network, but the daemon password then travels unencrypted.
+On the board choose 直接连接 and enter that host name, port 443 and 使用 SSL.
+Without SSL (a trusted local network or a VPN) the daemon password travels
+unencrypted.
 
 The examples use `paseo.example.net` and the default port; replace both.
 
