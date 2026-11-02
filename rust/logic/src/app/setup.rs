@@ -58,17 +58,19 @@ impl App {
             }
             GSP_ACT_ID_KB_KEY => self.input_done(ui, sys),
             GSP_ACT_ID_IN_CANCEL => {
-                // Declining the password Paseo asked for ends this attempt's prompts.
-                if matches!(
-                    self.overlay,
-                    Overlay::Input {
-                        entry: Entry::DaemonPassword { .. },
-                        ..
+                let entry = match &self.overlay {
+                    Overlay::Input { entry, .. } => Some(entry.clone()),
+                    _ => None,
+                };
+                self.overlay = match entry {
+                    // Declining the password Paseo asked for ends this attempt's prompts.
+                    Some(Entry::DaemonPassword { .. }) => {
+                        self.pairing = false;
+                        Overlay::None
                     }
-                ) {
-                    self.pairing = false;
-                }
-                self.overlay = Overlay::None;
+                    Some(Entry::Prompt) => Overlay::Compose,
+                    _ => Overlay::None,
+                };
             }
             GSP_ACT_ID_WF_CANCEL
             | GSP_ACT_ID_NI_CLOSE
@@ -118,7 +120,9 @@ impl App {
         let Some(config) = self.session.config().cloned() else {
             return;
         };
-        let error = (*down == Down::Auth).then(|| String::from("密码不对，再输一次"));
+        let l = self.lang();
+        let error = (*down == Down::Auth)
+            .then(|| String::from(l.pick("密码不对，再输一次", "Wrong password; try again")));
         self.overlay = Overlay::Input {
             entry: Entry::DaemonPassword { config },
             error,
@@ -129,7 +133,7 @@ impl App {
 
     /// Shows the input page for `entry` with the keyboard on an empty field
     /// (GSP's keyboard keeps its own text, which starts empty).
-    fn open_input(&mut self, entry: Entry, ui: &mut impl Ui) {
+    pub(super) fn open_input(&mut self, entry: Entry, ui: &mut impl Ui) {
         self.overlay = Overlay::Input {
             entry,
             error: None,
@@ -163,7 +167,7 @@ impl App {
             }
         };
         match entry.clone() {
-            Entry::Host => match endpoint::parse_host(&text) {
+            Entry::Host => match endpoint::parse_host(&text, self.lang()) {
                 Ok((host, port)) => {
                     let default = port.unwrap_or(endpoint::DEFAULT_PORT);
                     self.open_input(Entry::Port { host, default }, ui);
@@ -171,13 +175,15 @@ impl App {
                 }
                 Err(why) => self.refuse(entry, why, sys),
             },
-            Entry::Port { host, default } => match endpoint::parse_port(&text, default) {
-                Ok(port) => {
-                    self.overlay = Overlay::Tls { host, port };
-                    self.feel(Haptic::Tick, sys);
+            Entry::Port { host, default } => {
+                match endpoint::parse_port(&text, default, self.lang()) {
+                    Ok(port) => {
+                        self.overlay = Overlay::Tls { host, port };
+                        self.feel(Haptic::Tick, sys);
+                    }
+                    Err(why) => self.refuse(entry, why, sys),
                 }
-                Err(why) => self.refuse(entry, why, sys),
-            },
+            }
             Entry::Password { host, port, tls } => {
                 self.overlay = Overlay::Pair {
                     config: Config {
@@ -189,7 +195,10 @@ impl App {
             }
             Entry::DaemonPassword { mut config } => {
                 if text.is_empty() {
-                    self.refuse(entry, "请输入 daemon 密码", sys);
+                    let why = self
+                        .lang()
+                        .pick("请输入 daemon 密码", "Type the daemon password");
+                    self.refuse(entry, why, sys);
                 } else {
                     config.password = text;
                     self.overlay = Overlay::None;
@@ -197,9 +206,13 @@ impl App {
                     self.feel(Haptic::Confirm, sys);
                 }
             }
+            Entry::Prompt => self.typed(text),
             Entry::WifiPassword { ssid } => {
                 if text.is_empty() {
-                    self.refuse(entry, "请输入这个网络的密码", sys);
+                    let why = self
+                        .lang()
+                        .pick("请输入这个网络的密码", "Type this network's password");
+                    self.refuse(entry, why, sys);
                     return;
                 }
                 sys.wifi(WifiCmd::Join {
@@ -239,14 +252,15 @@ impl App {
         if self.net.ssid != *ssid {
             return;
         }
+        let l = self.lang();
         let why = match self.net.state {
             NetState::Online => {
                 self.overlay = Overlay::None;
                 return;
             }
-            NetState::WrongPassword => "密码不对，再输一次",
-            NetState::NotFound => "找不到这个网络了",
-            NetState::NoAddress => "连上了，但拿不到地址",
+            NetState::WrongPassword => l.pick("密码不对，再输一次", "Wrong password; try again"),
+            NetState::NotFound => l.pick("找不到这个网络了", "This network is gone"),
+            NetState::NoAddress => l.pick("连上了，但拿不到地址", "Joined, but got no IP address"),
             _ => return,
         };
         let ssid = ssid.clone();
@@ -317,10 +331,17 @@ impl App {
             }
             None => {
                 let lower = payload.trim().to_ascii_lowercase();
+                let l = self.lang();
                 let what = if lower.starts_with("http://") || lower.starts_with("https://") {
-                    "这是一个网址，不是 Paseo 的配对码"
+                    l.pick(
+                        "这是一个网址，不是 Paseo 的配对码",
+                        "A web link, not a Paseo pairing code",
+                    )
                 } else {
-                    "这不是 Paseo 配对码或 Wi-Fi 码"
+                    l.pick(
+                        "这不是 Paseo 配对码或 Wi-Fi 码",
+                        "Not a Paseo pairing code or a Wi-Fi code",
+                    )
                 };
                 self.scan_since = self.now;
                 self.note_on("", what);

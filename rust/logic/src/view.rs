@@ -8,12 +8,14 @@ use alloc::string::{String, ToString};
 use gsp_sys as gsp;
 
 use crate::app::{App, DECK, Entry, Overlay, SLOTS};
+use crate::lang::Lang;
 use crate::model::VERSION;
 use crate::model::{Agent, AskKind, State};
 use crate::paseo::Down;
 use crate::scene::{self, Card, Variant};
 use crate::sys::NetState;
 use crate::text::{self, time};
+use crate::tr;
 use crate::ui::{Painter, Ui};
 
 /// Colors, 0xRRGGBB; the same tokens as tools/ui/gen_scene.py.
@@ -31,6 +33,15 @@ pub mod palette {
     pub const TILE_ON: u32 = 0x3A3936;
 }
 use palette::*;
+
+/// The scene's translated labels, in the board's language.
+fn static_texts(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let l = app.lang();
+    for (bind, zh, en) in scene::TEXTS {
+        p.text(ui, bind, l.pick(zh, en));
+    }
+    p.text(ui, bind(gsp::GSP_BIND_ST_LANG_T), l.pick("English", "中文"));
+}
 
 /// Index into a [`Variant`] array (call, work, done, fail, dim).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -76,6 +87,7 @@ const fn bind(b: u32) -> u16 {
 impl App {
     pub(crate) fn render(&mut self, ui: &mut impl Ui) {
         let mut p = core::mem::take(&mut self.painter);
+        static_texts(self, &mut p, ui);
         status_bar(self, &mut p, ui);
         home(self, &mut p, ui);
         deck(self, &mut p, ui);
@@ -180,6 +192,7 @@ fn who(agent: &Agent) -> String {
 }
 
 fn home(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let l = app.lang();
     let (calls, fails, works, dones) = (
         count(app, State::Call),
         count(app, State::Fail),
@@ -192,25 +205,25 @@ fn home(app: &App, p: &mut Painter, ui: &mut impl Ui) {
                 CALL,
                 Tone::Call,
                 calls,
-                "需要你",
+                l.pick("需要你", "Needs you"),
                 first(app, State::Call),
-                "轻点光，去回答",
+                l.pick("轻点光，去回答", "Tap the light to answer"),
             )
         } else if fails > 0 {
             (
                 FAIL,
                 Tone::Fail,
                 fails,
-                "失败了",
+                l.pick("失败了", "Failed"),
                 first(app, State::Fail),
-                "轻点光，去看看",
+                l.pick("轻点光，去看看", "Tap the light to look"),
             )
         } else if works > 0 {
             (
                 WORK,
                 Tone::Work,
                 works,
-                "在工作",
+                l.pick("在工作", "Working"),
                 first(app, State::Work),
                 "",
             )
@@ -219,9 +232,9 @@ fn home(app: &App, p: &mut Painter, ui: &mut impl Ui) {
                 DONE,
                 Tone::Done,
                 dones,
-                "完成了",
+                l.pick("完成了", "Done"),
                 first(app, State::Done),
-                "轻点光，去看看",
+                l.pick("轻点光，去看看", "Tap the light to look"),
             )
         } else {
             (
@@ -229,9 +242,9 @@ fn home(app: &App, p: &mut Painter, ui: &mut impl Ui) {
                 Tone::Dim,
                 0,
                 if app.has_snapshot || app.is_demo() {
-                    "都完成了"
+                    l.pick("都完成了", "All done")
                 } else {
-                    "等待 Paseo"
+                    l.pick("等待 Paseo", "Waiting for Paseo")
                 },
                 None,
                 "",
@@ -351,6 +364,7 @@ fn deck(app: &App, p: &mut Painter, ui: &mut impl Ui) {
 }
 
 fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent: Option<&Agent>) {
+    let l = app.lang();
     let Some(a) = agent else {
         variant(p, ui, &card.word, None, "");
         p.text(ui, card.meta, "");
@@ -369,16 +383,21 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
         .map(|n| n.text.as_str());
 
     let (word, tone) = match a.state {
-        State::Call if sent.is_some() => ("已回答 · 等它继续", Tone::Work),
+        State::Call if sent.is_some() => (
+            l.pick("已回答 · 等它继续", "Answered · waiting for it"),
+            Tone::Work,
+        ),
         State::Call => match a.ask.as_ref().map(|q| q.kind) {
-            Some(AskKind::Permission) => ("需要你允许", Tone::Call),
-            Some(AskKind::Plan) => ("等你批准计划", Tone::Call),
-            _ => ("需要你", Tone::Call),
+            Some(AskKind::Permission) => {
+                (l.pick("需要你允许", "Needs your permission"), Tone::Call)
+            }
+            Some(AskKind::Plan) => (l.pick("等你批准计划", "Plan needs approval"), Tone::Call),
+            _ => (l.pick("需要你", "Needs you"), Tone::Call),
         },
-        State::Work => ("工作中", Tone::Work),
-        State::Done => ("完成", Tone::Done),
-        State::Fail => ("失败", Tone::Fail),
-        State::Seen => ("已看过", Tone::Dim),
+        State::Work => (l.pick("工作中", "Working"), Tone::Work),
+        State::Done => (l.pick("完成", "Done"), Tone::Done),
+        State::Fail => (l.pick("失败", "Failed"), Tone::Fail),
+        State::Seen => (l.pick("已看过", "Seen"), Tone::Dim),
     };
     p.color(
         ui,
@@ -392,7 +411,7 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
         let when = if a.state == State::Done || a.state == State::Seen {
             String::new()
         } else {
-            time::ago(now, since)
+            time::ago(now, since, l)
         };
         if !when.is_empty() && a.state != State::Work {
             meta = format!("{meta} · {when}");
@@ -440,9 +459,11 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
         }
         let hint = match (note, sent) {
             (Some(n), _) => n,
-            (None, Some(_)) => "已发送，等 agent 接着做",
-            (None, None) if app.snapshot.read_only => "只读模式：在 Paseo 里回答",
-            (None, None) => "长按选项发送",
+            (None, Some(_)) => l.pick("已发送，等 agent 接着做", "Sent · the agent carries on"),
+            (None, None) if app.snapshot.read_only => {
+                l.pick("只读模式：在 Paseo 里回答", "Read-only: answer in Paseo")
+            }
+            (None, None) => l.pick("长按选项发送", "Hold an option to send"),
         };
         p.text(ui, card.ask_hint, hint);
     }
@@ -478,8 +499,8 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
         let hint = match note {
             Some(n) => n,
             None if !a.stoppable => "",
-            None if app.snapshot.read_only => "只读模式",
-            None => "按住停止这一轮",
+            None if app.snapshot.read_only => l.pick("只读模式", "Read-only"),
+            None => l.pick("按住停止这一轮", "Hold to stop this turn"),
         };
         p.text(ui, card.run_hint, hint);
     } else {
@@ -519,7 +540,7 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
             if !cost.is_empty() {
                 cost.push_str(" · ");
             }
-            cost.push_str(&time::ago(now, since));
+            cost.push_str(&time::ago(now, since, l));
         }
         p.text(ui, card.cost, note.unwrap_or(&cost));
     }
@@ -528,10 +549,11 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
 // ---------------------------------------------------------------- usage
 
 fn usage(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let l = app.lang();
     let windows = &app.snapshot.usage;
     p.visible(ui, bind(gsp::GSP_BIND_USAGE_EMPTY_VIS), windows.is_empty());
     let updated = app.clock.map_or(String::new(), |(epoch, _)| {
-        format!("{} 更新", time::clock(epoch, app.tz))
+        tr!(l, "{} 更新", "Updated {}", time::clock(epoch, app.tz))
     });
     p.text(ui, bind(gsp::GSP_BIND_USAGE_UPDATED), &updated);
     for (i, cell) in scene::USAGE.iter().enumerate() {
@@ -556,7 +578,7 @@ fn usage(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         p.text(ui, cell.pct, &w.used.min(100).to_string());
         p.text(ui, cell.name, &text::fit(&w.label, 192, 15));
         let reset = match (app.epoch(), w.resets) {
-            (Some(now), Some(at)) => time::reset(now, at, app.tz),
+            (Some(now), Some(at)) => time::reset(now, at, app.tz, l),
             _ => String::new(),
         };
         p.text(ui, cell.reset, &reset);
@@ -566,9 +588,10 @@ fn usage(app: &App, p: &mut Painter, ui: &mut impl Ui) {
 // ---------------------------------------------------------------- control centre
 
 fn control(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let l = app.lang();
     let date = app
         .epoch()
-        .map_or_else(String::new, |e| time::date(e, app.tz));
+        .map_or_else(String::new, |e| time::date(e, app.tz, l));
     p.text(ui, bind(gsp::GSP_BIND_CC_DATE), &date);
 
     let bars = wifi_bars(app);
@@ -583,14 +606,14 @@ fn control(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         p.color(ui, bind(b), if (i as u8) < bars { INK1 } else { DIM });
     }
     let quality = match bars {
-        3 => "信号很好",
-        2 => "信号一般",
-        _ => "信号弱",
+        3 => l.pick("信号很好", "Strong signal"),
+        2 => l.pick("信号一般", "Fair signal"),
+        _ => l.pick("信号弱", "Weak signal"),
     };
     let wifi = match app.net.state {
         NetState::Online => format!("{} · {quality}", app.net.ssid),
-        NetState::Connecting => format!("正在连接 {}", app.net.ssid),
-        _ => String::from("没有连接"),
+        NetState::Connecting => tr!(l, "正在连接 {}", "Joining {}", app.net.ssid),
+        _ => String::from(l.pick("没有连接", "Not connected")),
     };
     p.text(
         ui,
@@ -607,16 +630,16 @@ fn control(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     };
     p.text(ui, bind(gsp::GSP_BIND_CC_HOST), &host);
     let paseo = if app.is_demo() {
-        String::from("演示数据")
+        String::from(l.pick("演示数据", "Demo data"))
     } else if ready {
         app.session.rtt_ms().map_or_else(
-            || String::from("已连接"),
-            |rtt| format!("已连接 · {rtt} ms"),
+            || String::from(l.pick("已连接", "Connected")),
+            |rtt| tr!(l, "已连接 · {rtt} ms", "Connected · {rtt} ms"),
         )
     } else if !app.session.is_configured() {
-        String::from("还没配对")
+        String::from(l.pick("还没配对", "Not paired"))
     } else {
-        String::from(down_text(app.down()))
+        String::from(down_text(app.down(), l))
     };
     p.text(
         ui,
@@ -665,50 +688,84 @@ fn control(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         String::new()
     } else if power.charging {
         match power.minutes {
-            Some(m) if power.percent < 100 => format!(
+            Some(m) if power.percent < 100 => tr!(
+                l,
                 "电池 {}% · 充电中，约 {} 充满",
+                "Battery {}% · charging, full in {}",
                 power.percent,
-                time::span(i64::from(m) * 60_000)
+                time::span(i64::from(m) * 60_000, l)
             ),
-            _ => format!("电池 {}% · 充电中", power.percent),
+            _ => tr!(
+                l,
+                "电池 {}% · 充电中",
+                "Battery {}% · charging",
+                power.percent
+            ),
         }
     } else {
         match power.minutes {
-            Some(m) => format!(
+            Some(m) => tr!(
+                l,
                 "电池 {}% · 约剩 {}",
+                "Battery {}% · about {} left",
                 power.percent,
-                time::span(i64::from(m) * 60_000)
+                time::span(i64::from(m) * 60_000, l)
             ),
-            None => format!("电池 {}%", power.percent),
+            None => tr!(l, "电池 {}%", "Battery {}%", power.percent),
         }
     };
     p.text(ui, bind(gsp::GSP_BIND_CC_BATT), &text::fit(&batt, 330, 14));
 }
 
-fn down_text(down: &Down) -> &'static str {
+fn down_text(down: &Down, l: Lang) -> &'static str {
     match down {
-        Down::None => "正在连接…",
-        Down::Unconfigured => "还没有连接 Paseo",
-        Down::Dns => "找不到这个 Host",
-        Down::Timeout => "连接超时",
-        Down::Tls => "SSL 证书无效",
-        Down::Refused(403) => "daemon 不认这个 Host（hostnames）",
-        Down::Refused(_) => "对方拒绝了连接",
-        Down::Auth => "daemon 密码不对",
-        Down::NeedPassword => "这台 Paseo 需要 daemon 密码",
-        Down::Handshake => "加密连接失败：请重新扫 Paseo 的配对码",
-        Down::RelayAway => "relay 联系不上这台 Paseo",
-        Down::Incompatible => "Paseo 版本不兼容，需要更新",
-        Down::PluginVersion(v) if *v > VERSION => "Farol 插件比固件新：请更新板子的固件",
-        Down::PluginVersion(_) => "Farol 插件比固件旧：请在 Paseo 里更新插件",
-        Down::PluginMissing => "Paseo 里没有运行 Farol 插件",
-        Down::Closed(_) => "连接断开了",
+        Down::None => l.pick("正在连接…", "Connecting…"),
+        Down::Unconfigured => l.pick("还没有连接 Paseo", "Not connected to Paseo"),
+        Down::Dns => l.pick("找不到这个 Host", "Host not found"),
+        Down::Timeout => l.pick("连接超时", "Connection timed out"),
+        Down::Tls => l.pick("SSL 证书无效", "SSL certificate not trusted"),
+        Down::Refused(403) => l.pick(
+            "daemon 不认这个 Host（hostnames）",
+            "The daemon doesn't accept this host (hostnames)",
+        ),
+        Down::Refused(_) => l.pick("对方拒绝了连接", "Connection refused"),
+        Down::Auth => l.pick("daemon 密码不对", "Wrong daemon password"),
+        Down::NeedPassword => l.pick(
+            "这台 Paseo 需要 daemon 密码",
+            "This Paseo needs its daemon password",
+        ),
+        Down::Handshake => l.pick(
+            "加密连接失败：请重新扫 Paseo 的配对码",
+            "Encrypted connection failed: scan Paseo's pairing code again",
+        ),
+        Down::RelayAway => l.pick(
+            "relay 联系不上这台 Paseo",
+            "The relay can't reach this Paseo",
+        ),
+        Down::Incompatible => l.pick(
+            "Paseo 版本不兼容，需要更新",
+            "This Paseo is too old: update it",
+        ),
+        Down::PluginVersion(v) if *v > VERSION => l.pick(
+            "Farol 插件比固件新：请更新板子的固件",
+            "The plugin is newer than the firmware: update the board",
+        ),
+        Down::PluginVersion(_) => l.pick(
+            "Farol 插件比固件旧：请在 Paseo 里更新插件",
+            "The plugin is older than the firmware: update it in Paseo",
+        ),
+        Down::PluginMissing => l.pick(
+            "Paseo 里没有运行 Farol 插件",
+            "The Farol plugin isn't running in Paseo",
+        ),
+        Down::Closed(_) => l.pick("连接断开了", "Disconnected"),
     }
 }
 
 // ---------------------------------------------------------------- overlays
 
 fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let l = app.lang();
     let o = &app.overlay;
     p.visible(ui, bind(gsp::GSP_BIND_OV_STATUS_VIS), *o != Overlay::None);
     p.visible(
@@ -737,6 +794,11 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         bind(gsp::GSP_BIND_ST_TLS_VIS),
         matches!(o, Overlay::Tls { .. }),
     );
+    p.visible(
+        ui,
+        bind(gsp::GSP_BIND_ST_COMPOSE_VIS),
+        *o == Overlay::Compose,
+    );
     p.visible(ui, bind(gsp::GSP_BIND_ST_SCAN_VIS), *o == Overlay::Scan);
     p.visible(
         ui,
@@ -755,7 +817,8 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
             entry,
             error,
             joining,
-        } => input_page(p, ui, entry, error.as_deref(), *joining),
+        } => input_page(p, ui, entry, error.as_deref(), *joining, l),
+        Overlay::Compose => compose_page(app, p, ui),
         Overlay::Wifi => wifi_page(app, p, ui),
         Overlay::NetInfo => net_details(app, p, ui),
         Overlay::Link => link_details(app, p, ui),
@@ -763,8 +826,10 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
             ui,
             bind(gsp::GSP_BIND_TL_CAPTION),
             &text::fit(
-                &format!(
+                &tr!(
+                    l,
                     "第 3 步，共 4 步 · {}",
+                    "Step 3 of 4 · {}",
                     crate::endpoint::host_port(host, *port)
                 ),
                 432,
@@ -782,11 +847,15 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
 
     // No Wi-Fi.
     let reason = match app.net.state {
-        NetState::NoSaved => String::from("板子上还没有保存任何网络"),
-        NetState::NotFound => String::from("附近没有已保存的网络"),
-        NetState::WrongPassword => format!("{} · 密码不对", app.net.ssid),
-        NetState::NoAddress => format!("{} · 拿不到地址", app.net.ssid),
-        NetState::Connecting => format!("正在连接 {}", app.net.ssid),
+        NetState::NoSaved => {
+            String::from(l.pick("板子上还没有保存任何网络", "No networks saved on the board"))
+        }
+        NetState::NotFound => {
+            String::from(l.pick("附近没有已保存的网络", "No saved network in range"))
+        }
+        NetState::WrongPassword => tr!(l, "{} · 密码不对", "{} · wrong password", app.net.ssid),
+        NetState::NoAddress => tr!(l, "{} · 拿不到地址", "{} · no IP address", app.net.ssid),
+        NetState::Connecting => tr!(l, "正在连接 {}", "Joining {}", app.net.ssid),
         _ => String::new(),
     };
     p.text(
@@ -797,7 +866,7 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     let saved = if app.net.saved.is_empty() {
         String::new()
     } else {
-        format!("已保存：{}", app.net.saved.join("、"))
+        tr!(l, "已保存：{}", "Saved: {}", app.net.saved.join("、"))
     };
     p.text(
         ui,
@@ -827,26 +896,34 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     );
 
     // No Paseo.
-    p.text(ui, bind(gsp::GSP_BIND_ST_NP_REASON), down_text(app.down()));
+    p.text(
+        ui,
+        bind(gsp::GSP_BIND_ST_NP_REASON),
+        down_text(app.down(), l),
+    );
     let retry = match app.session.retry_at() {
-        Some(at) => format!(
+        Some(at) => tr!(
+            l,
             "已重试 {} 次，{} 秒后再试",
+            "Tried {} times · next in {} s",
             app.session.failures(),
             at.saturating_sub(app.now).div_ceil(1000)
         ),
-        None => String::from("正在连接…"),
+        None => String::from(l.pick("正在连接…", "Connecting…")),
     };
     p.text(ui, bind(gsp::GSP_BIND_ST_NP_RETRY), &retry);
     let foot = match (app.net.state, app.has_snapshot, app.epoch()) {
         (NetState::Online, true, Some(now)) => match app.clock {
-            Some((epoch, _)) => format!(
+            Some((epoch, _)) => tr!(
+                l,
                 "Wi-Fi：{} 正常 · 屏上的数据停在 {}",
+                "Wi-Fi: {} OK · data on screen from {}",
                 app.net.ssid,
-                time::ago(now, epoch)
+                time::ago(now, epoch, l)
             ),
             None => String::new(),
         },
-        (NetState::Online, _, _) => format!("Wi-Fi：{} 正常", app.net.ssid),
+        (NetState::Online, _, _) => tr!(l, "Wi-Fi：{} 正常", "Wi-Fi: {} OK", app.net.ssid),
         _ => String::new(),
     };
     p.text(
@@ -859,9 +936,12 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     if let Overlay::Pair { config } = o {
         let relay = config.relay().is_some();
         let title = if relay {
-            "通过 relay 连接这台 Paseo？"
+            l.pick(
+                "通过 relay 连接这台 Paseo？",
+                "Connect to this Paseo through the relay?",
+            )
         } else {
-            "直接连接这台 Paseo？"
+            l.pick("直接连接这台 Paseo？", "Connect to this Paseo directly?")
         };
         p.text(ui, bind(gsp::GSP_BIND_ST_PAIR_TITLE), title);
         p.text(
@@ -870,12 +950,17 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
             &text::fit(&config.describe(), 424, 16),
         );
         let code = match (config.password.is_empty(), relay) {
-            (false, _) => format!(
+            (false, _) => tr!(
+                l,
                 "daemon 密码 {}",
+                "Daemon password {}",
                 "•".repeat(config.password.chars().count().min(12))
             ),
-            (true, true) => String::from("端到端加密 · 需要密码时会再问你"),
-            (true, false) => String::from("不使用密码"),
+            (true, true) => String::from(l.pick(
+                "端到端加密 · 需要密码时会再问你",
+                "End-to-end encrypted · asks for a password if needed",
+            )),
+            (true, false) => String::from(l.pick("不使用密码", "No password")),
         };
         p.text(ui, bind(gsp::GSP_BIND_ST_PAIR_CODE), &code);
     }
@@ -898,7 +983,12 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         p.text(
             ui,
             bind(gsp::GSP_BIND_BANNER_TEXT),
-            &format!("连不上 Paseo · {} · 点开看原因", down_text(app.down())),
+            &tr!(
+                l,
+                "连不上 Paseo · {} · 点开看原因",
+                "Can't reach Paseo · {} · tap for details",
+                down_text(app.down(), l)
+            ),
         );
     }
 }
@@ -906,12 +996,71 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
 // ---------------------------------------------------------------- setup pages
 
 /// Signal strength as a word and as lit bars out of three.
-fn signal(rssi: i8) -> (&'static str, usize) {
+fn signal(rssi: i8, l: Lang) -> (&'static str, usize) {
     match rssi {
-        -60.. => ("信号很好", 3),
-        -70..=-61 => ("信号一般", 2),
-        _ => ("信号弱", 1),
+        -60.. => (l.pick("信号很好", "Strong signal"), 3),
+        -70..=-61 => (l.pick("信号一般", "Fair signal"), 2),
+        _ => (l.pick("信号弱", "Weak signal"), 1),
     }
+}
+
+fn compose_page(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    use crate::app::Voice;
+    let l = app.lang();
+    let c = &app.compose;
+    p.text(
+        ui,
+        bind(gsp::GSP_BIND_CP_CAPTION),
+        &text::fit(&app.compose_caption(l), 432, 13),
+    );
+    let blocked = app.compose_blocked();
+    let talk = app.can_talk();
+    let body: &str = if !c.text.is_empty() {
+        &c.text
+    } else if let Some((zh, en)) = blocked {
+        l.pick(zh, en)
+    } else if talk {
+        l.pick(
+            "按住下面的按钮（或 AI 键）说出要做的事，或者用键盘输入。",
+            "Hold the button below (or the AI key) and say what to do, or type it.",
+        )
+    } else {
+        l.pick(
+            "Paseo 没有开启语音输入：用键盘输入（只有英文字母）。",
+            "Dictation is off in Paseo: type it (Latin letters only).",
+        )
+    };
+    // GSP breaks lines only at spaces; Chinese needs the board's own breaker.
+    let body = text::wrap(body, 432, 22, 5);
+    p.text(ui, bind(gsp::GSP_BIND_CP_TEXT), &body);
+    let note = match (&c.note, c.voice) {
+        (Some(note), _) => note.clone(),
+        (None, Voice::Listening) => String::from(l.pick("正在听…", "Listening…")),
+        (None, Voice::Transcribing) => String::from(l.pick("正在转写…", "Transcribing…")),
+        (None, Voice::Sending) => String::from(l.pick("正在开始…", "Starting…")),
+        (None, Voice::Idle) => String::new(),
+    };
+    p.text(ui, bind(gsp::GSP_BIND_CP_NOTE), &text::fit(&note, 432, 14));
+    p.visible(ui, bind(gsp::GSP_BIND_CP_MIC_VIS), talk);
+    p.visible(
+        ui,
+        bind(gsp::GSP_BIND_CP_LISTEN_VIS),
+        c.voice == Voice::Listening,
+    );
+    p.text(
+        ui,
+        bind(gsp::GSP_BIND_CP_MIC_T),
+        if c.voice == Voice::Listening {
+            l.pick("松开结束", "Release")
+        } else {
+            l.pick("按住说话", "Hold to talk")
+        },
+    );
+    p.visible(
+        ui,
+        bind(gsp::GSP_BIND_CP_SEND_VIS),
+        !c.text.is_empty() && c.voice == Voice::Idle && blocked.is_none(),
+    );
 }
 
 fn input_page(
@@ -920,34 +1069,56 @@ fn input_page(
     entry: &Entry,
     error: Option<&str>,
     joining: bool,
+    l: Lang,
 ) {
-    let direct = || String::from("直接连接");
+    let direct = || String::from(l.pick("直接连接", "Direct connection"));
     let (title, caption) = match entry {
         Entry::Host => (
             direct(),
-            String::from("第 1 步，共 4 步 · Host，例如 192.168.1.20 或 paseo.example.net"),
+            String::from(l.pick(
+                "第 1 步，共 4 步 · Host，例如 192.168.1.20 或 paseo.example.net",
+                "Step 1 of 4 · host, e.g. 192.168.1.20 or paseo.example.net",
+            )),
         ),
         Entry::Port { host, default } => (
             direct(),
-            format!("第 2 步，共 4 步 · {host} 的端口，直接点“好”用 {default}"),
+            tr!(
+                l,
+                "第 2 步，共 4 步 · {host} 的端口，直接点 OK 用 {default}",
+                "Step 2 of 4 · port of {host}; OK alone uses {default}"
+            ),
         ),
         Entry::Password { host, port, .. } => (
             direct(),
-            format!(
-                "第 4 步，共 4 步 · {} 的 daemon 密码，没有就直接点“好”",
+            tr!(
+                l,
+                "第 4 步，共 4 步 · {} 的 daemon 密码，没有就直接点 OK",
+                "Step 4 of 4 · daemon password for {}; none? just OK",
                 crate::endpoint::host_port(host, *port)
             ),
         ),
         Entry::DaemonPassword { config } => (
-            String::from("daemon 密码"),
-            format!("{} 需要 daemon 密码", config.fallback_name()),
+            String::from(l.pick("daemon 密码", "Daemon password")),
+            tr!(
+                l,
+                "{} 需要 daemon 密码",
+                "{} needs its daemon password",
+                config.fallback_name()
+            ),
+        ),
+        Entry::Prompt => (
+            String::from(l.pick("新会话", "New session")),
+            String::from(l.pick(
+                "输入要做的事（键盘只有英文字母），点 OK 返回",
+                "Type what to do, then OK",
+            )),
         ),
         Entry::WifiPassword { ssid } => (
-            format!("加入「{ssid}」"),
+            tr!(l, "加入「{ssid}」", "Join “{ssid}”"),
             String::from(if joining {
-                "正在连接…"
+                l.pick("正在连接…", "Connecting…")
             } else {
-                "Wi-Fi 密码"
+                l.pick("Wi-Fi 密码", "Wi-Fi password")
             }),
         ),
     };
@@ -965,9 +1136,10 @@ fn input_page(
 }
 
 fn wifi_page(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let l = app.lang();
     let note = match (app.networks.is_empty(), app.scanning) {
-        (true, true) => "正在扫描…",
-        (true, false) => "附近没有 2.4 GHz 网络",
+        (true, true) => l.pick("正在扫描…", "Scanning…"),
+        (true, false) => l.pick("附近没有 2.4 GHz 网络", "No 2.4 GHz networks nearby"),
         _ => "",
     };
     p.text(ui, bind(gsp::GSP_BIND_WF_NOTE), note);
@@ -975,15 +1147,15 @@ fn wifi_page(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         let ap = app.networks.get(i);
         p.visible(ui, row.vis, ap.is_some());
         let Some(ap) = ap else { continue };
-        let (word, lit) = signal(ap.rssi);
+        let (word, lit) = signal(ap.rssi, l);
         let mut meta = String::new();
         if ap.saved {
-            meta.push_str("已保存 · ");
+            meta.push_str(l.pick("已保存 · ", "Saved · "));
         }
         meta.push_str(if ap.secure {
-            "需要密码 · "
+            l.pick("需要密码 · ", "Password · ")
         } else {
-            "开放网络 · "
+            l.pick("开放网络 · ", "Open · ")
         });
         meta.push_str(word);
         p.text(ui, row.name, &text::fit(&ap.ssid, 360, 18));
@@ -995,16 +1167,17 @@ fn wifi_page(app: &App, p: &mut Painter, ui: &mut impl Ui) {
 }
 
 fn net_details(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let l = app.lang();
     let net = &app.net;
     let online = net.state == NetState::Online;
     let ssid = if online {
         net.ssid.as_str()
     } else {
-        "没有连上 Wi-Fi"
+        l.pick("没有连上 Wi-Fi", "No Wi-Fi")
     };
     p.text(ui, bind(gsp::GSP_BIND_NI_SSID), &text::fit(ssid, 432, 28));
     let signal_line = if online {
-        format!("{} · {} dBm", signal(net.rssi).0, net.rssi)
+        format!("{} · {} dBm", signal(net.rssi, l).0, net.rssi)
     } else {
         String::new()
     };
@@ -1017,7 +1190,7 @@ fn net_details(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     p.text(ui, bind(gsp::GSP_BIND_NI_IP), &ip);
     for (i, b) in scene::SAVED_ROWS.iter().enumerate() {
         let name = match (i, net.saved.get(i)) {
-            (0, None) => "还没有保存任何网络",
+            (0, None) => l.pick("还没有保存任何网络", "No saved networks"),
             (_, Some(name)) => name.as_str(),
             _ => "",
         };
@@ -1026,46 +1199,52 @@ fn net_details(app: &App, p: &mut Painter, ui: &mut impl Ui) {
 }
 
 fn link_details(app: &App, p: &mut Painter, ui: &mut impl Ui) {
+    let l = app.lang();
     let config = app.session.config();
     let host = match config {
         _ if !app.host.is_empty() && app.host != "demo" => app.host.clone(),
         Some(c) => c.fallback_name(),
-        None => String::from("还没有连接 Paseo"),
+        None => String::from(l.pick("还没有连接 Paseo", "Not connected to Paseo")),
     };
     p.text(ui, bind(gsp::GSP_BIND_LK_HOST), &text::fit(&host, 432, 28));
     let route = config.map_or(String::new(), |c| {
         let way = if c.relay().is_some() {
             "relay"
         } else {
-            "直接连接"
+            l.pick("直接连接", "Direct connection")
         };
         format!("{way} · {}", c.describe())
     });
     p.text(ui, bind(gsp::GSP_BIND_LK_URL), &text::fit(&route, 432, 15));
     let state = if app.session.is_ready() {
-        let mut line = String::from("已连接");
+        let mut line = String::from(l.pick("已连接", "Connected"));
         if let Some(rtt) = app.session.rtt_ms() {
-            line.push_str(&format!(" · 延迟 {rtt} ms"));
+            line.push_str(&tr!(l, " · 延迟 {rtt} ms", " · {rtt} ms"));
         }
         if let Some(at) = app.last_sync {
-            line.push_str(&format!(" · {}同步", time::ago(app.now as i64, at as i64)));
+            line.push_str(&tr!(
+                l,
+                " · {}同步",
+                " · synced {}",
+                time::ago(app.now as i64, at as i64, l)
+            ));
         }
         line
     } else if config.is_none() {
         String::new()
     } else {
-        String::from(down_text(app.down()))
+        String::from(down_text(app.down(), l))
     };
     p.text(ui, bind(gsp::GSP_BIND_LK_STATE), &state);
     p.text(
         ui,
         bind(gsp::GSP_BIND_LK_DEVICE),
-        &format!("这块板子：farol-{}", app.device),
+        &tr!(l, "这块板子：farol-{}", "This board: farol-{}", app.device),
     );
     let forget = if app.now < app.forget_until {
-        "再点一次，忘记它"
+        l.pick("再点一次，忘记它", "Tap again to forget")
     } else {
-        "忘记这台 Paseo"
+        l.pick("忘记这台 Paseo", "Forget this Paseo")
     };
     p.text(ui, bind(gsp::GSP_BIND_LK_FORGET_T), forget);
 }

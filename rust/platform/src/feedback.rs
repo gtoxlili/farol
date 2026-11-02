@@ -50,6 +50,7 @@ struct Report {
 const _: () = assert!(core::mem::size_of::<Report>() == 16);
 
 type EventCb = unsafe extern "C" fn(*const Report, *mut c_void);
+type AudioCb = unsafe extern "C" fn(*const u8, usize, *mut c_void);
 
 unsafe extern "C" {
     fn app_feedback_start(on_event: Option<EventCb>, ctx: *mut c_void) -> EspErr;
@@ -58,6 +59,8 @@ unsafe extern "C" {
     fn app_feedback_glow(glow: c_int) -> EspErr;
     fn app_feedback_led_brightness(percent: u8) -> EspErr;
     fn app_feedback_display(on: bool, percent: u8) -> EspErr;
+    fn app_feedback_on_audio(on_audio: Option<AudioCb>, ctx: *mut c_void) -> EspErr;
+    fn app_feedback_listen(on: bool) -> EspErr;
 }
 
 fn check(what: &str, err: EspErr) {
@@ -80,6 +83,36 @@ pub fn start(queue: &'static EventQueue) {
     check("app_feedback start", unsafe {
         app_feedback_start(Some(on_report), ctx)
     });
+    // SAFETY: as above; recordings arrive on the chime task.
+    check("app_feedback audio", unsafe {
+        app_feedback_on_audio(Some(on_audio), ctx)
+    });
+}
+
+/// The `chime` task: recorded speech (or its end) to the logic.
+unsafe extern "C" fn on_audio(pcm: *const u8, length: usize, ctx: *mut c_void) {
+    // SAFETY: ctx is the leaked queue from start().
+    let Some(queue) = (unsafe { ctx.cast::<EventQueue>().as_ref() }) else {
+        return;
+    };
+    let event = if pcm.is_null() {
+        Event::AudioEnd
+    } else {
+        // SAFETY: app_feedback passes `length` valid bytes for the call.
+        Event::Audio(unsafe { core::slice::from_raw_parts(pcm, length) }.to_vec())
+    };
+    if !post(queue, event) {
+        idf::log_line(
+            idf::LogLevel::Warn,
+            c"feedback",
+            "audio dropped: logic queue full",
+        );
+    }
+}
+
+/// Start or stop recording; the end always arrives as [`Event::AudioEnd`].
+pub fn listen(on: bool) {
+    check("app_feedback listen", unsafe { app_feedback_listen(on) });
 }
 
 /// The `feedback` task: one report to one event.
@@ -119,6 +152,7 @@ fn decode(report: &Report) -> Option<Event> {
             1 => Button::AiLong,
             2 => Button::Prev,
             3 => Button::Next,
+            4 => Button::AiRelease,
             _ => return None,
         }),
         EVENT_MODULE => Event::Module(value != 0),

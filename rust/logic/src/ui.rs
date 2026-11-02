@@ -177,6 +177,13 @@ impl Painter {
         }
     }
 
+    /// Records that the scene already shows `text` (its default), so the
+    /// first render does not write it again.
+    pub fn assume_text(&mut self, bind: Bind, text: &str) {
+        self.written
+            .insert((TEXT, bind.into()), Written::Text(hash(text)));
+    }
+
     pub fn text(&mut self, ui: &mut impl Ui, bind: Bind, text: &str) {
         self.write((TEXT, bind.into()), Written::Text(hash(text)), || {
             ui.set_text(bind, text)

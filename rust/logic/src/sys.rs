@@ -5,6 +5,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use crate::lang::Lang;
 use crate::paseo::{Config, Down, Out};
 
 /// Everything the logic reacts to.
@@ -36,6 +37,10 @@ pub enum Event {
     Motion(Motion),
     /// A QR code the camera decoded.
     Scanned(String),
+    /// Recorded speech after [`Sys::listen`]: 16 kHz mono 16-bit PCM.
+    Audio(Vec<u8>),
+    /// The recording ended: after `listen(false)`, or at the board's limit.
+    AudioEnd,
     /// The camera could not start: no module in the left slot, or it failed.
     NoCamera,
     /// A Wi-Fi scan finished: networks in range, strongest first.
@@ -114,8 +119,10 @@ pub struct Power {
 pub enum Button {
     /// The AI key, clicked.
     AiClick,
-    /// The AI key, held.
+    /// The AI key, held past the long-press time.
     AiLong,
+    /// The AI key let go after a hold.
+    AiRelease,
     /// Interaction module touch keys.
     Prev,
     Next,
@@ -137,6 +144,8 @@ pub struct Prefs {
     pub brightness: u8,
     /// Follow ambient light (interaction module only).
     pub auto: bool,
+    /// The board's language (follows the Paseo app once connected).
+    pub lang: Lang,
 }
 
 impl Default for Prefs {
@@ -146,6 +155,7 @@ impl Default for Prefs {
             haptic: true,
             brightness: 80,
             auto: true,
+            lang: Lang::Zh,
         }
     }
 }
@@ -214,6 +224,9 @@ pub trait Sys {
     fn save_prefs(&mut self, prefs: &Prefs);
     fn wifi(&mut self, cmd: WifiCmd);
     fn camera(&mut self, on: bool);
+    /// Start or stop recording from the microphone; the speech arrives as
+    /// [`Event::Audio`], then [`Event::AudioEnd`].
+    fn listen(&mut self, on: bool);
     /// Fills `out` from a cryptographic random source: the keys of each
     /// relay connection ([`crate::relay`]).
     fn random(&mut self, out: &mut [u8]);

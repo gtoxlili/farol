@@ -275,6 +275,43 @@ def flow_link(s: Sim) -> None:
     s.shot("3-connect")
 
 
+def flow_compose(s: Sim) -> None:
+    s.press(240, 206, 700)
+    s.frames(10)
+    s.expect("holding the lamp opens a new session", s.visible("st_compose"))
+    s.shot("1-compose")
+    s.call("feed_pointer", {"x": 240, "y": 348, "pressed": True})
+    s.ms(800)
+    s.expect("holding the button listens", s.visible("cp_listen"))
+    s.shot("2-listening")
+    s.call("feed_pointer", {"x": 240, "y": 348, "pressed": False})
+    s.ms(1400)
+    s.expect("letting go shows the transcript and Send", s.visible("cp_send"))
+    s.shot("3-transcript")
+    s.tap(356, 440)
+    s.frames(30)
+    s.expect("sending opens the new session's card", s.page("screens") == 2)
+    s.shot("4-new-card")
+
+
+def flow_english(s: Sim) -> None:
+    s.shot("1-home")
+    s.drag(420, 300, 60, 300)
+    s.shot("2-deck")
+    s.drag(240, 6, 240, 380)
+    s.frames(20)
+    s.shot("3-control")
+    s.expect("the control centre opens", s.page("screens") == 2)
+
+
+def flow_welcome_en(s: Sim) -> None:
+    s.shot("1-welcome")
+    s.expect("first boot shows the welcome page", s.visible("st_welcome"))
+    s.tap(414, 60)
+    s.frames(12)
+    s.shot("2-switched")
+
+
 def flow_pulse(s: Sim) -> None:
     # The demo's "runtime" agent finishes 70 s into the script; this run starts at 69 s.
     seen = False
@@ -300,6 +337,9 @@ FLOWS = {
     "wifi": (flow_wifi, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "link": (flow_link, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "pulse": (flow_pulse, {"FAROL_SIM": "demo", "FAROL_SIM_T": "69000"}),
+    "compose": (flow_compose, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
+    "english": (flow_english, {"FAROL_SIM": "demo", "FAROL_SIM_T": "13000", "FAROL_SIM_LANG": "en"}),
+    "welcome_en": (flow_welcome_en, {"FAROL_SIM": "welcome", "FAROL_SIM_LANG": "en"}),
 }
 
 

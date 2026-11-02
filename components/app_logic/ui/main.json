@@ -66,6 +66,8 @@
    "font_size": 18,
    "fg_color": "#8C8A84",
    "text_align": "left",
+   "name": "tx0",
+   "bind": "tx0",
    "parent_name": "usage"
   },
   {
@@ -613,9 +615,21 @@
    "parent_name": "u3"
   },
   {
-   "type": "label",
+   "type": "container",
+   "name": "usage_empty",
    "x": 40,
    "y": 220,
+   "w": 400,
+   "h": 30,
+   "hidden": true,
+   "parent_name": "usage",
+   "bind": "usage_empty_vis",
+   "bind_target": "visible"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 0,
    "w": 400,
    "h": 30,
    "text": "还没有额度数据",
@@ -623,11 +637,9 @@
    "font_size": 17,
    "fg_color": "#4E4D49",
    "text_align": "center",
-   "name": "usage_empty",
-   "hidden": true,
-   "parent_name": "usage",
-   "bind": "usage_empty_vis",
-   "bind_target": "visible"
+   "name": "tx1",
+   "bind": "tx1",
+   "parent_name": "usage_empty"
   },
   {
    "type": "container",
@@ -694,7 +706,18 @@
    "fg_color": "#F2EFE8",
    "radius": 120,
    "pressed_dim": 0,
-   "callback": "lamp_tap",
+   "events": [
+    {
+     "event": "click",
+     "action": "call",
+     "callback": "lamp_tap"
+    },
+    {
+     "event": "long",
+     "action": "call",
+     "callback": "lamp_long"
+    }
+   ],
    "parent_name": "home_body"
   },
   {
@@ -1426,6 +1449,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx2",
+   "bind": "tx2",
    "parent_name": "c0_o0_fill"
   },
   {
@@ -1556,6 +1581,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx3",
+   "bind": "tx3",
    "parent_name": "c0_o1_fill"
   },
   {
@@ -1686,6 +1713,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx4",
+   "bind": "tx4",
    "parent_name": "c0_o2_fill"
   },
   {
@@ -1816,6 +1845,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx5",
+   "bind": "tx5",
    "parent_name": "c0_o3_fill"
   },
   {
@@ -1920,6 +1951,8 @@
    "font_size": 15,
    "fg_color": "#4E4D49",
    "text_align": "right",
+   "name": "tx6",
+   "bind": "tx6",
    "parent_name": "c0_run"
   },
   {
@@ -2119,13 +2152,25 @@
    "fg_color": "#F2EFE8",
    "radius": 20,
    "pressed_dim": 48,
-   "text": "已读",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 16,
    "border_color": "#2A2926",
    "border_width": 1,
    "callback": "seen",
    "parent_name": "c0_done"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 8,
+   "w": 100,
+   "h": 23,
+   "text": "已读",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 16,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx7",
+   "bind": "tx7",
+   "parent_name": "c0_done_seen"
   },
   {
    "type": "layer",
@@ -2463,6 +2508,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx8",
+   "bind": "tx8",
    "parent_name": "c1_o0_fill"
   },
   {
@@ -2593,6 +2640,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx9",
+   "bind": "tx9",
    "parent_name": "c1_o1_fill"
   },
   {
@@ -2723,6 +2772,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx10",
+   "bind": "tx10",
    "parent_name": "c1_o2_fill"
   },
   {
@@ -2853,6 +2904,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx11",
+   "bind": "tx11",
    "parent_name": "c1_o3_fill"
   },
   {
@@ -2957,6 +3010,8 @@
    "font_size": 15,
    "fg_color": "#4E4D49",
    "text_align": "right",
+   "name": "tx12",
+   "bind": "tx12",
    "parent_name": "c1_run"
   },
   {
@@ -3156,13 +3211,25 @@
    "fg_color": "#F2EFE8",
    "radius": 20,
    "pressed_dim": 48,
-   "text": "已读",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 16,
    "border_color": "#2A2926",
    "border_width": 1,
    "callback": "seen",
    "parent_name": "c1_done"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 8,
+   "w": 100,
+   "h": 23,
+   "text": "已读",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 16,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx13",
+   "bind": "tx13",
+   "parent_name": "c1_done_seen"
   },
   {
    "type": "layer",
@@ -3500,6 +3567,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx14",
+   "bind": "tx14",
    "parent_name": "c2_o0_fill"
   },
   {
@@ -3630,6 +3699,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx15",
+   "bind": "tx15",
    "parent_name": "c2_o1_fill"
   },
   {
@@ -3760,6 +3831,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx16",
+   "bind": "tx16",
    "parent_name": "c2_o2_fill"
   },
   {
@@ -3890,6 +3963,8 @@
    "font_size": 15,
    "fg_color": "#000000",
    "text_align": "right",
+   "name": "tx17",
+   "bind": "tx17",
    "parent_name": "c2_o3_fill"
   },
   {
@@ -3994,6 +4069,8 @@
    "font_size": 15,
    "fg_color": "#4E4D49",
    "text_align": "right",
+   "name": "tx18",
+   "bind": "tx18",
    "parent_name": "c2_run"
   },
   {
@@ -4193,13 +4270,25 @@
    "fg_color": "#F2EFE8",
    "radius": 20,
    "pressed_dim": 48,
-   "text": "已读",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 16,
    "border_color": "#2A2926",
    "border_width": 1,
    "callback": "seen",
    "parent_name": "c2_done"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 8,
+   "w": 100,
+   "h": 23,
+   "text": "已读",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 16,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx19",
+   "bind": "tx19",
+   "parent_name": "c2_done_seen"
   },
   {
    "type": "rect",
@@ -4355,9 +4444,21 @@
    "parent_name": "deck"
   },
   {
-   "type": "label",
+   "type": "container",
+   "name": "deck_empty",
    "x": 40,
    "y": 220,
+   "w": 400,
+   "h": 30,
+   "hidden": true,
+   "parent_name": "deck",
+   "bind": "deck_empty_vis",
+   "bind_target": "visible"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 0,
    "w": 400,
    "h": 30,
    "text": "还没有 agent",
@@ -4365,11 +4466,9 @@
    "font_size": 17,
    "fg_color": "#4E4D49",
    "text_align": "center",
-   "name": "deck_empty",
-   "hidden": true,
-   "parent_name": "deck",
-   "bind": "deck_empty_vis",
-   "bind_target": "visible"
+   "name": "tx20",
+   "bind": "tx20",
+   "parent_name": "deck_empty"
   },
   {
    "type": "layer",
@@ -4444,6 +4543,37 @@
    "parent_name": "st_welcome"
   },
   {
+   "type": "button",
+   "name": "st_lang",
+   "x": 372,
+   "y": 44,
+   "w": 84,
+   "h": 32,
+   "bg_color": "#00000000",
+   "fg_color": "#8C8A84",
+   "radius": 16,
+   "pressed_dim": 24,
+   "border_color": "#2A2926",
+   "border_width": 1,
+   "callback": "lang_toggle",
+   "parent_name": "st_welcome"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 5,
+   "w": 84,
+   "h": 22,
+   "text": "",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 14,
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "st_lang_t",
+   "bind": "st_lang_t",
+   "parent_name": "st_lang"
+  },
+  {
    "type": "label",
    "x": 28,
    "y": 318,
@@ -4454,6 +4584,8 @@
    "font_size": 15,
    "fg_color": "#8C8A84",
    "text_align": "center",
+   "name": "tx21",
+   "bind": "tx21",
    "parent_name": "st_welcome"
   },
   {
@@ -4467,6 +4599,8 @@
    "font_size": 14,
    "fg_color": "#4E4D49",
    "text_align": "center",
+   "name": "tx22",
+   "bind": "tx22",
    "parent_name": "st_welcome"
   },
   {
@@ -4480,11 +4614,23 @@
    "fg_color": "#000000",
    "radius": 26,
    "pressed_dim": 48,
+   "callback": "scan_open",
+   "parent_name": "st_welcome"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
    "text": "扫描二维码",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 18,
-   "callback": "scan_open",
-   "parent_name": "st_welcome"
+   "fg_color": "#000000",
+   "text_align": "center",
+   "name": "tx23",
+   "bind": "tx23",
+   "parent_name": "st_welcome_scan"
   },
   {
    "type": "button",
@@ -4497,13 +4643,25 @@
    "fg_color": "#F2EFE8",
    "radius": 26,
    "pressed_dim": 48,
-   "text": "直接连接",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 18,
    "border_color": "#2A2926",
    "border_width": 1,
    "callback": "direct_open",
    "parent_name": "st_welcome"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
+   "text": "直接连接",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 18,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx24",
+   "bind": "tx24",
+   "parent_name": "st_welcome_direct"
   },
   {
    "type": "container",
@@ -4649,6 +4807,8 @@
    "font_size": 26,
    "fg_color": "#F2EFE8",
    "text_align": "center",
+   "name": "tx25",
+   "bind": "tx25",
    "parent_name": "st_nowifi"
   },
   {
@@ -4694,11 +4854,23 @@
    "fg_color": "#000000",
    "radius": 26,
    "pressed_dim": 48,
+   "callback": "scan_open",
+   "parent_name": "st_nowifi"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
    "text": "扫码加入",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 18,
-   "callback": "scan_open",
-   "parent_name": "st_nowifi"
+   "fg_color": "#000000",
+   "text_align": "center",
+   "name": "tx26",
+   "bind": "tx26",
+   "parent_name": "st_nowifi_scan"
   },
   {
    "type": "button",
@@ -4711,13 +4883,25 @@
    "fg_color": "#F2EFE8",
    "radius": 26,
    "pressed_dim": 48,
-   "text": "选择网络",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 18,
    "border_color": "#2A2926",
    "border_width": 1,
    "callback": "wifi_pick",
    "parent_name": "st_nowifi"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
+   "text": "选择网络",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 18,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx27",
+   "bind": "tx27",
+   "parent_name": "st_nowifi_pick"
   },
   {
    "type": "label",
@@ -4730,6 +4914,8 @@
    "font_size": 14,
    "fg_color": "#4E4D49",
    "text_align": "center",
+   "name": "tx28",
+   "bind": "tx28",
    "parent_name": "st_nowifi"
   },
   {
@@ -4784,6 +4970,8 @@
    "font_size": 26,
    "fg_color": "#F2EFE8",
    "text_align": "center",
+   "name": "tx29",
+   "bind": "tx29",
    "parent_name": "st_nopaseo"
   },
   {
@@ -4829,11 +5017,23 @@
    "fg_color": "#000000",
    "radius": 26,
    "pressed_dim": 48,
+   "callback": "retry",
+   "parent_name": "st_nopaseo"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
    "text": "立即重试",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 18,
-   "callback": "retry",
-   "parent_name": "st_nopaseo"
+   "fg_color": "#000000",
+   "text_align": "center",
+   "name": "tx30",
+   "bind": "tx30",
+   "parent_name": "st_np_retry_btn"
   },
   {
    "type": "button",
@@ -4846,13 +5046,25 @@
    "fg_color": "#F2EFE8",
    "radius": 26,
    "pressed_dim": 48,
-   "text": "重新连接",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 18,
    "border_color": "#2A2926",
    "border_width": 1,
    "callback": "connect_open",
    "parent_name": "st_nopaseo"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
+   "text": "重新连接",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 18,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx31",
+   "bind": "tx31",
+   "parent_name": "st_np_repair"
   },
   {
    "type": "label",
@@ -4997,6 +5209,8 @@
    "font_size": 15,
    "fg_color": "#8C8A84",
    "text_align": "center",
+   "name": "tx32",
+   "bind": "tx32",
    "parent_name": "st_pair"
   },
   {
@@ -5010,6 +5224,8 @@
    "font_size": 15,
    "fg_color": "#8C8A84",
    "text_align": "center",
+   "name": "tx33",
+   "bind": "tx33",
    "parent_name": "st_pair"
   },
   {
@@ -5023,13 +5239,25 @@
    "fg_color": "#F2EFE8",
    "radius": 26,
    "pressed_dim": 48,
-   "text": "取消",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 18,
    "border_color": "#2A2926",
    "border_width": 1,
    "callback": "pair_cancel",
    "parent_name": "st_pair"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
+   "text": "取消",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 18,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx34",
+   "bind": "tx34",
+   "parent_name": "st_pair_cancel"
   },
   {
    "type": "button",
@@ -5042,11 +5270,23 @@
    "fg_color": "#000000",
    "radius": 26,
    "pressed_dim": 48,
+   "callback": "pair_connect",
+   "parent_name": "st_pair"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
    "text": "连接",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 18,
-   "callback": "pair_connect",
-   "parent_name": "st_pair"
+   "fg_color": "#000000",
+   "text_align": "center",
+   "name": "tx35",
+   "bind": "tx35",
+   "parent_name": "st_pair_connect"
   },
   {
    "type": "container",
@@ -5177,6 +5417,8 @@
    "font_size": 15,
    "fg_color": "#8C8A84",
    "text_align": "center",
+   "name": "tx36",
+   "bind": "tx36",
    "parent_name": "st_scan"
   },
   {
@@ -5205,11 +5447,23 @@
    "fg_color": "#F2EFE8",
    "radius": 18,
    "pressed_dim": 48,
+   "callback": "direct_open",
+   "parent_name": "st_scan"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 140,
+   "h": 23,
    "text": "直接连接",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 16,
-   "callback": "direct_open",
-   "parent_name": "st_scan"
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx37",
+   "bind": "tx37",
+   "parent_name": "scan_direct"
   },
   {
    "type": "button",
@@ -5222,11 +5476,23 @@
    "fg_color": "#8C8A84",
    "radius": 18,
    "pressed_dim": 48,
+   "callback": "scan_cancel",
+   "parent_name": "st_scan"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 128,
+   "h": 23,
    "text": "取消",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 16,
-   "callback": "scan_cancel",
-   "parent_name": "st_scan"
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx38",
+   "bind": "tx38",
+   "parent_name": "scan_cancel"
   },
   {
    "type": "container",
@@ -5251,6 +5517,8 @@
    "font_size": 22,
    "fg_color": "#F2EFE8",
    "text_align": "left",
+   "name": "tx39",
+   "bind": "tx39",
    "overflow": "ellipsis",
    "parent_name": "st_connect"
   },
@@ -5265,11 +5533,23 @@
    "fg_color": "#8C8A84",
    "radius": 18,
    "pressed_dim": 24,
+   "callback": "cn_cancel",
+   "parent_name": "st_connect"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 84,
+   "h": 23,
    "text": "取消",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 16,
-   "callback": "cn_cancel",
-   "parent_name": "st_connect"
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx40",
+   "bind": "tx40",
+   "parent_name": "cn_close"
   },
   {
    "type": "button",
@@ -5296,6 +5576,8 @@
    "font_size": 22,
    "fg_color": "#000000",
    "text_align": "left",
+   "name": "tx41",
+   "bind": "tx41",
    "parent_name": "cn_scan"
   },
   {
@@ -5309,6 +5591,8 @@
    "font_size": 15,
    "fg_color": "#4E4D49",
    "text_align": "left",
+   "name": "tx42",
+   "bind": "tx42",
    "parent_name": "cn_scan"
   },
   {
@@ -5336,6 +5620,8 @@
    "font_size": 22,
    "fg_color": "#F2EFE8",
    "text_align": "left",
+   "name": "tx43",
+   "bind": "tx43",
    "parent_name": "cn_direct"
   },
   {
@@ -5349,6 +5635,8 @@
    "font_size": 15,
    "fg_color": "#8C8A84",
    "text_align": "left",
+   "name": "tx44",
+   "bind": "tx44",
    "parent_name": "cn_direct"
   },
   {
@@ -5362,6 +5650,8 @@
    "font_size": 15,
    "fg_color": "#8C8A84",
    "text_align": "center",
+   "name": "tx45",
+   "bind": "tx45",
    "parent_name": "st_connect"
   },
   {
@@ -5375,6 +5665,8 @@
    "font_size": 14,
    "fg_color": "#4E4D49",
    "text_align": "center",
+   "name": "tx46",
+   "bind": "tx46",
    "parent_name": "st_connect"
   },
   {
@@ -5400,6 +5692,8 @@
    "font_size": 22,
    "fg_color": "#F2EFE8",
    "text_align": "left",
+   "name": "tx47",
+   "bind": "tx47",
    "overflow": "ellipsis",
    "parent_name": "st_tls"
   },
@@ -5414,11 +5708,23 @@
    "fg_color": "#8C8A84",
    "radius": 18,
    "pressed_dim": 24,
+   "callback": "tl_cancel",
+   "parent_name": "st_tls"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 84,
+   "h": 23,
    "text": "取消",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 16,
-   "callback": "tl_cancel",
-   "parent_name": "st_tls"
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx48",
+   "bind": "tx48",
+   "parent_name": "tl_close"
   },
   {
    "type": "label",
@@ -5461,6 +5767,8 @@
    "font_size": 22,
    "fg_color": "#000000",
    "text_align": "left",
+   "name": "tx49",
+   "bind": "tx49",
    "parent_name": "tl_plain"
   },
   {
@@ -5474,6 +5782,8 @@
    "font_size": 15,
    "fg_color": "#4E4D49",
    "text_align": "left",
+   "name": "tx50",
+   "bind": "tx50",
    "parent_name": "tl_plain"
   },
   {
@@ -5501,6 +5811,8 @@
    "font_size": 22,
    "fg_color": "#F2EFE8",
    "text_align": "left",
+   "name": "tx51",
+   "bind": "tx51",
    "parent_name": "tl_secure"
   },
   {
@@ -5514,6 +5826,8 @@
    "font_size": 15,
    "fg_color": "#8C8A84",
    "text_align": "left",
+   "name": "tx52",
+   "bind": "tx52",
    "parent_name": "tl_secure"
   },
   {
@@ -5527,7 +5841,252 @@
    "font_size": 14,
    "fg_color": "#4E4D49",
    "text_align": "center",
+   "name": "tx53",
+   "bind": "tx53",
    "parent_name": "st_tls"
+  },
+  {
+   "type": "container",
+   "name": "st_compose",
+   "x": 0,
+   "y": 0,
+   "w": 480,
+   "h": 480,
+   "hidden": true,
+   "parent_name": "ov_status",
+   "bind": "st_compose_vis",
+   "bind_target": "visible"
+  },
+  {
+   "type": "label",
+   "x": 24,
+   "y": 44,
+   "w": 330,
+   "h": 30,
+   "text": "新会话",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 22,
+   "fg_color": "#F2EFE8",
+   "text_align": "left",
+   "name": "tx54",
+   "bind": "tx54",
+   "overflow": "ellipsis",
+   "parent_name": "st_compose"
+  },
+  {
+   "type": "button",
+   "name": "cp_close",
+   "x": 372,
+   "y": 40,
+   "w": 84,
+   "h": 36,
+   "bg_color": "#00000000",
+   "fg_color": "#8C8A84",
+   "radius": 18,
+   "pressed_dim": 24,
+   "callback": "cp_cancel",
+   "parent_name": "st_compose"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 84,
+   "h": 23,
+   "text": "取消",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 16,
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx55",
+   "bind": "tx55",
+   "parent_name": "cp_close"
+  },
+  {
+   "type": "label",
+   "x": 24,
+   "y": 80,
+   "w": 432,
+   "h": 20,
+   "text": "",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 13,
+   "fg_color": "#4E4D49",
+   "text_align": "left",
+   "name": "cp_caption",
+   "bind": "cp_caption",
+   "overflow": "ellipsis",
+   "parent_name": "st_compose"
+  },
+  {
+   "type": "label",
+   "x": 24,
+   "y": 108,
+   "w": 432,
+   "h": 150,
+   "text": "",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 22,
+   "fg_color": "#F2EFE8",
+   "text_align": "left",
+   "name": "cp_text",
+   "bind": "cp_text",
+   "parent_name": "st_compose"
+  },
+  {
+   "type": "label",
+   "x": 24,
+   "y": 264,
+   "w": 432,
+   "h": 22,
+   "text": "",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 14,
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "cp_note",
+   "bind": "cp_note",
+   "overflow": "ellipsis",
+   "parent_name": "st_compose"
+  },
+  {
+   "type": "effect",
+   "name": "cp_listen",
+   "x": 170,
+   "y": 278,
+   "w": 140,
+   "h": 140,
+   "effect": "pulse",
+   "fg_color": "#FFB13B",
+   "playing": true,
+   "period_ms": 1200,
+   "strength": 90,
+   "softness": 85,
+   "hidden": true,
+   "parent_name": "st_compose",
+   "bind": "cp_listen_vis",
+   "bind_target": "visible"
+  },
+  {
+   "type": "button",
+   "name": "cp_mic",
+   "x": 190,
+   "y": 298,
+   "w": 100,
+   "h": 100,
+   "bg_color": "#F2EFE8",
+   "fg_color": "#F2EFE8",
+   "radius": 50,
+   "pressed_dim": 24,
+   "events": [
+    {
+     "event": "press",
+     "action": "call",
+     "callback": "mic_press"
+    },
+    {
+     "event": "release",
+     "action": "call",
+     "callback": "mic_release"
+    },
+    {
+     "event": "cancel",
+     "action": "call",
+     "callback": "mic_release"
+    }
+   ],
+   "hidden": true,
+   "parent_name": "st_compose",
+   "bind": "cp_mic_vis",
+   "bind_target": "visible"
+  },
+  {
+   "type": "image",
+   "x": 34,
+   "y": 22,
+   "w": 32,
+   "h": 32,
+   "image": "icons/mic.svg",
+   "tint": "#000000",
+   "parent_name": "cp_mic"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 62,
+   "w": 100,
+   "h": 20,
+   "text": "",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 13,
+   "fg_color": "#000000",
+   "text_align": "center",
+   "name": "cp_mic_t",
+   "bind": "cp_mic_t",
+   "parent_name": "cp_mic"
+  },
+  {
+   "type": "button",
+   "name": "cp_keys",
+   "x": 24,
+   "y": 416,
+   "w": 200,
+   "h": 48,
+   "bg_color": "#0E0E0D",
+   "fg_color": "#F2EFE8",
+   "radius": 24,
+   "pressed_dim": 48,
+   "border_color": "#2A2926",
+   "border_width": 1,
+   "callback": "cp_keys",
+   "parent_name": "st_compose"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 11,
+   "w": 200,
+   "h": 25,
+   "text": "键盘输入",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 17,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx56",
+   "bind": "tx56",
+   "parent_name": "cp_keys"
+  },
+  {
+   "type": "button",
+   "name": "cp_send",
+   "x": 256,
+   "y": 416,
+   "w": 200,
+   "h": 48,
+   "bg_color": "#F2EFE8",
+   "fg_color": "#000000",
+   "radius": 24,
+   "pressed_dim": 48,
+   "callback": "cp_send",
+   "hidden": true,
+   "parent_name": "st_compose",
+   "bind": "cp_send_vis",
+   "bind_target": "visible"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 11,
+   "w": 200,
+   "h": 25,
+   "text": "发送",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 17,
+   "fg_color": "#000000",
+   "text_align": "center",
+   "name": "tx57",
+   "bind": "tx57",
+   "parent_name": "cp_send"
   },
   {
    "type": "container",
@@ -5568,11 +6127,23 @@
    "fg_color": "#8C8A84",
    "radius": 18,
    "pressed_dim": 24,
+   "callback": "in_cancel",
+   "parent_name": "st_input"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 84,
+   "h": 23,
    "text": "取消",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 16,
-   "callback": "in_cancel",
-   "parent_name": "st_input"
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx58",
+   "bind": "tx58",
+   "parent_name": "in_close"
   },
   {
    "type": "label",
@@ -5657,12 +6228,12 @@
    "ok_color": "#F2EFE8",
    "ok_text_color": "#000000",
    "key_radius": 10,
-   "shift_label": "大写",
-   "delete_label": "删除",
-   "ok_label": "好",
-   "symbols_label": "符号",
-   "letters_label": "字母",
-   "space_label": "空格",
+   "shift_label": "Aa",
+   "delete_label": "←",
+   "ok_label": "OK",
+   "symbols_label": "?123",
+   "letters_label": "ABC",
+   "space_label": "",
    "parent_name": "st_input"
   },
   {
@@ -5688,6 +6259,8 @@
    "font_size": 22,
    "fg_color": "#F2EFE8",
    "text_align": "left",
+   "name": "tx59",
+   "bind": "tx59",
    "overflow": "ellipsis",
    "parent_name": "st_wifi"
   },
@@ -5702,11 +6275,23 @@
    "fg_color": "#8C8A84",
    "radius": 18,
    "pressed_dim": 24,
+   "callback": "wf_cancel",
+   "parent_name": "st_wifi"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 84,
+   "h": 23,
    "text": "取消",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 16,
-   "callback": "wf_cancel",
-   "parent_name": "st_wifi"
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx60",
+   "bind": "tx60",
+   "parent_name": "wf_close"
   },
   {
    "type": "button",
@@ -5719,11 +6304,23 @@
    "fg_color": "#8C8A84",
    "radius": 18,
    "pressed_dim": 24,
+   "callback": "wf_rescan",
+   "parent_name": "st_wifi"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 100,
+   "h": 23,
    "text": "重新扫描",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 16,
-   "callback": "wf_rescan",
-   "parent_name": "st_wifi"
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx61",
+   "bind": "tx61",
+   "parent_name": "wf_rescan"
   },
   {
    "type": "label",
@@ -6305,11 +6902,23 @@
    "fg_color": "#8C8A84",
    "radius": 18,
    "pressed_dim": 24,
+   "callback": "ni_close",
+   "parent_name": "st_netinfo"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 84,
+   "h": 23,
    "text": "返回",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 16,
-   "callback": "ni_close",
-   "parent_name": "st_netinfo"
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx62",
+   "bind": "tx62",
+   "parent_name": "ni_close"
   },
   {
    "type": "label",
@@ -6380,6 +6989,8 @@
    "font_size": 13,
    "fg_color": "#4E4D49",
    "text_align": "left",
+   "name": "tx63",
+   "bind": "tx63",
    "parent_name": "st_netinfo"
   },
   {
@@ -6457,13 +7068,25 @@
    "fg_color": "#F2EFE8",
    "radius": 26,
    "pressed_dim": 48,
-   "text": "选择网络",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 18,
    "border_color": "#2A2926",
    "border_width": 1,
    "callback": "wifi_pick",
    "parent_name": "st_netinfo"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
+   "text": "选择网络",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 18,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx64",
+   "bind": "tx64",
+   "parent_name": "ni_pick"
   },
   {
    "type": "button",
@@ -6476,11 +7099,23 @@
    "fg_color": "#000000",
    "radius": 26,
    "pressed_dim": 48,
+   "callback": "scan_open",
+   "parent_name": "st_netinfo"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
    "text": "扫码加入",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 18,
-   "callback": "scan_open",
-   "parent_name": "st_netinfo"
+   "fg_color": "#000000",
+   "text_align": "center",
+   "name": "tx65",
+   "bind": "tx65",
+   "parent_name": "ni_scan"
   },
   {
    "type": "container",
@@ -6519,11 +7154,23 @@
    "fg_color": "#8C8A84",
    "radius": 18,
    "pressed_dim": 24,
+   "callback": "lk_close",
+   "parent_name": "st_link"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 84,
+   "h": 23,
    "text": "返回",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 16,
-   "callback": "lk_close",
-   "parent_name": "st_link"
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx66",
+   "bind": "tx66",
+   "parent_name": "lk_close"
   },
   {
    "type": "label",
@@ -6600,13 +7247,25 @@
    "fg_color": "#F2EFE8",
    "radius": 26,
    "pressed_dim": 48,
-   "text": "重新连接",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 18,
    "border_color": "#2A2926",
    "border_width": 1,
    "callback": "connect_open",
    "parent_name": "st_link"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 13,
+   "w": 196,
+   "h": 26,
+   "text": "重新连接",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 18,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx67",
+   "bind": "tx67",
+   "parent_name": "lk_rescan"
   },
   {
    "type": "button",
@@ -6680,6 +7339,8 @@
    "font_size": 28,
    "fg_color": "#F2EFE8",
    "text_align": "center",
+   "name": "tx68",
+   "bind": "tx68",
    "parent_name": "ov_hold"
   },
   {
@@ -6693,6 +7354,8 @@
    "font_size": 15,
    "fg_color": "#8C8A84",
    "text_align": "center",
+   "name": "tx69",
+   "bind": "tx69",
    "parent_name": "ov_hold"
   },
   {
@@ -6706,6 +7369,8 @@
    "font_size": 16,
    "fg_color": "#8C8A84",
    "text_align": "center",
+   "name": "tx70",
+   "bind": "tx70",
    "parent_name": "ov_hold"
   },
   {
@@ -6719,6 +7384,8 @@
    "font_size": 16,
    "fg_color": "#8C8A84",
    "text_align": "center",
+   "name": "tx71",
+   "bind": "tx71",
    "parent_name": "ov_hold"
   },
   {
@@ -6993,6 +7660,8 @@
    "font_size": 17,
    "fg_color": "#F2EFE8",
    "text_align": "left",
+   "name": "tx72",
+   "bind": "tx72",
    "parent_name": "cc_dnd_off"
   },
   {
@@ -7006,6 +7675,8 @@
    "font_size": 14,
    "fg_color": "#8C8A84",
    "text_align": "left",
+   "name": "tx73",
+   "bind": "tx73",
    "parent_name": "cc_dnd_off"
   },
   {
@@ -7033,6 +7704,8 @@
    "font_size": 17,
    "fg_color": "#000000",
    "text_align": "left",
+   "name": "tx74",
+   "bind": "tx74",
    "parent_name": "cc_dnd_on"
   },
   {
@@ -7046,6 +7719,8 @@
    "font_size": 14,
    "fg_color": "#3A3936",
    "text_align": "left",
+   "name": "tx75",
+   "bind": "tx75",
    "parent_name": "cc_dnd_on"
   },
   {
@@ -7086,6 +7761,8 @@
    "font_size": 17,
    "fg_color": "#F2EFE8",
    "text_align": "left",
+   "name": "tx76",
+   "bind": "tx76",
    "parent_name": "cc_sound_off"
   },
   {
@@ -7099,6 +7776,8 @@
    "font_size": 14,
    "fg_color": "#8C8A84",
    "text_align": "left",
+   "name": "tx77",
+   "bind": "tx77",
    "parent_name": "cc_sound_off"
   },
   {
@@ -7126,6 +7805,8 @@
    "font_size": 17,
    "fg_color": "#000000",
    "text_align": "left",
+   "name": "tx78",
+   "bind": "tx78",
    "parent_name": "cc_sound_on"
   },
   {
@@ -7139,6 +7820,8 @@
    "font_size": 14,
    "fg_color": "#3A3936",
    "text_align": "left",
+   "name": "tx79",
+   "bind": "tx79",
    "parent_name": "cc_sound_on"
   },
   {
@@ -7179,6 +7862,8 @@
    "font_size": 17,
    "fg_color": "#F2EFE8",
    "text_align": "left",
+   "name": "tx80",
+   "bind": "tx80",
    "parent_name": "cc_haptic_off"
   },
   {
@@ -7192,6 +7877,8 @@
    "font_size": 14,
    "fg_color": "#8C8A84",
    "text_align": "left",
+   "name": "tx81",
+   "bind": "tx81",
    "parent_name": "cc_haptic_off"
   },
   {
@@ -7219,6 +7906,8 @@
    "font_size": 17,
    "fg_color": "#000000",
    "text_align": "left",
+   "name": "tx82",
+   "bind": "tx82",
    "parent_name": "cc_haptic_on"
   },
   {
@@ -7232,6 +7921,8 @@
    "font_size": 14,
    "fg_color": "#3A3936",
    "text_align": "left",
+   "name": "tx83",
+   "bind": "tx83",
    "parent_name": "cc_haptic_on"
   },
   {
@@ -7286,9 +7977,6 @@
    "bg_color": "#171716",
    "fg_color": "#F2EFE8",
    "radius": 18,
-   "text": "自动",
-   "font": "fonts/NotoSansSC-Farol.ttf",
-   "font_size": 14,
    "border_color": "#3A3936",
    "border_width": 1,
    "callback": "cc_auto",
@@ -7296,6 +7984,21 @@
    "bind": "cc_auto_bg",
    "bind_target": "color",
    "pressed_color": "#2A2926"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 8,
+   "w": 68,
+   "h": 20,
+   "text": "自动",
+   "font": "fonts/NotoSansSC-Farol.ttf",
+   "font_size": 14,
+   "fg_color": "#F2EFE8",
+   "text_align": "center",
+   "name": "tx84",
+   "bind": "tx84",
+   "parent_name": "cc_auto"
   },
   {
    "type": "label",
@@ -7324,11 +8027,23 @@
    "fg_color": "#8C8A84",
    "radius": 16,
    "pressed_dim": 24,
+   "callback": "cc_about",
+   "parent_name": "cc"
+  },
+  {
+   "type": "label",
+   "x": 0,
+   "y": 6,
+   "w": 100,
+   "h": 20,
    "text": "关于 ›",
    "font": "fonts/NotoSansSC-Farol.ttf",
    "font_size": 14,
-   "callback": "cc_about",
-   "parent_name": "cc"
+   "fg_color": "#8C8A84",
+   "text_align": "center",
+   "name": "tx85",
+   "bind": "tx85",
+   "parent_name": "cc_about"
   },
   {
    "type": "rect",

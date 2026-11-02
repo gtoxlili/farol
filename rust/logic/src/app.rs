@@ -18,8 +18,13 @@ use crate::sys::{
     Sys, WifiCmd,
 };
 
+mod compose;
 mod setup;
+
+use crate::lang::Lang;
 use crate::ui::{Painter, Ui};
+use compose::Compose;
+pub(crate) use compose::Voice;
 
 /// Pages of the `screens` PageFlow; page 0 is usage.
 pub const HOME: u16 = 1;
@@ -133,6 +138,8 @@ pub enum Overlay {
         host: String,
         port: u16,
     },
+    /// A new agent session: talk or type, then send.
+    Compose,
     /// Typing on the on-screen keyboard.
     Input {
         entry: Entry,
@@ -160,6 +167,8 @@ pub enum Entry {
     Password { host: String, port: u16, tls: bool },
     /// The daemon password, which Paseo asked for while connecting.
     DaemonPassword { config: Config },
+    /// The first prompt of a new session (the keyboard has Latin letters only).
+    Prompt,
     /// The password of the Wi-Fi network `ssid`.
     WifiPassword { ssid: String },
 }
@@ -245,6 +254,10 @@ pub struct App {
     /// A connection made on this board has not reached Paseo yet: a refused
     /// password asks for it.
     pairing: bool,
+    /// The new-session page.
+    pub(crate) compose: Compose,
+    /// An agent started here: its card shows once a snapshot carries it.
+    show_next: Option<String>,
     /// Board settings last sent to (or taken from) Paseo; a difference is a
     /// change made on the board, which goes out with the next poll.
     synced: Option<BoardPrefs>,
@@ -320,6 +333,8 @@ impl App {
             last_sync: None,
             keyboard_again: false,
             pairing: false,
+            compose: Compose::default(),
+            show_next: None,
             synced: None,
             settings_rev: None,
             quiet: (0, 0),
@@ -349,6 +364,10 @@ impl App {
             wifi_phase: 0,
             last_second: now_ms / 1000,
         };
+        // The scene starts with its Chinese texts.
+        for (bind, zh, _) in crate::scene::TEXTS {
+            app.painter.assume_text(bind, zh);
+        }
         app.update_overlay();
         app
     }
@@ -359,7 +378,7 @@ impl App {
     pub fn start_demo(&mut self, offset_ms: u64) {
         let epoch = self.epoch().unwrap_or(crate::demo::EPOCH_MS);
         self.session.configure(None, self.now);
-        self.demo = Some(Demo::new(self.now, epoch, offset_ms));
+        self.demo = Some(Demo::new(self.now, epoch, offset_ms, self.lang()));
         self.reset_fleet();
         self.host = String::from("demo");
         self.overlay = Overlay::None;
@@ -416,6 +435,8 @@ impl App {
                 Link::Closed(why) => self.session.on_close(self.now, why),
                 Link::Text(text) => self.session.on_text(self.now, &text),
             },
+            Event::Audio(pcm) => self.audio(&pcm),
+            Event::AudioEnd => self.audio_end(),
             Event::Net(net) => self.on_net(net),
             Event::Power(power) => self.power = power,
             Event::Button(button) => {
@@ -449,7 +470,11 @@ impl App {
             Event::NoCamera => {
                 if self.overlay == Overlay::Scan {
                     sys.camera(false);
-                    self.note_on("", "没有检测到摄像头模块：请改用手动输入");
+                    let text = self.lang().pick(
+                        "没有检测到摄像头模块：请改用直接连接",
+                        "No camera module: use a direct connection",
+                    );
+                    self.note_on("", text);
                 }
             }
             Event::Networks(networks) => {
@@ -525,9 +550,13 @@ impl App {
                 self.drift(ui);
             }
         }
+        self.poll_compose(sys);
         if self.overlay == Overlay::Scan && now_ms >= self.scan_since + SCAN_HINT_MS {
             self.scan_since = now_ms;
-            self.note_on("", "认不出来：换个角度试试，或者改用手动输入");
+            let text = self
+                .lang()
+                .pick("认不出来：换个角度试试", "Can't read it: try another angle");
+            self.note_on("", text);
         }
         self.last_second = now_ms / 1000;
         self.after(ui, sys);
@@ -545,6 +574,7 @@ impl App {
         if self.overlay == Overlay::Scan {
             next = next.min(self.scan_since + SCAN_HINT_MS);
         }
+        next = next.min(self.compose_deadline());
         if self.render_retry {
             next = next.min(self.now + RENDER_RETRY_MS);
         }
@@ -595,6 +625,7 @@ impl App {
         if core::mem::take(&mut self.keyboard_again) {
             self.attach_keyboard(ui);
         }
+        self.show_started(ui);
         if ripple {
             self.painter.run(ui.set_i32(
                 gsp::GSP_OBJ_KEY_LAMP,
@@ -624,7 +655,12 @@ impl App {
                     }
                 }
                 Notice::Snapshot(snapshot) => self.apply(snapshot, sys),
-                Notice::Acted { token, result } => self.acted(token, &result, sys),
+                Notice::Acted { token, result } => {
+                    if !self.started(token, &result, sys) {
+                        self.acted(token, &result, sys);
+                    }
+                }
+                Notice::Heard(heard) => self.heard(heard, sys),
                 Notice::Down(down) => {
                     if matches!(down, Down::Auth | Down::NeedPassword) {
                         self.password_needed(&down);
@@ -641,7 +677,7 @@ impl App {
 
     fn on_call(&mut self, action: u32, arg: i32, ui: &mut impl Ui, sys: &mut impl Sys) {
         use gsp::*;
-        if self.setup_call(action, ui, sys) {
+        if self.setup_call(action, ui, sys) || self.compose_call(action, ui, sys) {
             return;
         }
         let option = |press, long, release, cancel| -> Option<(usize, u8)> {
@@ -705,6 +741,10 @@ impl App {
         }
         match action {
             GSP_ACT_ID_LAMP_TAP => self.jump_to_urgent(ui, sys),
+            GSP_ACT_ID_LAMP_LONG => {
+                self.open_compose();
+                self.feel(Haptic::Tick, sys);
+            }
             GSP_ACT_ID_HOLD_PRESS => self.hold_pressed(sys),
             GSP_ACT_ID_HOLD_RELEASE | GSP_ACT_ID_HOLD_CANCEL => {
                 if self.hold.take().is_some_and(|h| h.shown) {
@@ -815,14 +855,9 @@ impl App {
                     self.jump_to_urgent(ui, sys);
                 }
             }
-            Button::AiLong => {
-                self.dnd_until = if self.dnd() {
-                    None
-                } else {
-                    Some(self.now + DND_MS)
-                };
-                self.feel(Haptic::Confirm, sys);
-            }
+            // Hold to talk: a new session by voice (the page explains when it can't).
+            Button::AiLong => self.talk(sys),
+            Button::AiRelease => self.talked(sys),
             Button::Prev | Button::Next => {
                 if self.screen != DECK || self.order.len() < 2 {
                     return;
@@ -868,6 +903,14 @@ impl App {
     fn apply(&mut self, mut snapshot: Snapshot, sys: &mut impl Sys) {
         if snapshot.v != crate::model::VERSION {
             return;
+        }
+        // The board speaks the Paseo app's language (kept for the pages
+        // shown before Paseo answers).
+        if let Some(lang) = snapshot.lang.as_deref().and_then(Lang::parse)
+            && lang != self.prefs.lang
+        {
+            self.prefs.lang = lang;
+            sys.save_prefs(&self.prefs);
         }
         if let Some(settings) = snapshot.settings {
             self.apply_settings(settings, sys);
@@ -1092,7 +1135,10 @@ impl App {
         }
         if self.read_only() {
             let id = agent.id.clone();
-            self.note_on(&id, "只读模式：在 Paseo 里回答");
+            let text = self
+                .lang()
+                .pick("只读模式：在 Paseo 里回答", "Read-only: answer in Paseo");
+            self.note_on(&id, text);
             return;
         }
         self.press = Some(Press {
@@ -1139,7 +1185,10 @@ impl App {
             return;
         }
         if self.read_only() {
-            self.note_on(&id, "只读模式：在 Paseo 里停止");
+            let text = self
+                .lang()
+                .pick("只读模式：在 Paseo 里停止", "Read-only: stop it in Paseo");
+            self.note_on(&id, text);
             return;
         }
         self.hold = Some(Hold {
@@ -1218,7 +1267,11 @@ impl App {
             false
         };
         if !sent && kind != ActKind::Seen {
-            self.note_on(agent, "未连接 Paseo，没有发出去");
+            let text = self.lang().pick(
+                "未连接 Paseo，没有发出去",
+                "Not connected to Paseo; nothing sent",
+            );
+            self.note_on(agent, text);
             self.feel(Haptic::Fail, sys);
         }
         sent
@@ -1230,7 +1283,10 @@ impl App {
         };
         if result.ok {
             if pending.kind == ActKind::Stop {
-                self.note_on(&pending.agent, "已请求停止这一轮");
+                let text = self
+                    .lang()
+                    .pick("已请求停止这一轮", "Stop requested for this turn");
+                self.note_on(&pending.agent, text);
             }
             return;
         }
@@ -1239,14 +1295,21 @@ impl App {
         if pending.kind == ActKind::Seen {
             return;
         }
+        let l = self.lang();
         let text = match result.reason.as_str() {
-            "already_resolved" if pending.kind == ActKind::Stop => String::from("这一轮已经结束了"),
-            "already_resolved" => String::from("已在别处回答"),
-            "read_only" => String::from("只读模式：在 Paseo 里操作"),
-            "disconnected" => String::from("连接断了，没有发出去"),
-            "not_found" => String::from("这个 agent 已经不在了"),
-            _ if result.message.is_empty() => String::from("没有发出去"),
-            _ => alloc::format!("没有发出去：{}", result.message),
+            "already_resolved" if pending.kind == ActKind::Stop => {
+                String::from(l.pick("这一轮已经结束了", "This turn already ended"))
+            }
+            "already_resolved" => String::from(l.pick("已在别处回答", "Answered elsewhere")),
+            "read_only" => {
+                String::from(l.pick("只读模式：在 Paseo 里操作", "Read-only: act in Paseo"))
+            }
+            "disconnected" => {
+                String::from(l.pick("连接断了，没有发出去", "Disconnected; nothing sent"))
+            }
+            "not_found" => String::from(l.pick("这个 agent 已经不在了", "This agent is gone")),
+            _ if result.message.is_empty() => String::from(l.pick("没有发出去", "Not sent")),
+            _ => crate::tr!(l, "没有发出去：{}", "Not sent: {}", result.message),
         };
         self.note_on(&pending.agent, &text);
         self.feel(Haptic::Fail, sys);
@@ -1381,6 +1444,7 @@ impl App {
     fn update_overlay(&mut self) {
         match self.overlay {
             Overlay::Connect
+            | Overlay::Compose
             | Overlay::Pair { .. }
             | Overlay::Tls { .. }
             | Overlay::Scan
@@ -1494,6 +1558,36 @@ impl App {
     pub(crate) fn down(&self) -> &Down {
         self.session.down()
     }
+
+    /// The board's language.
+    pub(crate) fn lang(&self) -> Lang {
+        self.prefs.lang
+    }
+
+    /// Sets the language before anything ran (the simulator's FAROL_SIM_LANG).
+    pub fn set_lang(&mut self, lang: Lang) {
+        self.prefs.lang = lang;
+    }
+
+    /// The card of an agent started here, once a snapshot carries it.
+    fn show_started(&mut self, ui: &mut impl Ui) {
+        let Some(id) = &self.show_next else {
+            return;
+        };
+        let Some(at) = self
+            .order
+            .iter()
+            .position(|&i| self.snapshot.agents.get(i).is_some_and(|a| &a.id == id))
+        else {
+            return;
+        };
+        self.show_next = None;
+        self.deck = at;
+        self.fill_slots();
+        self.painter.page(ui, gsp::GSP_OBJ_KEY_SCREENS, DECK, true);
+        self.screen = DECK;
+        self.update_focus();
+    }
 }
 
 /// Swallows effects (the demo's first snapshot, before any platform exists).
@@ -1513,6 +1607,7 @@ impl Sys for NullSys {
     fn random(&mut self, out: &mut [u8]) {
         out.fill(0);
     }
+    fn listen(&mut self, _: bool) {}
 }
 
 #[cfg(test)]
@@ -1599,6 +1694,7 @@ mod tests {
         display: Option<Display>,
         glows: usize,
         saved: Option<Config>,
+        listening: bool,
     }
 
     impl Sys for Effects {
@@ -1620,6 +1716,9 @@ mod tests {
         fn camera(&mut self, _: bool) {}
         fn random(&mut self, out: &mut [u8]) {
             out.fill(7);
+        }
+        fn listen(&mut self, on: bool) {
+            self.listening = on;
         }
     }
 
@@ -1868,6 +1967,53 @@ mod tests {
         app.handle(9, Event::Link(Link::Opened), &mut ui, &mut sys);
         app.handle(10, rejected("incorrect_password"), &mut ui, &mut sys);
         assert!(!matches!(&app.overlay, Overlay::Input { .. }));
+    }
+
+    #[test]
+    fn a_session_started_by_voice_opens_its_card() {
+        let (mut app, mut ui, mut sys) =
+            (App::new(0, "test"), NullUi::default(), Effects::default());
+        app.start_demo(0);
+        app.handle(1, Event::Button(Button::AiLong), &mut ui, &mut sys);
+        assert_eq!(app.overlay, Overlay::Compose);
+        assert_eq!(app.compose.voice, Voice::Listening);
+        app.handle(2, Event::Button(Button::AiRelease), &mut ui, &mut sys);
+        assert_eq!(app.compose.voice, Voice::Transcribing);
+        app.poll(1_000, &mut ui, &mut sys);
+        assert_eq!(app.compose.voice, Voice::Idle);
+        assert!(!app.compose.text.is_empty());
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_CP_SEND);
+        assert_eq!(app.overlay, Overlay::None);
+        assert_eq!(app.screen, DECK);
+        assert_eq!(app.current_agent().map(|a| a.id.as_str()), Some("new-1"));
+    }
+
+    #[test]
+    fn without_paseo_the_ai_key_explains_instead_of_recording() {
+        let (mut app, mut ui, mut sys) =
+            (App::new(0, "test"), NullUi::default(), Effects::default());
+        app.handle(1, Event::Button(Button::AiLong), &mut ui, &mut sys);
+        assert_eq!(app.overlay, Overlay::Compose);
+        assert_eq!(app.compose.voice, Voice::Idle);
+        assert!(app.compose_blocked().is_some());
+        assert!(!sys.listening);
+    }
+
+    #[test]
+    fn the_board_speaks_paseos_language_and_keeps_it() {
+        let (mut app, _, mut sys) = board(vec![]);
+        let with = |lang: Option<&str>| Snapshot {
+            v: VERSION,
+            now: T,
+            lang: lang.map(Into::into),
+            ..Default::default()
+        };
+        app.apply(with(Some("en")), &mut sys);
+        assert_eq!(app.lang(), Lang::En);
+        app.apply(with(None), &mut sys);
+        assert_eq!(app.lang(), Lang::En);
+        app.apply(with(Some("zh")), &mut sys);
+        assert_eq!(app.lang(), Lang::Zh);
     }
 
     #[test]

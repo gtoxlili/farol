@@ -100,6 +100,9 @@ impl Sys for Board {
     fn random(&mut self, out: &mut [u8]) {
         board::random(out);
     }
+    fn listen(&mut self, on: bool) {
+        feedback::listen(on);
+    }
 }
 
 /// State of the logic task, its single owner.

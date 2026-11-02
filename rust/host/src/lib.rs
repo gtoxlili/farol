@@ -79,6 +79,10 @@ impl Sys for SimSys {
             out.fill(0);
         }
     }
+    fn listen(&mut self, on: bool) {
+        // The demo answers voice itself; nothing records here.
+        eprintln!("farol sim: listen {on}");
+    }
     fn save_prefs(&mut self, prefs: &Prefs) {
         eprintln!("farol sim: save prefs {prefs:?}");
     }
@@ -209,6 +213,10 @@ pub unsafe extern "C" fn app_logic_host_start(handle: gsp::esp_gsp_handle_t) -> 
         return invalid;
     }
     let mut app = App::new(0, "5im0");
+    // FAROL_SIM_LANG=en shows the board in English (the demo data too).
+    if std::env::var("FAROL_SIM_LANG").is_ok_and(|l| l == "en") {
+        app.set_lang(logic::lang::Lang::En);
+    }
     let mode = std::env::var("FAROL_SIM").unwrap_or_default();
     if mode != "welcome" {
         // FAROL_SIM_T=<ms> starts the demo script that far in (checks jump to a moment).

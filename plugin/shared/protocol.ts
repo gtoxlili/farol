@@ -96,6 +96,10 @@ export const SnapshotSchema = z.object({
   agents: z.array(AgentSchema),
   usage: z.array(WindowSchema),
   fuel: FuelSchema.optional(),
+  /** The Paseo app's language for the board; absent when unknown (the board keeps its own). */
+  lang: z.enum(["zh", "en"]).optional(),
+  /** New sessions from the board start here; absent without a default workspace and profile, or read-only. */
+  compose: z.object({ workspace: z.string().max(120) }).optional(),
 });
 export type Snapshot = z.infer<typeof SnapshotSchema>;
 
@@ -135,15 +139,24 @@ export const ActSchema = z.object({
 });
 export type Act = z.infer<typeof ActSchema>;
 
-export const ACT_REASONS = ["already_resolved", "read_only", "not_found", "failed"] as const;
+export const ACT_REASONS = ["already_resolved", "read_only", "not_found", "failed", "no_workspace"] as const;
 export type ActReason = (typeof ACT_REASONS)[number];
 
 export const ActResultSchema = z.object({
   ok: z.boolean(),
   reason: z.enum(ACT_REASONS).optional(),
   message: z.string().optional(),
+  /** `farol.start`: the new agent. */
+  agent: z.string().optional(),
 });
 export type ActResult = z.infer<typeof ActResultSchema>;
+
+/** `farol.start`: a new agent session in the default workspace, `text` its first prompt. */
+export const StartSchema = z.object({
+  device: deviceId,
+  text: z.string().trim().min(1).max(4000),
+});
+export type Start = z.infer<typeof StartSchema>;
 
 /** Long poll: answers when the board's view changed past `cursor`, else idle within 20 s. */
 export const nextRpc = defineRpc({ name: "farol.next", input: NextSchema, output: SnapshotSchema });
@@ -157,3 +170,6 @@ export const focusRpc = defineRpc({
 
 /** Answer, stop or mark seen. */
 export const actRpc = defineRpc({ name: "farol.act", input: ActSchema, output: ActResultSchema });
+
+/** Starts a session (typed or dictated on the board); answers with the new agent's id. */
+export const startRpc = defineRpc({ name: "farol.start", input: StartSchema, output: ActResultSchema });

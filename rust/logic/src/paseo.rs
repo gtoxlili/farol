@@ -24,8 +24,9 @@ use alloc::vec::Vec;
 
 use serde_json::{Value, json};
 
+use crate::dictation::{self, Dictation, Heard};
 pub use crate::endpoint::Config;
-use crate::model::{self, Act, ActResult, BoardPrefs, Snapshot};
+use crate::model::{self, Act, ActResult, BoardPrefs, Snapshot, Start};
 use crate::relay;
 
 /// Plugin id the RPCs address.
@@ -93,9 +94,16 @@ pub enum Out {
 /// What the session tells the app.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Notice {
-    Ready { host: String },
+    Ready {
+        host: String,
+    },
     Snapshot(Snapshot),
-    Acted { token: u32, result: ActResult },
+    Acted {
+        token: u32,
+        result: ActResult,
+    },
+    /// Dictation progress; `Final` and `Failed` end the stream.
+    Heard(Heard),
     Down(Down),
 }
 
@@ -138,6 +146,10 @@ pub struct Session {
     poll: Option<String>,
     poll_retry_at: Option<u64>,
     acts: BTreeMap<String, u32>,
+    /// The daemon's speech-to-text is ready (`server_info`).
+    dictation_ready: bool,
+    dictation: Option<Dictation>,
+    dictations: u32,
     cursor: u64,
     focus: Option<String>,
     /// Board settings the plugin has not confirmed yet.
@@ -168,6 +180,9 @@ impl Session {
             poll: None,
             poll_retry_at: None,
             acts: BTreeMap::new(),
+            dictation_ready: false,
+            dictation: None,
+            dictations: 0,
             cursor: 0,
             focus: None,
             prefs: None,
@@ -433,15 +448,36 @@ impl Session {
     fn on_session(&mut self, now: u64, message: &Value) {
         match message["type"].as_str() {
             Some("status") if message["payload"]["status"] == "server_info" => {
-                let host = message["payload"]["hostname"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string();
+                let payload = &message["payload"];
+                self.dictation_ready =
+                    payload["capabilities"]["voice"]["dictation"]["enabled"] == true;
+                // The daemon sends it again when its capabilities change.
+                if self.phase == Phase::Ready {
+                    return;
+                }
+                let host = payload["hostname"].as_str().unwrap_or("").to_string();
                 self.phase = Phase::Ready;
                 self.failures = 0;
                 self.set_down(Down::None);
                 self.notices.push(Notice::Ready { host });
                 self.send_poll(now);
+            }
+            Some(kind) if kind.starts_with("dictation_stream_") => {
+                let Some(stream) = &mut self.dictation else {
+                    return;
+                };
+                let Some((frames, heard)) = stream.on_message(now, message) else {
+                    return;
+                };
+                for frame in frames {
+                    self.send(frame);
+                }
+                if let Some(heard) = heard {
+                    if matches!(heard, Heard::Final(_) | Heard::Failed(_)) {
+                        self.dictation = None;
+                    }
+                    self.notices.push(Notice::Heard(heard));
+                }
             }
             Some("plugin.rpc.invoke.response") => {
                 let payload = &message["payload"];
@@ -489,6 +525,7 @@ impl Session {
                 ok: false,
                 reason: "failed".into(),
                 message: "unreadable reply".into(),
+                ..Default::default()
             });
             self.notices.push(Notice::Acted { token, result });
         }
@@ -512,6 +549,7 @@ impl Session {
                 ok: false,
                 reason: "failed".into(),
                 message: error.to_string(),
+                ..Default::default()
             };
             self.notices.push(Notice::Acted { token, result });
         }
@@ -519,6 +557,16 @@ impl Session {
 
     /// Time-driven work: reconnects, pings, timeouts, poll retries.
     pub fn poll(&mut self, now: u64) {
+        if self
+            .dictation
+            .as_ref()
+            .and_then(Dictation::due)
+            .is_some_and(|due| now >= due)
+        {
+            self.dictate_cancel();
+            self.notices
+                .push(Notice::Heard(Heard::Failed(String::from("timeout"))));
+        }
         match self.phase {
             Phase::Backoff { until } if now >= until => self.retry_now(now),
             Phase::Connecting { since } if now.saturating_sub(since) > HELLO_TIMEOUT_MS * 2 => {
@@ -565,6 +613,15 @@ impl Session {
 
     /// When [`Session::poll`] next has work, at the latest.
     pub fn next_deadline(&self) -> u64 {
+        let due = self
+            .dictation
+            .as_ref()
+            .and_then(Dictation::due)
+            .unwrap_or(u64::MAX);
+        due.min(self.phase_deadline())
+    }
+
+    fn phase_deadline(&self) -> u64 {
         match self.phase {
             Phase::Backoff { until } => until,
             Phase::Connecting { since } => since + HELLO_TIMEOUT_MS * 2,
@@ -590,6 +647,74 @@ impl Session {
         let id = self.rpc("farol.act", input);
         self.acts.insert(id, token);
         true
+    }
+
+    /// Starts a new agent session (`farol.start`); the answer comes back as
+    /// [`Notice::Acted`] with `token`. False when the session cannot send now.
+    pub fn start(&mut self, start: &Start, token: u32) -> bool {
+        if self.phase != Phase::Ready {
+            return false;
+        }
+        let input = serde_json::to_value(start).unwrap_or(Value::Null);
+        let id = self.rpc("farol.start", input);
+        self.acts.insert(id, token);
+        true
+    }
+
+    /// Paseo's dictation is configured and the session is up.
+    pub fn can_dictate(&self) -> bool {
+        self.phase == Phase::Ready && self.dictation_ready
+    }
+
+    /// Starts a dictation stream (dropping any earlier one). False when
+    /// dictation is not available now.
+    pub fn dictate(&mut self) -> bool {
+        if !self.can_dictate() {
+            return false;
+        }
+        self.dictate_cancel();
+        self.dictations = self.dictations.wrapping_add(1);
+        let (stream, frame) = Dictation::start(&dictation::id(&self.device, self.dictations));
+        self.dictation = Some(stream);
+        self.send(frame);
+        true
+    }
+
+    /// Recorded PCM (16 kHz mono s16le) for the current stream.
+    pub fn dictate_audio(&mut self, pcm: &[u8]) {
+        let Some(stream) = &mut self.dictation else {
+            return;
+        };
+        for frame in stream.audio(pcm) {
+            self.send(frame);
+        }
+    }
+
+    /// The user let go: the transcript follows as [`Notice::Heard`].
+    pub fn dictate_end(&mut self, now: u64) {
+        let Some(stream) = &mut self.dictation else {
+            return;
+        };
+        // Nothing was recorded: nothing to transcribe.
+        if stream.is_empty() {
+            self.dictate_cancel();
+            self.notices
+                .push(Notice::Heard(Heard::Final(String::new())));
+            return;
+        }
+        for frame in stream.finish(now) {
+            self.send(frame);
+        }
+    }
+
+    /// Drops the current stream without a transcript.
+    pub fn dictate_cancel(&mut self) {
+        if let Some(stream) = self.dictation.take()
+            && self.phase == Phase::Ready
+        {
+            let frame = stream.cancel();
+            self.send(frame);
+        }
     }
 
     /// The card on screen changed; the plugin answers the waiting poll at once.
@@ -666,6 +791,10 @@ impl Session {
     fn reset_requests(&mut self) {
         self.poll = None;
         self.poll_retry_at = None;
+        if self.dictation.take().is_some() {
+            self.notices
+                .push(Notice::Heard(Heard::Failed(String::from("disconnected"))));
+        }
         for (_, token) in core::mem::take(&mut self.acts) {
             self.notices.push(Notice::Acted {
                 token,
@@ -673,6 +802,7 @@ impl Session {
                     ok: false,
                     reason: "disconnected".into(),
                     message: String::new(),
+                    ..Default::default()
                 },
             });
         }

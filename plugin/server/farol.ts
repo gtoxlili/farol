@@ -5,12 +5,13 @@
 import { execFile } from "node:child_process";
 import os from "node:os";
 import type { PaseoApi } from "@getpaseo/client";
-import type { Act, ActResult, BoardPrefs, BoardSettings, Snapshot } from "../shared/protocol";
+import type { Act, ActResult, BoardPrefs, BoardSettings, Snapshot, Start } from "../shared/protocol";
 import { DEFAULT_SETTINGS, type Settings, TIMELINE_KIND } from "../shared/settings";
 import { Actions, type PermissionResponse } from "./actions";
 import type { AgentFacts } from "./digest";
 import { boardSettingsOf, digest } from "./digest";
 import { Observer } from "./observer";
+import { boardLanguage, type ProfileFacts, type StartPorts, startSession } from "./start";
 import { findPaseoCli, runStop } from "./stop";
 import { Stream } from "./stream";
 
@@ -30,6 +31,11 @@ export class Farol {
   private readonly cli: string | null = findPaseoCli();
   private host = os.hostname().replace(/\.local$/, "");
   private closed = false;
+  /** The Paseo app's language, as its client last reported (null until one does). */
+  private appLocale: string | null = null;
+  /** The default workspace's name, for the boards' new-session page. */
+  private workspaceName: string | null = null;
+  private readonly starter: StartPorts;
 
   constructor(private readonly log: { info(...a: unknown[]): void; warn(...a: unknown[]): void } = console) {
     this.stream = new Stream({ build: (focus) => this.build(focus) });
@@ -73,6 +79,26 @@ export class Farol {
       },
       log: this.log,
     });
+    this.starter = {
+      settings: () => this.settings,
+      profile: async (id) => {
+        const { config } = await (await this.paseo()).config.get();
+        const found = config.agentProfiles?.find((p) => p.id === id);
+        return (found as ProfileFacts | undefined) ?? null;
+      },
+      defaultModel: async (provider) => {
+        // Discovery is lazy: right after a (re)start the snapshot has no models yet.
+        const snapshot = await (await this.paseo()).providers.waitForReady();
+        const entry = snapshot.entries.find((e) => e.provider === provider);
+        const models = entry?.models ?? [];
+        return (models.find((m) => m.isDefault) ?? models[0])?.id ?? null;
+      },
+      create: async (workspaceId, input) => {
+        const agent = await (await this.paseo()).workspaces.ref(workspaceId).agents.create(input);
+        return { id: agent.id };
+      },
+      log: this.log,
+    };
     if (process.platform === "darwin") {
       execFile("scutil", ["--get", "ComputerName"], { timeout: 2000 }, (error, stdout) => {
         const name = stdout?.trim();
@@ -96,11 +122,50 @@ export class Farol {
     return this.host;
   }
 
+  /** The language boards use now, or null while unknown. */
+  get boardLanguage(): "zh" | "en" | null {
+    return boardLanguage(this.settings.boardLanguage, this.appLocale) ?? null;
+  }
+
+  /** A Paseo app reported its language; boards on "auto" follow the latest. */
+  setLocale(locale: string): void {
+    if (locale === this.appLocale) return;
+    this.appLocale = locale;
+    this.stream.changed();
+  }
+
+  /** `farol.start`: a new session from a board. */
+  async start(paseo: PaseoApi, input: Start): Promise<ActResult> {
+    await this.ensure(paseo);
+    const result = await startSession(this.starter, input);
+    if (result.ok) this.stream.changed();
+    return result;
+  }
+
+  /** Looks up the default workspace's name for the boards. */
+  private async refreshWorkspace(): Promise<void> {
+    const id = this.settings.workspaceId;
+    if (!id || !this.apiValue) {
+      this.workspaceName = null;
+      return;
+    }
+    try {
+      const workspace = await this.apiValue.workspaces.ref(id).refresh();
+      if (this.settings.workspaceId !== id) return;
+      this.workspaceName = workspace?.name ?? null;
+    } catch (error) {
+      this.log.warn("farol: workspace lookup failed", String(error));
+      this.workspaceName = null;
+    }
+    this.stream.changed();
+  }
+
   /** Starts observing with the API from a plugin context; idempotent. */
   ensure(paseo: PaseoApi): Promise<Observer> {
     if (this.observer) return Promise.resolve(this.observer);
     if (!this.starting) {
       this.apiValue = paseo;
+      void this.refreshWorkspace();
       const observer = new Observer(paseo, () => this.stream.changed(), this.log);
       this.starting = observer
         .start(this.settings.includeBackground)
@@ -129,7 +194,9 @@ export class Farol {
 
   setSettings(next: Settings): void {
     const background = next.includeBackground !== this.settings.includeBackground;
+    const workspace = next.workspaceId !== this.settings.workspaceId;
     this.settings = next;
+    if (workspace) void this.refreshWorkspace();
     if (background) void this.observer?.setIncludeBackground(next.includeBackground);
     this.updateBoardSettings();
   }
@@ -230,6 +297,11 @@ export class Farol {
       canStop: this.cli !== null,
       now: Date.now(),
       boardSettings: this.boardSettings,
+      lang: boardLanguage(this.settings.boardLanguage, this.appLocale),
+      compose:
+        this.settings.allowActions && this.settings.workspaceId && this.settings.profileId
+          ? { workspace: this.workspaceName ?? this.settings.workspaceId }
+          : undefined,
     });
   }
 }
