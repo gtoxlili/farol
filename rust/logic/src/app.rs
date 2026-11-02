@@ -15,8 +15,8 @@ use crate::model::{Act, ActKind, ActResult, Agent, Snapshot, State};
 use crate::paseo::{Config, Down, Notice, Out, Session};
 use crate::qr::{self, Code};
 use crate::sys::{
-    Button, Chime, Display, Event, Glow, Haptic, Link, Motion, Net, NetState, Power, Prefs, Sys,
-    WifiCmd,
+    Ap, Button, Chime, Display, Event, Glow, Haptic, Link, Motion, Net, NetState, Power, Prefs,
+    Sys, WifiCmd,
 };
 use crate::ui::{Painter, Ui};
 
@@ -163,6 +163,8 @@ pub struct App {
     stopped_here: BTreeSet<String>,
     pub(crate) note: Option<Note>,
     pub(crate) net: Net,
+    /// The last Wi-Fi scan, strongest first.
+    pub(crate) networks: Vec<Ap>,
     net_down_since: Option<u64>,
     paseo_down_since: Option<u64>,
     pub(crate) banner_dismissed: bool,
@@ -216,6 +218,7 @@ impl App {
             stopped_here: BTreeSet::new(),
             note: None,
             net: Net::default(),
+            networks: Vec::new(),
             net_down_since: None,
             paseo_down_since: None,
             banner_dismissed: false,
@@ -331,6 +334,7 @@ impl App {
                 }
             },
             Event::Scanned(payload) => self.on_scanned(&payload, sys),
+            Event::Networks(networks) => self.networks = networks,
             Event::Demo { offset_ms } => {
                 self.start_demo(offset_ms);
                 self.deck = 0;

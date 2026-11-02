@@ -199,6 +199,7 @@ pub unsafe extern "C" fn app_logic_host_start(handle: gsp::esp_gsp_handle_t) -> 
             ssid: "sim".into(),
             rssi: -52,
             saved: vec!["sim".into()],
+            ip: "192.0.2.10".into(),
         }));
         b.handle(Event::Power(Power {
             percent: 87,

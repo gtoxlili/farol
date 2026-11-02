@@ -36,6 +36,8 @@ pub enum Event {
     Motion(Motion),
     /// A QR code the camera decoded.
     Scanned(String),
+    /// A Wi-Fi scan finished: networks in range, strongest first.
+    Networks(Vec<Ap>),
     /// (Re)start the demo fleet this far into its script, on the home page:
     /// measurement runs start from the same moment every time.
     Demo {
@@ -80,6 +82,20 @@ pub struct Net {
     pub rssi: i8,
     /// Saved network names, most recent first.
     pub saved: Vec<String>,
+    /// IPv4 address while online, dotted.
+    pub ip: String,
+}
+
+/// One network a scan found.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Ap {
+    pub ssid: String,
+    /// dBm.
+    pub rssi: i8,
+    /// Needs a password.
+    pub secure: bool,
+    /// Saved on the board.
+    pub saved: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -171,9 +187,14 @@ pub enum Display {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WifiCmd {
+    /// Save this network (first in the list) and connect to it.
     Join { ssid: String, password: String },
+    /// Scan for networks; answered with [`Event::Networks`].
     Scan,
+    /// Try the saved networks again now.
     Retry,
+    /// Remove a saved network; disconnects when it is the one in use.
+    Forget { ssid: String },
 }
 
 /// What the logic asks the platform to do. Every method returns at once.
