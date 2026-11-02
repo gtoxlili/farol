@@ -3,7 +3,8 @@
 Initializes Iris and NVS, starts the Recovery RPC, starts Wi-Fi (`app_net`)
 and the idle Paseo link (`app_link`), opens the UI bundle in
 `ui_apps`, creates the display (panel, presenter, touch), starts GSP on that
-presenter, attaches the Iris screen mirror and starts the Rust logic, in that
+presenter, attaches the Iris screen mirror, hands the UI to the camera
+(`app_camera`, whose failure only logs) and starts the Rust logic, in that
 order. It exports no headers and holds only owned handles, all alive until
 reboot.
 
