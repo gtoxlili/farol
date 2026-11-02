@@ -421,6 +421,12 @@ impl App {
                 }
             },
             Event::Scanned(payload) => self.on_scanned(&payload, sys),
+            Event::NoCamera => {
+                if self.overlay == Overlay::Scan {
+                    sys.camera(false);
+                    self.note_on("", "没有检测到摄像头模块：请改用手动输入");
+                }
+            }
             Event::Networks(networks) => {
                 self.networks = networks;
                 self.scanning = false;

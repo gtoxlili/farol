@@ -36,6 +36,8 @@ pub enum Event {
     Motion(Motion),
     /// A QR code the camera decoded.
     Scanned(String),
+    /// The camera could not start: no module in the left slot, or it failed.
+    NoCamera,
     /// A Wi-Fi scan finished: networks in range, strongest first.
     Networks(Vec<Ap>),
     /// (Re)start the demo fleet this far into its script, on the home page:
