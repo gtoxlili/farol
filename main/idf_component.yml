@@ -1,0 +1,11 @@
+dependencies:
+  idf: ">=6.2"
+  esp-mosaico-bsp:
+    version: "*"
+    override_path: "../../../submodule/esp-mosaico-bsp/components/esp-mosaico-bsp"
+  esp_iris:
+    version: "*"
+    override_path: "../../../submodule/esp-mosaico-utils/ESP-Iris/components/esp_iris"
+  # Keep in step with .gspc_version and third_party/*/idf_component.yml
+  # (CHANGELOG: ESP-GSP 1.9.0 pairs with GSPC 0.10.0 and simulator 1.9.0).
+  espressif/esp-gsp: "==1.9.0"

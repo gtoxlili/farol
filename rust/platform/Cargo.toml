@@ -1,0 +1,17 @@
+[package]
+name = "platform"
+description = "Board platform: ESP-IDF allocator, panic handler, FreeRTOS and timer FFI, and the logic task"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+test = false
+bench = false
+doctest = false
+
+[dependencies]
+gsp_sys.workspace = true
+logic.workspace = true

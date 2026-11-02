@@ -1,0 +1,11 @@
+[package]
+name = "gsp_sys"
+description = "Raw bindings to the ESP-GSP 1.9.0 C API and this application's scene constants (cargo xtask gen-gsp)"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+test = false

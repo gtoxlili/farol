@@ -1,0 +1,55 @@
+# Build outputs and downloaded dependencies
+build/
+build_*/
+build-*/
+cmake-build-*/
+managed_components/
+/dependencies.lock
+sdkconfig
+sdkconfig.old
+sdkconfig.backup
+sdkconfig.local.defaults
+compile_commands.json
+CMakeFiles/
+CMakeCache.txt
+.ninja_*
+*.o
+*.obj
+*.elf
+*.map
+*.irisfw
+
+# Local runtimes and caches
+.venv*/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.codex-runs/
+.gateway/
+*.log
+*.tmp
+
+# Local credentials (example configuration remains versioned)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Keep sdkconfig*.defaults, idf_component.yml and source assets versioned.
+
+# Rust host tools and tests (the firmware staticlib builds under build/cargo,
+# the simulator backend under build-sim/)
+rust/target/

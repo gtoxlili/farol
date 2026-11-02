@@ -1,0 +1,17 @@
+[package]
+name = "host"
+description = "Simulator backend: runs the logic in the GSP simulator through sim_bridge on the build host"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+test = false
+bench = false
+doctest = false
+
+[dependencies]
+gsp_sys.workspace = true
+logic.workspace = true

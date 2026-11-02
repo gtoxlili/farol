@@ -1,0 +1,7 @@
+# The IDF builds C for ESP32-S31 with rv32imafcb_zcb_zcmp_zcmt; Rust gets the
+# stable subset (Zba/Zbb/Zbs and Zcb).
+[target.riscv32imafc-unknown-none-elf]
+rustflags = ["-C", "target-feature=+zba,+zbb,+zbs,+zcb"]
+
+[alias]
+xtask = "run -q -p xtask --"

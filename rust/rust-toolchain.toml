@@ -1,0 +1,6 @@
+# Stable channel; verified with rustc 1.99.1 (2026-10-13).
+[toolchain]
+channel = "stable"
+targets = ["riscv32imafc-unknown-none-elf"]
+profile = "minimal"
+components = ["clippy", "rustfmt"]
