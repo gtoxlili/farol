@@ -7,8 +7,11 @@ import type { AgentFacts, Entry, UsageFacts } from "./digest";
 import { applyItem, emptyLive, foldItems, type Live, type TimelineItem } from "./live";
 
 export const USAGE_EVERY_MS = 5 * 60 * 1000;
-/** A turn end refreshes usage too, at most this often (the daemon caches vendor fetches). */
-const USAGE_AFTER_TURN_MS = 60 * 1000;
+/**
+ * A board opening its usage screen (or a turn ending) refreshes usage at once,
+ * at most this often; the 5-minute timer is the fallback.
+ */
+export const USAGE_MIN_GAP_MS = 60 * 1000;
 const TAIL_LIMIT = 40;
 const LIST_LIMIT = 100;
 /** How long a focus change waits for the focused agent's history before answering. */
@@ -68,6 +71,11 @@ export class Observer {
     }));
   }
 
+  /** When usage was last fetched (requested), epoch ms; 0 before the first fetch. */
+  get usageFetchedAt(): number {
+    return this.usageAt;
+  }
+
   usageFacts(): UsageFacts[] {
     return this.usage;
   }
@@ -102,7 +110,13 @@ export class Observer {
     if (!t) return;
     await this.loadHistory(t);
     this.onChange();
-    if (Date.now() - this.usageAt > USAGE_AFTER_TURN_MS) void this.refreshUsage();
+    this.refreshUsageSoon();
+  }
+
+  /** Refreshes usage now unless it was fetched within the last minute. */
+  refreshUsageSoon(): void {
+    if (this.closed || Date.now() - this.usageAt <= USAGE_MIN_GAP_MS) return;
+    void this.refreshUsage();
   }
 
   async refreshUsage(): Promise<void> {

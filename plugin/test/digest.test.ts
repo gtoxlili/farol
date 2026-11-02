@@ -89,6 +89,19 @@ describe("digest", () => {
     expect(run(many).agents.some((a) => a.id === "old")).toBe(false);
   });
 
+  it("the cap never hides waiting or working cards behind unread finished ones", () => {
+    const entries: Entry[] = Array.from({ length: MAX_AGENTS + 4 }, (_, i) => ({
+      agent: finished(`d${i}`),
+      project: null,
+    }));
+    entries.push({ agent: agent("w", { status: "running" }), project: null });
+    entries.push({ agent: agent("c", { pendingPermissions: [{ id: "p", name: "Bash", kind: "tool" }] }), project: null });
+    const out = run(entries);
+    expect(out.agents).toHaveLength(MAX_AGENTS);
+    expect(out.agents[0]!.id).toBe("c");
+    expect(out.agents.some((a) => a.id === "w")).toBe(true);
+  });
+
   it("time zone: minutes east of UTC", () => {
     expect(tzOffsetMinutes("Asia/Shanghai", NOW)).toBe(480);
     expect(tzOffsetMinutes("America/Los_Angeles", NOW)).toBe(-480);

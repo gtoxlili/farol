@@ -16,14 +16,17 @@ export default function contribute(server: PluginServerContext) {
 
   // Board RPCs (farol/1).
   server.handle(nextRpc, (input, { paseo }) =>
-    farol.next(paseo, input.device, input.cursor, input.focus, input.prefs),
+    farol.next(paseo, input.device, input.cursor, input.focus, input.prefs, {
+      fw: input.fw,
+      screen: input.screen,
+    }),
   );
   server.handle(focusRpc, async (input, { paseo }) => {
-    await farol.focus(paseo, input.device, input.focus ?? null, input.prefs);
+    await farol.focus(paseo, input.device, input.focus ?? null, input.prefs, input.screen);
     return { ok: true };
   });
-  // farol/1 `Act` carries no device id, so timeline rows say "Farol" without naming the board.
-  server.handle(actRpc, (input, { paseo }) => farol.act(paseo, input, ""));
+  // `device` names the board in the timeline row; boards before firmware 1.0.0 omit it.
+  server.handle(actRpc, (input, { paseo }) => farol.act(paseo, input, input.device ?? ""));
 
   // Settings page RPCs.
   server.handle(statusRpc, async (_input, { paseo }) => {
@@ -32,6 +35,7 @@ export default function contribute(server: PluginServerContext) {
       host: farol.hostLabel,
       boards: farol.stream.boards(),
       canStop: farol.canStop,
+      usageAt: farol.usageAt,
       boardSound: farol.pendingBoardSound,
     };
   });

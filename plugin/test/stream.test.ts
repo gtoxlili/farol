@@ -124,6 +124,15 @@ describe("Stream", () => {
     expect(await settled(fresh)).toBe("pending");
   });
 
+  it("records firmware and screen; reports only screen changes", () => {
+    const { stream } = setup();
+    expect(stream.setMeta("b", { fw: "1.0.0", screen: "home" })).toBe(true);
+    expect(stream.setMeta("b", { fw: "1.0.0", screen: "home" })).toBe(false);
+    expect(stream.setMeta("b", {})).toBe(false);
+    expect(stream.setMeta("b", { screen: "usage" })).toBe(true);
+    expect(stream.boards()[0]).toMatchObject({ device: "b", fw: "1.0.0", screen: "usage" });
+  });
+
   it("lists boards with their focus and online state", async () => {
     const { stream } = setup();
     await stream.next("b", 0, "x");

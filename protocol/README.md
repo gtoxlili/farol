@@ -25,30 +25,42 @@ running.
 ### `farol.next`: long poll
 
 ```json
-{ "v": 1, "cursor": 42, "focus": "agent-id", "device": "3a1f", "prefs": { … } }
+{ "v": 1, "cursor": 42, "focus": "agent-id", "device": "3a1f", "screen": "deck", "fw": "1.0.0", "prefs": { … } }
 ```
 
 - `cursor` is the `rev` of the last snapshot the board received (0 at start).
 - The plugin answers at once when the board is behind (its cursor is not the
   last rev sent to that device: first poll, reconnect, plugin restart), as soon
   as that board's snapshot changes, or after 25 s with an idle snapshot.
-- Full snapshots to one board are at least 200 ms apart (at most 5 per second).
+- Full snapshots to one board are at least 220 ms apart (at most 5 per second,
+  with margin for network jitter).
 - One waiting poll per `device`; a newer poll answers the older one idle.
 - `focus` (optional) is the card on screen. Only that card carries `recent`
   and `todo`.
+- `screen` is the screen in front: `usage`, `home` or `deck`. When a board
+  turns to `usage`, the plugin refreshes provider usage at once (at most once a
+  minute; otherwise every 5 minutes and after turns end).
+- `fw` is the board's firmware version, shown in the plugin's list of boards.
 - `prefs` (optional, `BoardPrefs`) are settings changed in the board's control
   centre; the board resends them on every poll until one is answered.
+- `screen` and `fw` are absent from boards older than firmware 1.0.0; the plugin
+  accepts that.
 
 ### `farol.focus`
 
-`{ "focus": "agent-id", "device": "3a1f", "prefs": { … } }`. Sets the focus
-(absent means none) and answers that board's waiting `farol.next` with the
-focused card's detail. The plugin waits up to 1.5 s for the card's history
-first. May carry `prefs`.
+`{ "focus": "agent-id", "device": "3a1f", "screen": "deck", "prefs": { … } }`.
+Sets the focus (absent means none) and answers that board's waiting
+`farol.next` with the focused card's detail. The plugin waits up to 1.5 s for
+the card's history first. Carries `screen` (as in `farol.next`) and may carry
+`prefs`.
 
 ### `farol.act`
 
-`{ "agent": "id", "kind": "answer" | "stop" | "seen", "requestId": "…", "choice": 0 }`
+`{ "agent": "id", "device": "farol-3a1f", "kind": "answer" | "stop" | "seen", "requestId": "…", "choice": 0 }`
+
+`device` is the acting board as Paseo knows it (its client id); the plugin
+names it in the row it adds to the agent's timeline ("在 farol-3a1f 上回答：…").
+Older boards omit it and the row says "Farol".
 
 - `answer`: option `choice` of the pending `ask` whose `requestId` matches. At
   most once per request.

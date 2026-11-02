@@ -75,6 +75,10 @@ export class Farol {
     return this.cli !== null;
   }
 
+  get usageAt(): number | null {
+    return this.observer?.usageFetchedAt || null;
+  }
+
   get hostLabel(): string {
     return this.host;
   }
@@ -127,6 +131,11 @@ export class Farol {
     }
   }
 
+  /** A board turned to its usage screen: fresh quota numbers now (at most once a minute). */
+  private noteScreen(observer: Observer, device: string, meta: { fw?: string; screen?: string }): void {
+    if (this.stream.setMeta(device, meta) && meta.screen === "usage") observer.refreshUsageSoon();
+  }
+
   private updateBoardSettings(): void {
     const sound = this.boardSound ?? this.settings.sound;
     const next = boardSettingsOf({ ...this.settings, sound }, this.boardSettings.rev);
@@ -142,16 +151,25 @@ export class Farol {
     cursor: number,
     focus: string | null | undefined,
     prefs?: BoardPrefs,
+    meta: { fw?: string; screen?: string } = {},
   ): Promise<Snapshot> {
     this.adoptPrefs(device, prefs);
     const observer = await this.ensure(paseo);
+    this.noteScreen(observer, device, meta);
     if (focus !== undefined) await observer.setFocused(this.focusesWith(device, focus ?? null));
     return this.stream.next(device, cursor, focus);
   }
 
-  async focus(paseo: PaseoApi, device: string, focus: string | null, prefs?: BoardPrefs): Promise<void> {
+  async focus(
+    paseo: PaseoApi,
+    device: string,
+    focus: string | null,
+    prefs?: BoardPrefs,
+    screen?: string,
+  ): Promise<void> {
     this.adoptPrefs(device, prefs);
     const observer = await this.ensure(paseo);
+    this.noteScreen(observer, device, { screen });
     await observer.setFocused(this.focusesWith(device, focus));
     this.stream.focus(device, focus);
   }

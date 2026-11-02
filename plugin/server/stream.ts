@@ -7,7 +7,8 @@ import type { BoardPrefs, Snapshot } from "../shared/protocol";
 import type { Board } from "../shared/settings";
 
 export const POLL_MS = 25_000;
-export const FLUSH_MS = 200;
+/** 220 ms rather than 200: five per second holds at the board even with network jitter. */
+export const FLUSH_MS = 220;
 /** A board with no poll for this long is shown offline. */
 export const ONLINE_MS = 35_000;
 const MAX_DEVICES = 16;
@@ -34,6 +35,8 @@ interface Device {
   wakeTimer: ReturnType<typeof setTimeout> | null;
   /** The board's own control-centre settings, as last reported. */
   prefs: BoardPrefs | null;
+  fw: string | null;
+  screen: string | null;
 }
 
 export interface StreamOptions {
@@ -122,6 +125,18 @@ export class Stream {
     this.device(device).prefs = prefs;
   }
 
+  /**
+   * Records the board's firmware and screen (either may be absent on older boards).
+   * Returns true when the screen changed.
+   */
+  setMeta(device: string, meta: { fw?: string; screen?: string }): boolean {
+    const d = this.device(device);
+    if (meta.fw) d.fw = meta.fw;
+    if (!meta.screen || meta.screen === d.screen) return false;
+    d.screen = meta.screen;
+    return true;
+  }
+
   /** Focus of every board seen recently, for the observer's live subscriptions. */
   focuses(): string[] {
     const now = this.clock();
@@ -142,6 +157,8 @@ export class Stream {
         lastSeen: d.lastSeen,
         online: d.waiter !== null || now - d.lastSeen < ONLINE_MS,
         focus: d.focus,
+        fw: d.fw,
+        screen: d.screen,
         prefs: d.prefs,
       }));
   }
@@ -215,6 +232,8 @@ export class Stream {
         waiter: null,
         wakeTimer: null,
         prefs: null,
+        fw: null,
+        screen: null,
       };
       this.devices.set(id, d);
     }
