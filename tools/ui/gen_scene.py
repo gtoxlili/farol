@@ -21,7 +21,9 @@ Layout of the scene (paint order = list order, later objects on top):
 from __future__ import annotations
 
 import json
+import struct
 import subprocess
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +49,10 @@ DONE = "#F2EFE8"   # finished, unread
 FAIL = "#FF5A4E"   # ember: failed
 SEEN = "#3A3936"   # finished, seen
 CLEAR = "#00000000"
+VIEWFINDER = "#141516"  # the scan page's empty viewfinder
+
+PREVIEW = 360  # camera preview side, px (app_camera's APP_CAMERA_PREVIEW_SIDE)
+SCAN_PREVIEW_PNG = "images/scan_preview.png"
 
 NOTO = "fonts/NotoSansSC-Farol.ttf"
 G_THIN = "fonts/Geist-Thin-Farol.ttf"
@@ -129,6 +135,25 @@ def rect(parent, x, y, w, h, color, *, radius=0, name=None, border=None, border_
         obj["bind"] = obj["name"]
         obj["bind_target"] = "color"
     return obj
+
+
+def solid_png(rel: str, w: int, h: int, color: str) -> str:
+    """Write an opaque single-color RGB PNG under ui/ (stdlib only) and return
+    its scene path. Canvas placeholders must be static opaque bitmaps."""
+    rgb = bytes.fromhex(color.lstrip("#"))
+    raw = b"".join(b"\x00" + rgb * w for _ in range(h))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+    png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+           + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+    path = OUT.parent / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists() or path.read_bytes() != png:
+        path.write_bytes(png)
+    return rel
 
 
 def visibility(obj: dict) -> None:
@@ -437,7 +462,14 @@ def status_pages():
 
     g = "st_scan"
     group(p, g, 0, 0, W, H, hidden=True)
-    rect(g, 60, 74, 360, 360, "#141516", name="scan_view")
+    # The camera preview: app_camera pushes 360x360 RGB565 frames into this
+    # image (GSP Canvas, bind scan_preview) while the page is open; otherwise
+    # the placeholder shows the empty viewfinder. Unscaled and opaque, as
+    # Canvas requires; the corner marks, sweep and note paint above it.
+    placeholder = solid_png(SCAN_PREVIEW_PNG, PREVIEW, PREVIEW, VIEWFINDER)
+    under(g, {"type": "image", "name": "scan_preview", "x": 60, "y": 74, "w": PREVIEW,
+              "h": PREVIEW, "image": placeholder, "codec": "raw", "bind": "scan_preview",
+              "canvas": "push"})
     for x, y, w, h in [(60, 74, 40, 4), (60, 74, 4, 40), (380, 74, 40, 4), (416, 74, 4, 40),
                        (60, 430, 40, 4), (60, 394, 4, 40), (380, 430, 40, 4), (416, 394, 4, 40)]:
         rect(g, x, y, w, h, INK1, radius=2)
