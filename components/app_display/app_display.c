@@ -225,3 +225,16 @@ esp_err_t app_display_create(app_display_t *out)
     };
     return ESP_OK;
 }
+
+esp_err_t app_display_set_brightness(uint8_t percent)
+{
+    ESP_RETURN_ON_FALSE(s_display.panel, ESP_ERR_INVALID_STATE, TAG, "display not created");
+    ESP_RETURN_ON_FALSE(percent <= 100, ESP_ERR_INVALID_ARG, TAG, "brightness above 100%%");
+    return esp_lcd_panel_co5300_set_brightness(s_display.panel, percent);
+}
+
+esp_err_t app_display_set_enabled(bool enabled)
+{
+    ESP_RETURN_ON_FALSE(s_display.panel, ESP_ERR_INVALID_STATE, TAG, "display not created");
+    return esp_lcd_panel_disp_on_off(s_display.panel, enabled);
+}
