@@ -335,6 +335,7 @@ mod tests {
             kind,
             request_id: request_id.map(Into::into),
             choice: Some(1),
+            turn: None,
         }
     }
 

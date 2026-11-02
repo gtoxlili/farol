@@ -96,6 +96,9 @@ pub struct Agent {
     /// The plugin can stop this agent's turn.
     #[serde(default)]
     pub stoppable: bool,
+    /// The running turn's id; a stop names it so only that turn stops.
+    #[serde(default)]
+    pub turn: Option<String>,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
@@ -172,6 +175,9 @@ pub struct Act {
     pub request_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub choice: Option<u8>,
+    /// For a stop: the turn the board showed (`Agent::turn`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn: Option<String>,
 }
 
 /// The plugin's answer to `farol.act`.
@@ -278,6 +284,22 @@ mod tests {
     }
 
     #[test]
+    fn a_stop_names_the_turn_it_saw() {
+        let stop = Act {
+            agent: "a".into(),
+            device: "farol-3a1f".into(),
+            kind: ActKind::Stop,
+            request_id: None,
+            choice: None,
+            turn: Some("t-7".into()),
+        };
+        assert_eq!(
+            serde_json::to_string(&stop).unwrap(),
+            r#"{"agent":"a","device":"farol-3a1f","kind":"stop","turn":"t-7"}"#
+        );
+    }
+
+    #[test]
     fn act_serializes_compactly() {
         let a = Act {
             agent: "a".into(),
@@ -285,6 +307,7 @@ mod tests {
             kind: ActKind::Answer,
             request_id: Some("r".into()),
             choice: Some(1),
+            turn: None,
         };
         assert_eq!(
             serde_json::to_string(&a).unwrap(),
