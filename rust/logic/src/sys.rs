@@ -187,7 +187,9 @@ pub enum Display {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WifiCmd {
-    /// Save this network (first in the list) and connect to it.
+    /// Save this network (first in the list) and connect to it. An empty
+    /// password joins with the saved one if there is one, else as an open
+    /// network; it never replaces a saved password.
     Join { ssid: String, password: String },
     /// Scan for networks; answered with [`Event::Networks`].
     Scan,
