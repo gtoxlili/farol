@@ -165,6 +165,8 @@ pub enum ActKind {
 #[serde(rename_all = "camelCase")]
 pub struct Act {
     pub agent: String,
+    /// The board acting, for Paseo's timeline ("farol-3fa2").
+    pub device: String,
     pub kind: ActKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
@@ -192,6 +194,10 @@ pub struct Next<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub focus: Option<&'a str>,
     pub device: &'a str,
+    /// The screen in front: "usage", "home" or "deck".
+    pub screen: &'a str,
+    /// Firmware version, for the plugin's list of boards.
+    pub fw: &'a str,
     /// Settings changed on the board that the plugin has not confirmed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefs: Option<BoardPrefs>,
@@ -204,6 +210,8 @@ pub struct Focus<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub focus: Option<&'a str>,
     pub device: &'a str,
+    /// The screen in front: "usage", "home" or "deck".
+    pub screen: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefs: Option<BoardPrefs>,
 }
@@ -273,13 +281,14 @@ mod tests {
     fn act_serializes_compactly() {
         let a = Act {
             agent: "a".into(),
+            device: "farol-3a1f".into(),
             kind: ActKind::Answer,
             request_id: Some("r".into()),
             choice: Some(1),
         };
         assert_eq!(
             serde_json::to_string(&a).unwrap(),
-            r#"{"agent":"a","kind":"answer","requestId":"r","choice":1}"#
+            r#"{"agent":"a","device":"farol-3a1f","kind":"answer","requestId":"r","choice":1}"#
         );
     }
 }

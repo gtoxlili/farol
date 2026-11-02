@@ -331,6 +331,7 @@ mod tests {
     fn act(agent: &str, kind: ActKind, request_id: Option<&str>) -> Act {
         Act {
             agent: agent.into(),
+            device: "farol-test".into(),
             kind,
             request_id: request_id.map(Into::into),
             choice: Some(1),

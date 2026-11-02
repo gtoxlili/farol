@@ -70,11 +70,11 @@ checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
 
 [[package]]
 name = "gsp_sys"
-version = "0.1.0"
+version = "1.0.0"
 
 [[package]]
 name = "host"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "gsp_sys",
  "logic",
@@ -110,7 +110,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "logic"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "gsp_sys",
  "serde",
@@ -141,7 +141,7 @@ dependencies = [
 
 [[package]]
 name = "platform"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "gsp_sys",
  "logic",
@@ -284,7 +284,7 @@ checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "bindgen",
 ]
