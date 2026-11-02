@@ -33,8 +33,9 @@ export class Farol {
   private closed = false;
   /** The Paseo app's language, as its client last reported (null until one does). */
   private appLocale: string | null = null;
-  /** The default workspace's name, for the boards' new-session page. */
+  /** The default workspace's and agent profile's names, for the boards' new-session page. */
   private workspaceName: string | null = null;
+  private profileName: string | null = null;
   private readonly starter: StartPorts;
 
   constructor(private readonly log: { info(...a: unknown[]): void; warn(...a: unknown[]): void } = console) {
@@ -142,20 +143,20 @@ export class Farol {
     return result;
   }
 
-  /** Looks up the default workspace's name for the boards. */
+  /** Looks up the default workspace's and agent profile's names for the boards. */
   private async refreshWorkspace(): Promise<void> {
-    const id = this.settings.workspaceId;
-    if (!id || !this.apiValue) {
-      this.workspaceName = null;
-      return;
-    }
+    const { workspaceId, profileId } = this.settings;
+    if (!this.apiValue) return;
     try {
-      const workspace = await this.apiValue.workspaces.ref(id).refresh();
-      if (this.settings.workspaceId !== id) return;
+      const workspace = workspaceId ? await this.apiValue.workspaces.ref(workspaceId).refresh() : null;
+      const profile = profileId ? await this.starter.profile(profileId) : null;
+      if (this.settings.workspaceId !== workspaceId || this.settings.profileId !== profileId) return;
       this.workspaceName = workspace?.name ?? null;
+      this.profileName = profile?.name ?? null;
     } catch (error) {
       this.log.warn("farol: workspace lookup failed", String(error));
       this.workspaceName = null;
+      this.profileName = null;
     }
     this.stream.changed();
   }
@@ -194,7 +195,8 @@ export class Farol {
 
   setSettings(next: Settings): void {
     const background = next.includeBackground !== this.settings.includeBackground;
-    const workspace = next.workspaceId !== this.settings.workspaceId;
+    const workspace =
+      next.workspaceId !== this.settings.workspaceId || next.profileId !== this.settings.profileId;
     this.settings = next;
     if (workspace) void this.refreshWorkspace();
     if (background) void this.observer?.setIncludeBackground(next.includeBackground);
@@ -300,7 +302,10 @@ export class Farol {
       lang: boardLanguage(this.settings.boardLanguage, this.appLocale),
       compose:
         this.settings.allowActions && this.settings.workspaceId && this.settings.profileId
-          ? { workspace: this.workspaceName ?? this.settings.workspaceId }
+          ? {
+              workspace: this.workspaceName ?? this.settings.workspaceId,
+              ...(this.profileName ? { profile: this.profileName } : {}),
+            }
           : undefined,
     });
   }

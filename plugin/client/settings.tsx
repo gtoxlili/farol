@@ -38,14 +38,15 @@ function Boards({ theme }: HostProps) {
     queryFn: () => status({}),
     refetchInterval: 5000,
   });
-  const muted = { color: theme.colors.foregroundMuted, fontSize: 13 };
   const now = Date.now();
   const boards = query.data?.boards ?? [];
   const onOff = (on: boolean) => (on ? t("boards.on") : t("boards.off"));
   return (
     <SettingsSection title={t("boards.title")}>
-      {query.isError ? <Text style={muted}>{t("boards.unreadable", { error: String(query.error) })}</Text> : null}
-      {boards.length === 0 && !query.isError ? <Text style={muted}>{t("boards.none")}</Text> : null}
+      {query.isError ? (
+        <SettingsRow label={t("boards.title")} error={t("boards.unreadable", { error: String(query.error) })} />
+      ) : null}
+      {boards.length === 0 && !query.isError ? <SettingsRow label={t("boards.none")} /> : null}
       {boards.map((b) => (
         <SettingsRow
           key={b.device}
@@ -66,14 +67,13 @@ function Boards({ theme }: HostProps) {
             .join(" · ")}
         />
       ))}
-      {query.data?.usageAt ? <Text style={muted}>{t("boards.usage", { when: ago(t, query.data.usageAt, now) })}</Text> : null}
-      {query.data && !query.data.canStop ? <Text style={muted}>{t("boards.noStop")}</Text> : null}
+      {query.data && !query.data.canStop ? <SettingsRow label={t("boards.stop")} hint={t("boards.noStop")} /> : null}
     </SettingsSection>
   );
 }
 
 /** The default workspace and agent profile for sessions started on a board. */
-function Sessions({ theme, values, save }: HostProps & { values: Settings; save(next: Settings): void }) {
+function Sessions({ values, save }: HostProps & { values: Settings; save(next: Settings): void }) {
   const { t } = useTranslation(messages);
   const paseo = usePaseo();
   const workspaces = useQuery({
@@ -84,7 +84,6 @@ function Sessions({ theme, values, save }: HostProps & { values: Settings; save(
     queryKey: ["farol", "profiles"],
     queryFn: async () => (await paseo.config.get()).config.agentProfiles ?? [],
   });
-  const muted = { color: theme.colors.foregroundMuted, fontSize: 13 };
   const none = { label: t("session.none"), value: "" };
   const workspaceOptions = [
     none,
@@ -105,8 +104,7 @@ function Sessions({ theme, values, save }: HostProps & { values: Settings; save(
     profileOptions.push({ label: values.profileId, value: values.profileId });
   }
   return (
-    <SettingsSection title={t("session.title")}>
-      <Text style={muted}>{t("session.hint")}</Text>
+    <SettingsSection title={t("session.title")} info={t("session.hint")}>
       <SettingsSelect
         label={t("session.workspace")}
         value={values.workspaceId}
@@ -121,7 +119,7 @@ function Sessions({ theme, values, save }: HostProps & { values: Settings; save(
         disabled={profiles.isLoading}
         onValueChange={(profileId) => save({ ...values, profileId })}
       />
-      {profiles.data && profiles.data.length === 0 ? <Text style={muted}>{t("session.noProfiles")}</Text> : null}
+      {profiles.data && profiles.data.length === 0 ? <SettingsRow label={t("session.noProfilesTitle")} hint={t("session.noProfiles")} /> : null}
     </SettingsSection>
   );
 }

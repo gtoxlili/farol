@@ -99,7 +99,7 @@ export const SnapshotSchema = z.object({
   /** The Paseo app's language for the board; absent when unknown (the board keeps its own). */
   lang: z.enum(["zh", "en"]).optional(),
   /** New sessions from the board start here; absent without a default workspace and profile, or read-only. */
-  compose: z.object({ workspace: z.string().max(120) }).optional(),
+  compose: z.object({ workspace: z.string().max(120), profile: z.string().max(120).optional() }).optional(),
 });
 export type Snapshot = z.infer<typeof SnapshotSchema>;
 

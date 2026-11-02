@@ -7,6 +7,7 @@ import type { Settings } from "../shared/settings";
 /** The parts of a Paseo agent profile a session needs. */
 export interface ProfileFacts {
   id: string;
+  name?: string;
   provider: string;
   model?: string;
   modeId?: string;

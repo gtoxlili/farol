@@ -77,7 +77,7 @@ export interface DigestInput {
   /** The boards' language, when known. */
   lang?: "zh" | "en";
   /** Where sessions started on a board go. */
-  compose?: { workspace: string };
+  compose?: { workspace: string; profile?: string };
 }
 
 function minutes(clock: string): number {
