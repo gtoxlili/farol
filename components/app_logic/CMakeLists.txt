@@ -40,11 +40,7 @@ get_filename_component(app_logic_workspace_abs "${app_logic_workspace}" REALPATH
 set(app_logic_remap
     "--remap-path-prefix=${app_logic_sysroot}/lib/rustlib/src/rust=/rustc"
     "--remap-path-prefix=${app_logic_cargo_home}/registry/src=/cargo"
-    "--remap-path-prefix=${app_logic_workspace_abs}=${CMAKE_PROJECT_NAME}"
-    # The ESP32-S31 core runs B (Zba/Zbb/Zbs) and Zcb, which the C side's -march
-    # already uses and the riscv32imafc target leaves off. Zcmp stays off, as
-    # ESP-IDF builds with -mno-cm-popret.
-    "-Ctarget-feature=+zba,+zbb,+zbs,+zcb")
+    "--remap-path-prefix=${app_logic_workspace_abs}=${CMAKE_PROJECT_NAME}")
 list(TRANSFORM app_logic_remap PREPEND "\"")
 list(TRANSFORM app_logic_remap APPEND "\"")
 list(JOIN app_logic_remap "," app_logic_remap)
