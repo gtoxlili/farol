@@ -2,17 +2,19 @@
   "name": "farol-paseo-plugin",
   "private": true,
   "version": "0.1.0",
-  "description": "Farol desk lamp companion plugin for Paseo",
+  "description": "A desk lamp for your Paseo agents on an ESP-Mosaico board. See them at a glance, answer and stop them, and start sessions by voice.",
   "license": "Apache-2.0",
   "type": "module",
   "files": [
     "paseo-plugin.json",
     "OVERVIEW.md",
+    "OVERVIEW.zh-CN.md",
     "index.client.tsx",
     "index.server.ts",
     "client/",
     "server/",
-    "shared/"
+    "shared/",
+    "assets/"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -1,8 +1,23 @@
 {
   "id": "farol",
   "name": "Farol",
+  "description": "A desk lamp for your Paseo agents on an ESP-Mosaico board. See them at a glance, answer and stop them, and start sessions by voice.",
+  "icon": "assets/icon.png",
+  "media": [
+    "assets/overview.png",
+    "assets/plugin-settings.png",
+    "assets/voice.mp4",
+    "assets/answer.mp4"
+  ],
   "requirements": {
     "paseo": ">=0.14.0"
   },
-  "build": [["npm", "ci", "--omit=dev", "--ignore-scripts"]]
+  "build": [
+    [
+      "npm",
+      "ci",
+      "--omit=dev",
+      "--ignore-scripts"
+    ]
+  ]
 }
