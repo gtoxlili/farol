@@ -23,12 +23,27 @@ typedef struct {
  * NULL), or an error with the display released. Contract: ../README.md. */
 esp_err_t app_display_create(app_display_t *out);
 
-/** Set the panel brightness, 0..100 %. Like the factory display service, the
- * DCS write goes to the panel directly while the presenter keeps running.
- * ESP_ERR_INVALID_STATE before app_display_create succeeded. */
+/** Stops and restarts frame production around panel commands. The panel IO
+ * is not safe against the presenter's own transfers on another task (both
+ * drain the same SPI device's in-flight transactions), so every command runs
+ * while frames are stopped. `pause` returns true once no frame is in flight. */
+typedef struct {
+    bool (*pause)(void *ctx);
+    void (*resume)(void *ctx);
+    void *ctx;
+} app_display_guard_t;
+
+/** Register the guard (copied) once the UI runs, before any command below.
+ * Without one the commands go to the panel unguarded. */
+void app_display_set_guard(const app_display_guard_t *guard);
+
+/** Set the panel brightness, 0..100 %, with frames stopped around the write.
+ * ESP_ERR_INVALID_STATE before app_display_create succeeded, ESP_ERR_TIMEOUT
+ * when frames could not be stopped. One task issues all commands. */
 esp_err_t app_display_set_brightness(uint8_t percent);
 
-/** Switch panel scanning on or off; brightness and GSP state are kept. */
+/** Switch the panel off (frames stay stopped while it is dark: nothing renders
+ * or transfers) or on again (frames resume). */
 esp_err_t app_display_set_enabled(bool enabled);
 
 #ifdef __cplusplus

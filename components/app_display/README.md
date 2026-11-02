@@ -36,8 +36,10 @@ the pixel buffer before the panel transfer and cannot show panel-side defects.
 
 After creation, `app_display_set_brightness(percent)` writes the CO5300
 brightness register (0..100 %) and `app_display_set_enabled(on)` switches panel
-scanning, keeping brightness and GSP state. Like the factory display service,
-both send their commands to the panel directly while the presenter runs; each
-returns `ESP_ERR_INVALID_STATE` before `app_display_create` succeeded.
-In Farol both are called only from `app_feedback`'s task, which carries out
-the logic's display requests.
+scanning. The panel IO is not safe against the presenter's own transfers on
+another task (both drain the same SPI device's in-flight transactions), so
+`main` registers a guard (`app_display_set_guard`) that pauses GSP's frames
+around every command; while the panel is off the frames stay paused, so nothing
+renders or transfers until it is switched on. One task issues all commands
+(app_feedback); each returns `ESP_ERR_INVALID_STATE` before
+`app_display_create` succeeded and `ESP_ERR_TIMEOUT` when frames did not stop.

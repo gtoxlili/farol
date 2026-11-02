@@ -226,15 +226,55 @@ esp_err_t app_display_create(app_display_t *out)
     return ESP_OK;
 }
 
+/* Frame production around panel commands; single caller task (app_feedback). */
+static app_display_guard_t s_guard;
+static bool s_frames_stopped; /* the guard has paused frames (screen dark) */
+
+void app_display_set_guard(const app_display_guard_t *guard)
+{
+    s_guard = guard ? *guard : (app_display_guard_t) {0};
+}
+
+static bool frames_stop(void)
+{
+    if (s_frames_stopped || !s_guard.pause) {
+        return true;
+    }
+    if (!s_guard.pause(s_guard.ctx)) {
+        return false;
+    }
+    s_frames_stopped = true;
+    return true;
+}
+
+static void frames_start(void)
+{
+    if (s_frames_stopped && s_guard.resume) {
+        s_guard.resume(s_guard.ctx);
+    }
+    s_frames_stopped = false;
+}
+
 esp_err_t app_display_set_brightness(uint8_t percent)
 {
     ESP_RETURN_ON_FALSE(s_display.panel, ESP_ERR_INVALID_STATE, TAG, "display not created");
     ESP_RETURN_ON_FALSE(percent <= 100, ESP_ERR_INVALID_ARG, TAG, "brightness above 100%%");
-    return esp_lcd_panel_co5300_set_brightness(s_display.panel, percent);
+    const bool was_stopped = s_frames_stopped;
+    ESP_RETURN_ON_FALSE(frames_stop(), ESP_ERR_TIMEOUT, TAG, "frames did not stop");
+    const esp_err_t err = esp_lcd_panel_co5300_set_brightness(s_display.panel, percent);
+    if (!was_stopped) {
+        frames_start();
+    }
+    return err;
 }
 
 esp_err_t app_display_set_enabled(bool enabled)
 {
     ESP_RETURN_ON_FALSE(s_display.panel, ESP_ERR_INVALID_STATE, TAG, "display not created");
-    return esp_lcd_panel_disp_on_off(s_display.panel, enabled);
+    ESP_RETURN_ON_FALSE(frames_stop(), ESP_ERR_TIMEOUT, TAG, "frames did not stop");
+    const esp_err_t err = esp_lcd_panel_disp_on_off(s_display.panel, enabled);
+    if (enabled || err != ESP_OK) {
+        frames_start();
+    }
+    return err;
 }
