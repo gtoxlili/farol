@@ -1120,6 +1120,8 @@ impl App {
             self.feel(Haptic::Fail, sys);
             self.ring(Chime::Fail, sys);
         } else if done {
+            self.pulse_start = true;
+            self.pulse_until = self.now + PULSE_MS;
             self.feel(Haptic::Tick, sys);
             self.ring(Chime::Done, sys);
             if self.module && !self.dnd() {

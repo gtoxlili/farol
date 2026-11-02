@@ -89,10 +89,10 @@ impl App {
 // ---------------------------------------------------------------- status bar
 
 fn status_bar(app: &App, p: &mut Painter, ui: &mut impl Ui) {
-    // No clock until Paseo (or, later, SNTP) has told the time.
+    // "--:--" until Paseo has told the time.
     let clock = app
         .epoch()
-        .map_or_else(String::new, |e| time::clock(e, app.tz));
+        .map_or_else(|| String::from("--:--"), |e| time::clock(e, app.tz));
     p.text(ui, bind(gsp::GSP_BIND_SB_TIME), &clock);
 
     let power = app.power;
@@ -239,10 +239,10 @@ fn home(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     p.visible(ui, bind(gsp::GSP_BIND_HOME_COUNT_BOX_VIS), !resting);
     p.visible(ui, bind(gsp::GSP_BIND_HOME_TIME_BOX_VIS), resting);
     p.text(ui, bind(gsp::GSP_BIND_HOME_COUNT), &number.to_string());
-    // No clock until Paseo (or, later, SNTP) has told the time.
+    // "--:--" until Paseo has told the time.
     let clock = app
         .epoch()
-        .map_or_else(String::new, |e| time::clock(e, app.tz));
+        .map_or_else(|| String::from("--:--"), |e| time::clock(e, app.tz));
     p.text(ui, bind(gsp::GSP_BIND_HOME_TIME), &clock);
     variant(p, ui, &scene::HOME_WORD, Some(tone), word);
 
@@ -281,6 +281,11 @@ fn home(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         .as_ref()
         .map_or(if resting { 88 } else { 60 }, |f| i32::from(f.left));
     p.glide_value(ui, key, level, 900);
+    p.visible(
+        ui,
+        bind(gsp::GSP_BIND_LAMP_PULSE_VIS),
+        app.now < app.pulse_until,
+    );
     p.property(ui, key, gsp::GSP_PROP_KEY_PARTICLES, works.min(6) as i32);
     let period = match works {
         0 => 6000,
@@ -446,8 +451,7 @@ fn render_card(app: &App, p: &mut Painter, ui: &mut impl Ui, card: &Card, agent:
     if working {
         let elapsed = match (now, a.since) {
             (Some(now), Some(since)) => time::stopwatch(now - since),
-            // The timer font carries digits and ':' only.
-            _ => String::new(),
+            _ => String::from("--:--"),
         };
         p.text(ui, card.timer, &elapsed);
         let line = if a.now.is_empty() {
