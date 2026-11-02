@@ -1,11 +1,12 @@
 //! Simulator backend: the same [`App`] as on the board, driven by GSP's
 //! simulator through sim_bridge (`components/app_logic/host`).
 //!
-//! sim_bridge runs every callback and timer on one backend thread, so here the
+//! sim_bridge runs every callback and timer on one backend thread, so the
 //! callbacks call the app directly instead of going through a queue: the
 //! bridge thread plays the board's `logic` task. A GSP timer polls the app every
-//! [`POLL_PERIOD_MS`]; GSP setters go over the bridge to the simulator, which
-//! renders and runs the motion.
+//! [`POLL_PERIOD_MS`]. The simulator has no Paseo link, Wi-Fi or peripherals:
+//! by default it runs the built-in demo fleet (`FAROL_SIM=welcome` shows the
+//! first-boot page instead), and effects are printed to stderr.
 
 use std::ffi::c_void;
 use std::ptr;
@@ -13,15 +14,51 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 use std::time::Instant;
 
 use gsp_sys as gsp;
+use logic::App;
+use logic::paseo::{Config, Out};
+use logic::sys::{Chime, Display, Event, Glow, Haptic, Net, NetState, Power, Prefs, Sys, WifiCmd};
 use logic::ui::GspUi;
-use logic::{App, Event};
 
-/// Poll granularity for time-driven work; well under the app's one-second grid.
+/// Poll granularity for time-driven work.
 const POLL_PERIOD_MS: u32 = 50;
+
+/// Effects become stderr lines; the scenario logs show what the board would do.
+struct SimSys;
+
+impl Sys for SimSys {
+    fn link(&mut self, out: Out) {
+        eprintln!("farol sim: link {out:?}");
+    }
+    fn haptic(&mut self, haptic: Haptic) {
+        eprintln!("farol sim: haptic {haptic:?}");
+    }
+    fn chime(&mut self, chime: Chime) {
+        eprintln!("farol sim: chime {chime:?}");
+    }
+    fn glow(&mut self, glow: Glow) {
+        eprintln!("farol sim: glow {glow:?}");
+    }
+    fn display(&mut self, display: Display) {
+        eprintln!("farol sim: display {display:?}");
+    }
+    fn save_config(&mut self, config: Option<&Config>) {
+        eprintln!("farol sim: save config {:?}", config.map(|c| &c.url));
+    }
+    fn save_prefs(&mut self, prefs: &Prefs) {
+        eprintln!("farol sim: save prefs {prefs:?}");
+    }
+    fn wifi(&mut self, cmd: WifiCmd) {
+        eprintln!("farol sim: wifi {cmd:?}");
+    }
+    fn camera(&mut self, on: bool) {
+        eprintln!("farol sim: camera {on}");
+    }
+}
 
 struct Backend {
     app: App,
     ui: GspUi,
+    sys: SimSys,
     epoch: Instant,
     timer: *mut c_void,
 }
@@ -31,12 +68,20 @@ impl Backend {
         u64::try_from(self.epoch.elapsed().as_millis()).unwrap_or(u64::MAX)
     }
 
+    fn handle(&mut self, event: Event) {
+        let now = self.now_ms();
+        self.app.handle(now, event, &mut self.ui, &mut self.sys);
+        self.poll();
+    }
+
     fn poll(&mut self) {
         let now = self.now_ms();
-        self.app.poll(now, &mut self.ui);
+        if now >= self.app.next_deadline_ms() {
+            self.app.poll(now, &mut self.ui, &mut self.sys);
+        }
         if let Some(code) = self.app.take_first_rejection() {
             eprintln!(
-                "app_logic host: GSP rejected a setter ({code}); further rejections are only counted"
+                "farol sim: GSP rejected a setter ({code}); further rejections are only counted"
             );
         }
     }
@@ -57,9 +102,32 @@ unsafe extern "C" fn on_event(
     }) else {
         return;
     };
-    if let Some(event) = Event::from_gsp(event) {
-        backend.app.handle(event, &mut backend.ui);
-        backend.poll();
+    if event.type_ == gsp::ESP_GSP_EVENT_CALL {
+        backend.handle(Event::Call {
+            action: u32::from(event.action_id),
+            arg: event.arg as i32,
+        });
+    }
+}
+
+unsafe extern "C" fn on_component(
+    _ui: gsp::esp_gsp_handle_t,
+    event: *const gsp::esp_gsp_component_event_t,
+    ctx: *mut c_void,
+) {
+    // SAFETY: as in on_event.
+    let (Some(event), Some(backend)) = (unsafe { event.as_ref() }, unsafe {
+        ctx.cast::<Backend>().as_mut()
+    }) else {
+        return;
+    };
+    let settled =
+        gsp::ESP_GSP_COMPONENT_EVENT_MOTION_FINISHED | gsp::ESP_GSP_COMPONENT_EVENT_VALUE_CHANGED;
+    if u32::from(event.flags) & settled != 0 && !event.state.dragging && !event.state.settling {
+        backend.handle(Event::Settled {
+            key: event.key,
+            value: event.state.value,
+        });
     }
 }
 
@@ -81,12 +149,22 @@ pub unsafe extern "C" fn app_logic_host_start(handle: gsp::esp_gsp_handle_t) -> 
     if handle.is_null() || !BACKEND.load(Ordering::Acquire).is_null() {
         return invalid;
     }
-    let epoch = Instant::now();
+    let mut app = App::new(0, "5im0");
+    let mode = std::env::var("FAROL_SIM").unwrap_or_default();
+    if mode != "welcome" {
+        // FAROL_SIM_T=<ms> starts the demo script that far in (checks jump to a moment).
+        let offset = std::env::var("FAROL_SIM_T")
+            .ok()
+            .and_then(|t| t.parse().ok())
+            .unwrap_or(0);
+        app.start_demo(offset);
+    }
     let backend = Box::into_raw(Box::new(Backend {
-        app: App::new(0),
+        app,
         // SAFETY: the bridge keeps the handle valid until deinit.
         ui: unsafe { GspUi::new(handle) },
-        epoch,
+        sys: SimSys,
+        epoch: Instant::now(),
         timer: ptr::null_mut(),
     }));
     let ctx = backend.cast::<c_void>();
@@ -96,26 +174,49 @@ pub unsafe extern "C" fn app_logic_host_start(handle: gsp::esp_gsp_handle_t) -> 
         drop(unsafe { Box::from_raw(backend) });
         return err;
     }
+    let err = unsafe { gsp::esp_gsp_on_component_event(handle, Some(on_component), ctx) };
+    if err != gsp::ESP_GSP_OK as gsp::esp_gsp_err_t {
+        unsafe { gsp::esp_gsp_on_event(handle, None, ptr::null_mut()) };
+        drop(unsafe { Box::from_raw(backend) });
+        return err;
+    }
     let timer = unsafe { gsp::esp_gsp_timer_create(handle, POLL_PERIOD_MS, Some(on_timer), ctx) };
     if timer.is_null() {
-        unsafe { gsp::esp_gsp_on_event(handle, None, ptr::null_mut()) };
+        unsafe {
+            gsp::esp_gsp_on_component_event(handle, None, ptr::null_mut());
+            gsp::esp_gsp_on_event(handle, None, ptr::null_mut());
+        }
         drop(unsafe { Box::from_raw(backend) });
         return invalid;
     }
     // SAFETY: no callback runs until this function returns (single bridge thread).
     unsafe {
         (*backend).timer = timer;
-        (*backend).poll();
+        let b = &mut *backend;
+        // The simulator stands in for a board that is on Wi-Fi and plugged in.
+        b.handle(Event::Net(Net {
+            state: NetState::Online,
+            ssid: "sim".into(),
+            rssi: -52,
+            saved: vec!["sim".into()],
+        }));
+        b.handle(Event::Power(Power {
+            percent: 87,
+            charging: false,
+            minutes: Some(372),
+            known: true,
+        }));
     }
     BACKEND.store(backend, Ordering::Release);
-    eprintln!("app_logic host: started");
+    eprintln!(
+        "farol sim: started ({})",
+        if mode == "welcome" { "welcome" } else { "demo" }
+    );
     gsp::ESP_GSP_OK as gsp::esp_gsp_err_t
 }
 
 /// Stops the logic (from `gsp_bridge_app_deinit`, after the bridge stopped
-/// dispatching callbacks) and prints a one-line summary to stderr. The bridge
-/// calls it on an orderly simulator exit, not when the runner kills the
-/// simulator after `--duration`.
+/// dispatching callbacks) and prints a one-line summary to stderr.
 ///
 /// # Safety
 /// `handle` is the handle passed to [`app_logic_host_start`], still valid.
@@ -125,16 +226,15 @@ pub unsafe extern "C" fn app_logic_host_stop(handle: gsp::esp_gsp_handle_t) {
     if backend.is_null() {
         return;
     }
-    // SAFETY: start leaked this Box; no callback can run any more. GSP calls
-    // may be refused during bridge shutdown, which leaves nothing to undo.
+    // SAFETY: start leaked this Box; no callback can run any more.
     let backend = unsafe { Box::from_raw(backend) };
     unsafe {
         gsp::esp_gsp_timer_delete(handle, backend.timer);
+        gsp::esp_gsp_on_component_event(handle, None, ptr::null_mut());
         gsp::esp_gsp_on_event(handle, None, ptr::null_mut());
     }
     eprintln!(
-        "app_logic host: taps={} uptime_s={} rejected={}",
-        backend.app.taps(),
+        "farol sim: uptime_s={} rejected={}",
         backend.now_ms() / 1000,
         backend.app.rejections()
     );
