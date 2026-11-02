@@ -17,3 +17,8 @@ CONFIG_ESP_GSP_QUEUE_DEPTH=128
 # stack goes to PSRAM. Farol's render-task callbacks only queue events and never
 # touch flash, NVS or files, which PSRAM stacks require.
 CONFIG_ESP_GSP_RENDER_TASK_STACK_PSRAM=y
+
+# Plain malloc()s up to this size try internal RAM first. GSP's, FreeType's and
+# the drivers' medium buffers then pushed internal free down to 44 KB on the
+# board; DMA and internal-only buffers ask for their capabilities explicitly.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
