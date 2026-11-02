@@ -5,8 +5,6 @@ import { BoardPrefsSchema } from "./protocol";
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "HH:MM");
 
 export const SettingsSchema = z.object({
-  /** The address boards connect to: the daemon's WebSocket as seen from the board. */
-  address: z.string().default(""),
   /** Let boards answer questions and stop turns. Off makes every board read-only. */
   allowActions: z.boolean().default(true),
   /** Show the start of the last reply on finished cards. */
@@ -58,29 +56,6 @@ export const statusRpc = defineRpc({
     /** When provider usage was last fetched, epoch ms. */
     usageAt: z.number().nullable(),
   }),
-});
-
-/**
- * Builds the connection code the board scans. The password passes through and
- * is not kept: the daemon only stores its hash.
- */
-export const connectCodeRpc = defineRpc({
-  name: "farol.connect_code",
-  input: z.object({
-    address: z.string().min(1),
-    password: z.string(),
-    name: z.string().optional(),
-  }),
-  output: z.discriminatedUnion("ok", [
-    z.object({
-      ok: z.literal(true),
-      url: z.string(),
-      payload: z.string(),
-      /** One string per module row, "1" dark and "0" light. */
-      rows: z.array(z.string()),
-    }),
-    z.object({ ok: z.literal(false), error: z.string() }),
-  ]),
 });
 
 export const TIMELINE_KIND = "farol-action";

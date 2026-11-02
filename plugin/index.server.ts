@@ -1,9 +1,8 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { actRpc, focusRpc, nextRpc } from "./shared/protocol";
-import { connectCodeRpc, farolSettings, statusRpc } from "./shared/settings";
+import { farolSettings, statusRpc } from "./shared/settings";
 import type { PermissionResponse } from "./server/actions";
 import { Farol } from "./server/farol";
-import { connectPayload, normalizeAddress, qrRows } from "./server/qr";
 
 export default function contribute(server: PluginServerContext) {
   const farol = new Farol();
@@ -38,12 +37,6 @@ export default function contribute(server: PluginServerContext) {
       canStop: farol.canStop,
       usageAt: farol.usageAt,
     };
-  });
-  server.handle(connectCodeRpc, ({ address, password, name }) => {
-    const url = normalizeAddress(address);
-    if (!url) return { ok: false as const, error: "地址无效：应为 wss://… 或 https://…" };
-    const payload = connectPayload(url, password, name ?? farol.hostLabel);
-    return { ok: true as const, url, payload, rows: qrRows(payload) };
   });
 
   // Notification-only hooks: nothing here changes an agent or a session.

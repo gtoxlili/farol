@@ -13,11 +13,12 @@ use gsp_sys as gsp;
 use crate::demo::Demo;
 use crate::model::{Act, ActKind, ActResult, Agent, BoardPrefs, Settings, Snapshot, State};
 use crate::paseo::{Config, Down, Notice, Out, Session};
-use crate::qr::{self, Code};
 use crate::sys::{
     Ap, Button, Chime, Display, Event, Glow, Haptic, Link, Motion, Net, NetState, Power, Prefs,
     Sys, WifiCmd,
 };
+
+mod setup;
 use crate::ui::{Painter, Ui};
 
 /// Pages of the `screens` PageFlow; page 0 is usage.
@@ -119,12 +120,19 @@ pub enum Overlay {
     Welcome,
     NoWifi,
     NoPaseo,
-    /// A scanned or typed address waits for "连接".
+    /// The two ways to connect, as Paseo's 添加连接: scan its pairing QR
+    /// (relay) or type a direct connection.
+    Connect,
+    /// A scanned pairing code or typed connection waits for "连接".
     Pair {
         config: Config,
-        host: String,
     },
     Scan,
+    /// Direct connection, step 3 of 4: SSL or not.
+    Tls {
+        host: String,
+        port: u16,
+    },
     /// Typing on the on-screen keyboard.
     Input {
         entry: Entry,
@@ -143,10 +151,15 @@ pub enum Overlay {
 /// What the input page collects.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Entry {
-    /// Step 1 of 2: the daemon address.
-    Address,
-    /// Step 2 of 2: the daemon password for `url`.
-    Password { url: String },
+    /// Direct connection, step 1 of 4: the host.
+    Host,
+    /// Step 2 of 4: the port; an empty field takes `default` (6767, or the
+    /// port typed with the host).
+    Port { host: String, default: u16 },
+    /// Step 4 of 4: the daemon password, optional.
+    Password { host: String, port: u16, tls: bool },
+    /// The daemon password, which Paseo asked for while connecting.
+    DaemonPassword { config: Config },
     /// The password of the Wi-Fi network `ssid`.
     WifiPassword { ssid: String },
 }
@@ -226,8 +239,12 @@ pub struct App {
     drift_step: usize,
     /// When the last snapshot arrived (monotonic ms).
     pub(crate) last_sync: Option<u64>,
-    /// The Wi-Fi password page needs the keyboard again (a wrong password).
+    /// The input page needs the keyboard (again) at the next render: a wrong
+    /// Wi-Fi password, or a daemon password Paseo asked for.
     keyboard_again: bool,
+    /// A connection made on this board has not reached Paseo yet: a refused
+    /// password asks for it.
+    pairing: bool,
     /// Board settings last sent to (or taken from) Paseo; a difference is a
     /// change made on the board, which goes out with the next poll.
     synced: Option<BoardPrefs>,
@@ -302,6 +319,7 @@ impl App {
             drift_step: 0,
             last_sync: None,
             keyboard_again: false,
+            pairing: false,
             synced: None,
             settings_rev: None,
             quiet: (0, 0),
@@ -389,7 +407,12 @@ impl App {
             Event::Settled { key, value } => self.on_settled(key, value, sys),
             Event::Touch => self.touched(),
             Event::Link(link) => match link {
-                Link::Opened => self.session.on_open(self.now),
+                Link::Opened => {
+                    // Fresh keys for the relay's encrypted channel.
+                    let mut entropy = [0u8; 64];
+                    sys.random(&mut entropy);
+                    self.session.on_open(self.now, &entropy);
+                }
                 Link::Closed(why) => self.session.on_close(self.now, why),
                 Link::Text(text) => self.session.on_text(self.now, &text),
             },
@@ -593,6 +616,7 @@ impl App {
             match notice {
                 Notice::Ready { host } => {
                     self.host = host;
+                    self.pairing = false;
                     self.paseo_down_since = None;
                     self.banner_dismissed = false;
                     if self.overlay == Overlay::NoPaseo {
@@ -602,6 +626,9 @@ impl App {
                 Notice::Snapshot(snapshot) => self.apply(snapshot, sys),
                 Notice::Acted { token, result } => self.acted(token, &result, sys),
                 Notice::Down(down) => {
+                    if matches!(down, Down::Auth | Down::NeedPassword) {
+                        self.password_needed(&down);
+                    }
                     if down == Down::None {
                         self.paseo_down_since = None;
                     } else if self.paseo_down_since.is_none() {
@@ -614,6 +641,9 @@ impl App {
 
     fn on_call(&mut self, action: u32, arg: i32, ui: &mut impl Ui, sys: &mut impl Sys) {
         use gsp::*;
+        if self.setup_call(action, ui, sys) {
+            return;
+        }
         let option = |press, long, release, cancel| -> Option<(usize, u8)> {
             for (j, ids) in [
                 (
@@ -682,54 +712,11 @@ impl App {
                 }
             }
             GSP_ACT_ID_SEEN => self.mark_seen(sys),
-            GSP_ACT_ID_SCAN_OPEN | GSP_ACT_ID_REPAIR => {
-                self.overlay = Overlay::Scan;
-                self.scan_since = self.now;
-                self.note = None;
-                sys.camera(true);
-            }
-            GSP_ACT_ID_SCAN_CANCEL => {
-                sys.camera(false);
-                self.overlay = Overlay::None;
-            }
-            GSP_ACT_ID_MANUAL_OPEN => {
-                if self.overlay == Overlay::Scan {
-                    sys.camera(false);
-                }
-                self.open_input(Entry::Address, ui);
-            }
-            GSP_ACT_ID_WIFI_PICK => {
-                self.overlay = Overlay::Wifi;
-                self.scan_networks(sys);
-            }
-            GSP_ACT_ID_WF_RESCAN => self.scan_networks(sys),
-            GSP_ACT_ID_WF_ROW0 | GSP_ACT_ID_WF_ROW1 | GSP_ACT_ID_WF_ROW2 | GSP_ACT_ID_WF_ROW3
-            | GSP_ACT_ID_WF_ROW4 | GSP_ACT_ID_WF_ROW5 => {
-                let row = (action - GSP_ACT_ID_WF_ROW0) as usize;
-                self.pick_network(row, ui, sys);
-            }
-            GSP_ACT_ID_KB_KEY => self.input_done(ui, sys),
-            GSP_ACT_ID_IN_CANCEL | GSP_ACT_ID_WF_CANCEL | GSP_ACT_ID_NI_CLOSE
-            | GSP_ACT_ID_LK_CLOSE => {
-                self.overlay = Overlay::None;
-            }
-            GSP_ACT_ID_LK_FORGET => self.forget_paseo(sys),
             GSP_ACT_ID_CC_WIFI => {
                 self.painter
                     .run(ui.set_drawer(gsp::GSP_OBJ_KEY_CC, false, true));
                 self.overlay = Overlay::NetInfo;
                 self.feel(Haptic::Tick, sys);
-            }
-            GSP_ACT_ID_PAIR_CANCEL => self.overlay = Overlay::None,
-            GSP_ACT_ID_PAIR_CONNECT => {
-                if let Overlay::Pair { config, .. } =
-                    core::mem::replace(&mut self.overlay, Overlay::None)
-                {
-                    sys.save_config(Some(&config));
-                    self.has_snapshot = false;
-                    self.session.configure(Some(config), self.now);
-                    self.feel(Haptic::Confirm, sys);
-                }
             }
             GSP_ACT_ID_RETRY => {
                 self.session.retry_now(self.now);
@@ -852,165 +839,6 @@ impl App {
         }
     }
 
-    // ------------------------------------------------------------ setup pages
-
-    /// Shows the input page for `entry` with the keyboard on an empty field.
-    fn open_input(&mut self, entry: Entry, ui: &mut impl Ui) {
-        self.overlay = Overlay::Input {
-            entry,
-            error: None,
-            joining: false,
-        };
-        self.attach_keyboard(ui);
-    }
-
-    fn attach_keyboard(&mut self, ui: &mut impl Ui) {
-        // The keyboard writes the field itself; the views never do.
-        self.painter.run(ui.keyboard_attach(
-            gsp::GSP_ACT_ID_KB_KEY as u16,
-            gsp::GSP_BIND_IN_TEXT as crate::ui::Bind,
-        ));
-        self.painter
-            .run(ui.set_text(gsp::GSP_BIND_IN_TEXT as crate::ui::Bind, ""));
-    }
-
-    /// The keyboard's OK key: take the field and go to the next step.
-    fn input_done(&mut self, ui: &mut impl Ui, sys: &mut impl Sys) {
-        let Overlay::Input { entry, joining, .. } = &self.overlay else {
-            return;
-        };
-        if *joining {
-            return;
-        }
-        let entry = entry.clone();
-        let text = match ui.keyboard_text() {
-            Ok(text) => String::from(text.trim()),
-            Err(code) => {
-                self.painter.run(Err(code));
-                return;
-            }
-        };
-        let error = |why: &str| Overlay::Input {
-            entry: entry.clone(),
-            error: Some(String::from(why)),
-            joining: false,
-        };
-        match entry.clone() {
-            Entry::Address => match qr::normalize_url(&text) {
-                Ok(url) => {
-                    self.open_input(Entry::Password { url }, ui);
-                    self.feel(Haptic::Tick, sys);
-                }
-                Err(why) => {
-                    self.overlay = error(why);
-                    self.feel(Haptic::Fail, sys);
-                }
-            },
-            Entry::Password { url } => {
-                let host = qr::host_of(&url);
-                self.overlay = Overlay::Pair {
-                    config: Config {
-                        url,
-                        password: text,
-                    },
-                    host,
-                };
-                self.feel(Haptic::Tick, sys);
-            }
-            Entry::WifiPassword { ssid } => {
-                if text.is_empty() {
-                    self.overlay = error("请输入这个网络的密码");
-                    return;
-                }
-                sys.wifi(WifiCmd::Join {
-                    ssid,
-                    password: text,
-                });
-                self.overlay = Overlay::Input {
-                    entry,
-                    error: None,
-                    joining: true,
-                };
-                self.feel(Haptic::Confirm, sys);
-            }
-        }
-    }
-
-    /// How a Wi-Fi password typed on the board turned out.
-    fn join_result(&mut self) {
-        let Overlay::Input {
-            entry: Entry::WifiPassword { ssid },
-            joining: true,
-            ..
-        } = &self.overlay
-        else {
-            return;
-        };
-        if self.net.ssid != *ssid {
-            return;
-        }
-        let why = match self.net.state {
-            NetState::Online => {
-                self.overlay = Overlay::None;
-                return;
-            }
-            NetState::WrongPassword => "密码不对，再输一次",
-            NetState::NotFound => "找不到这个网络了",
-            NetState::NoAddress => "连上了，但拿不到地址",
-            _ => return,
-        };
-        let ssid = ssid.clone();
-        self.overlay = Overlay::Input {
-            entry: Entry::WifiPassword { ssid },
-            error: Some(String::from(why)),
-            joining: false,
-        };
-        self.keyboard_again = true;
-    }
-
-    fn scan_networks(&mut self, sys: &mut impl Sys) {
-        self.networks.clear();
-        self.scanning = true;
-        sys.wifi(WifiCmd::Scan);
-    }
-
-    /// A row on the network list: saved and open networks join at once, the
-    /// rest ask for their password.
-    fn pick_network(&mut self, row: usize, ui: &mut impl Ui, sys: &mut impl Sys) {
-        let Some(ap) = self.networks.get(row).cloned() else {
-            return;
-        };
-        if ap.saved || !ap.secure {
-            // An empty password joins with the saved one (or none).
-            sys.wifi(WifiCmd::Join {
-                ssid: ap.ssid,
-                password: String::new(),
-            });
-            self.overlay = Overlay::None;
-            self.feel(Haptic::Confirm, sys);
-        } else {
-            self.open_input(Entry::WifiPassword { ssid: ap.ssid }, ui);
-        }
-    }
-
-    /// Two taps: the first arms, the second forgets the address and password.
-    fn forget_paseo(&mut self, sys: &mut impl Sys) {
-        if self.now >= self.forget_until {
-            self.forget_until = self.now + FORGET_ARM_MS;
-            self.feel(Haptic::Tick, sys);
-            return;
-        }
-        self.forget_until = 0;
-        sys.save_config(None);
-        self.session.configure(None, self.now);
-        self.reset_fleet();
-        self.clock = None;
-        self.host.clear();
-        self.last_sync = None;
-        self.overlay = Overlay::None;
-        self.feel(Haptic::Confirm, sys);
-    }
-
     /// Burn-in guard: slide the always-on parts to the next offset.
     fn drift(&mut self, ui: &mut impl Ui) {
         let (fx, fy) = DRIFT_PATH[self.drift_step];
@@ -1031,39 +859,6 @@ impl App {
                         crate::ui::Ease::InOut,
                     ));
                 }
-            }
-        }
-    }
-
-    fn on_scanned(&mut self, payload: &str, sys: &mut impl Sys) {
-        match qr::parse(payload) {
-            Some(Code::Wifi { ssid, password }) => {
-                sys.camera(false);
-                sys.wifi(WifiCmd::Join { ssid, password });
-                self.overlay = Overlay::None;
-                self.feel(Haptic::Confirm, sys);
-            }
-            Some(Code::Farol {
-                url,
-                password,
-                host,
-            }) => {
-                sys.camera(false);
-                self.overlay = Overlay::Pair {
-                    config: Config { url, password },
-                    host,
-                };
-                self.feel(Haptic::Confirm, sys);
-            }
-            None => {
-                let lower = payload.trim().to_ascii_lowercase();
-                let what = if lower.starts_with("http://") || lower.starts_with("https://") {
-                    "这是一个网址，不是 Farol 连接码或 Wi-Fi 码"
-                } else {
-                    "这不是 Farol 连接码或 Wi-Fi 码"
-                };
-                self.scan_since = self.now;
-                self.note_on("", what);
             }
         }
     }
@@ -1585,7 +1380,9 @@ impl App {
 
     fn update_overlay(&mut self) {
         match self.overlay {
-            Overlay::Pair { .. }
+            Overlay::Connect
+            | Overlay::Pair { .. }
+            | Overlay::Tls { .. }
             | Overlay::Scan
             | Overlay::Input { .. }
             | Overlay::Wifi
@@ -1713,6 +1510,9 @@ impl Sys for NullSys {
     fn save_prefs(&mut self, _: &Prefs) {}
     fn wifi(&mut self, _: WifiCmd) {}
     fn camera(&mut self, _: bool) {}
+    fn random(&mut self, out: &mut [u8]) {
+        out.fill(0);
+    }
 }
 
 #[cfg(test)]
@@ -1798,6 +1598,7 @@ mod tests {
     struct Effects {
         display: Option<Display>,
         glows: usize,
+        saved: Option<Config>,
     }
 
     impl Sys for Effects {
@@ -1811,10 +1612,15 @@ mod tests {
         fn display(&mut self, display: Display) {
             self.display = Some(display);
         }
-        fn save_config(&mut self, _: Option<&Config>) {}
+        fn save_config(&mut self, config: Option<&Config>) {
+            self.saved = config.cloned();
+        }
         fn save_prefs(&mut self, _: &Prefs) {}
         fn wifi(&mut self, _: WifiCmd) {}
         fn camera(&mut self, _: bool) {}
+        fn random(&mut self, out: &mut [u8]) {
+            out.fill(7);
+        }
     }
 
     const T: i64 = 1_793_583_660_000;
@@ -1953,33 +1759,115 @@ mod tests {
         app.handle(1, Event::Call { action, arg: 0 }, ui, sys);
     }
 
+    fn direct(password: &str) -> Config {
+        Config {
+            endpoint: crate::endpoint::Endpoint::Direct {
+                host: "192.168.1.20".into(),
+                port: 6767,
+                tls: false,
+            },
+            password: password.into(),
+        }
+    }
+
+    fn type_in(app: &mut App, ui: &mut NullUi, sys: &mut Effects, text: &str) {
+        ui.typed = text.into();
+        press(app, ui, sys, gsp::GSP_ACT_ID_KB_KEY);
+    }
+
     #[test]
-    fn typing_an_address_and_password_leads_to_the_confirm_page() {
+    fn a_direct_connection_takes_host_port_ssl_and_password() {
         let (mut app, mut ui, mut sys) =
             (App::new(0, "test"), NullUi::default(), Effects::default());
-        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_MANUAL_OPEN);
-        ui.typed = "ftp://nope".into();
-        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_KB_KEY);
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_DIRECT_OPEN);
+        type_in(&mut app, &mut ui, &mut sys, "  ");
         assert!(matches!(
             &app.overlay,
             Overlay::Input {
-                entry: Entry::Address,
+                entry: Entry::Host,
                 error: Some(_),
                 ..
             }
         ));
-        ui.typed = "paseo.example.net".into();
-        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_KB_KEY);
-        ui.typed = "secret".into();
-        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_KB_KEY);
-        let Overlay::Pair { config, host } = &app.overlay else {
-            panic!("{:?}", app.overlay)
-        };
+        type_in(&mut app, &mut ui, &mut sys, "192.168.1.20");
+        assert!(matches!(
+            &app.overlay,
+            Overlay::Input {
+                entry: Entry::Port { .. },
+                ..
+            }
+        ));
+        type_in(&mut app, &mut ui, &mut sys, "99999");
+        assert!(matches!(
+            &app.overlay,
+            Overlay::Input { error: Some(_), .. }
+        ));
+        type_in(&mut app, &mut ui, &mut sys, "");
         assert_eq!(
-            (config.url.as_str(), config.password.as_str()),
-            ("wss://paseo.example.net/ws", "secret")
+            app.overlay,
+            Overlay::Tls {
+                host: "192.168.1.20".into(),
+                port: 6767
+            }
         );
-        assert_eq!(host, "paseo.example.net");
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_TLS_OFF);
+        type_in(&mut app, &mut ui, &mut sys, "secret");
+        assert_eq!(
+            app.overlay,
+            Overlay::Pair {
+                config: direct("secret")
+            }
+        );
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_PAIR_CONNECT);
+        assert_eq!(sys.saved, Some(direct("secret")));
+        assert_eq!(app.session.config(), Some(&direct("secret")));
+    }
+
+    #[test]
+    fn a_password_paseo_asks_for_while_connecting_is_asked_on_the_board() {
+        let (mut app, mut ui, mut sys) =
+            (App::new(0, "test"), NullUi::default(), Effects::default());
+        app.overlay = Overlay::Pair { config: direct("") };
+        press(&mut app, &mut ui, &mut sys, gsp::GSP_ACT_ID_PAIR_CONNECT);
+        let rejected = |reason: &str| {
+            Event::Link(Link::Text(format!(
+                r#"{{"type":"hello.rejected","reason":"{reason}","accepts":["password"]}}"#
+            )))
+        };
+        app.handle(2, Event::Link(Link::Opened), &mut ui, &mut sys);
+        app.handle(3, rejected("password_required"), &mut ui, &mut sys);
+        assert!(matches!(
+            &app.overlay,
+            Overlay::Input {
+                entry: Entry::DaemonPassword { .. },
+                error: None,
+                ..
+            }
+        ));
+        type_in(&mut app, &mut ui, &mut sys, "wrong");
+        assert_eq!(sys.saved, Some(direct("wrong")));
+        app.handle(4, Event::Link(Link::Opened), &mut ui, &mut sys);
+        app.handle(5, rejected("incorrect_password"), &mut ui, &mut sys);
+        assert!(matches!(
+            &app.overlay,
+            Overlay::Input {
+                entry: Entry::DaemonPassword { .. },
+                error: Some(_),
+                ..
+            }
+        ));
+        type_in(&mut app, &mut ui, &mut sys, "pw");
+        app.handle(6, Event::Link(Link::Opened), &mut ui, &mut sys);
+        let info = r#"{"type":"session","message":{"type":"status","payload":{"status":"server_info","hostname":"studio"}}}"#;
+        app.handle(7, Event::Link(Link::Text(info.into())), &mut ui, &mut sys);
+        assert!(app.session.is_ready());
+        assert!(!app.pairing);
+        // Later refusals (a changed password) show on the status page instead.
+        app.overlay = Overlay::None;
+        app.session.on_close(8, crate::paseo::Down::Closed(1006));
+        app.handle(9, Event::Link(Link::Opened), &mut ui, &mut sys);
+        app.handle(10, rejected("incorrect_password"), &mut ui, &mut sys);
+        assert!(!matches!(&app.overlay, Overlay::Input { .. }));
     }
 
     #[test]
@@ -2034,13 +1922,7 @@ mod tests {
     #[test]
     fn settings_flow_both_ways_and_a_local_change_wins_until_confirmed() {
         let (mut app, mut ui, mut sys) = board(vec![]);
-        app.session.configure(
-            Some(Config {
-                url: "wss://paseo.example.net/ws".into(),
-                password: "pw".into(),
-            }),
-            0,
-        );
+        app.session.configure(Some(direct("pw")), 0);
         let with = |rev, sound| Snapshot {
             v: VERSION,
             now: T,

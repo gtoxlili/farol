@@ -97,6 +97,9 @@ impl Sys for Board {
     fn camera(&mut self, on: bool) {
         camera::set(on);
     }
+    fn random(&mut self, out: &mut [u8]) {
+        board::random(out);
+    }
 }
 
 /// State of the logic task, its single owner.

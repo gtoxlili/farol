@@ -198,7 +198,7 @@ def flow_cancel(s: Sim) -> None:
 def flow_welcome(s: Sim) -> None:
     s.shot("1-welcome")
     s.expect("first boot shows the welcome page", s.visible("st_welcome"))
-    s.tap(138, 398)
+    s.tap(138, 406)
     s.frames(20)
     s.expect("scan opens the camera page", s.visible("st_scan"))
     s.shot("2-scan")
@@ -214,20 +214,28 @@ def type_word(s: Sim, word: str) -> None:
     s.key(*(f"lower_key_{LETTERS[ch]}" for ch in word))
 
 
-def flow_manual(s: Sim) -> None:
-    s.tap(342, 398)
+def flow_direct(s: Sim) -> None:
+    s.tap(342, 406)
     s.frames(20)
-    s.expect("manual entry opens the keyboard page", s.visible("st_input"))
+    s.expect("直接连接 opens the keyboard page", s.visible("st_input"))
     type_word(s, "abc")
-    s.shot("1-address")
+    s.shot("1-host")
     s.key(OK_KEY)
     s.frames(10)
-    type_word(s, "x")
-    s.shot("2-password")
+    s.shot("2-port")
     s.key(OK_KEY)
     s.frames(20)
-    s.expect("two steps lead to the confirm page", s.visible("st_pair"))
-    s.shot("3-confirm")
+    s.expect("an empty port takes 6767 and leads to the SSL choice", s.visible("st_tls"))
+    s.shot("3-ssl")
+    s.tap(240, 158)
+    s.frames(20)
+    s.expect("the SSL choice asks for the password", s.visible("st_input"))
+    type_word(s, "x")
+    s.shot("4-password")
+    s.key(OK_KEY)
+    s.frames(20)
+    s.expect("four steps lead to the confirm page", s.visible("st_pair"))
+    s.shot("5-confirm")
 
 
 def flow_wifi(s: Sim) -> None:
@@ -261,6 +269,10 @@ def flow_link(s: Sim) -> None:
     s.tap(342, 406)
     s.frames(10)
     s.shot("2-forget-armed")
+    s.tap(138, 406)
+    s.frames(20)
+    s.expect("重新连接 offers Paseo's two ways", s.visible("st_connect"))
+    s.shot("3-connect")
 
 
 def flow_pulse(s: Sim) -> None:
@@ -284,7 +296,7 @@ FLOWS = {
     "stop": (flow_stop, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "cancel": (flow_cancel, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "welcome": (flow_welcome, {"FAROL_SIM": "welcome"}),
-    "manual": (flow_manual, {"FAROL_SIM": "welcome"}),
+    "direct": (flow_direct, {"FAROL_SIM": "welcome"}),
     "wifi": (flow_wifi, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "link": (flow_link, {"FAROL_SIM": "demo", "FAROL_SIM_T": "3000"}),
     "pulse": (flow_pulse, {"FAROL_SIM": "demo", "FAROL_SIM_T": "69000"}),

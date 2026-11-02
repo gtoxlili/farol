@@ -6,7 +6,8 @@
 //!   [`App::poll`] does time-driven work, [`App::next_deadline_ms`] says when
 //!   `poll` is next due. All three run on the one thread that owns the `App`.
 //! - [`paseo::Session`]: the Paseo client session (hello with the daemon
-//!   password, plugin RPC long-poll, actions), a pure state machine.
+//!   password, plugin RPC long-poll, actions), a pure state machine; it
+//!   connects directly or through Paseo's relay ([`endpoint`], `relay`).
 //! - [`model`]: farol/1, the data the Farol plugin sends.
 //! - [`ui::Ui`] and [`sys::Sys`]: the scene setters and platform effects the
 //!   logic drives; the platforms implement them, the tests record them.
@@ -21,9 +22,11 @@ pub const FIRMWARE: &str = env!("CARGO_PKG_VERSION");
 
 mod app;
 mod demo;
+pub mod endpoint;
 pub mod model;
 pub mod paseo;
 pub mod qr;
+mod relay;
 mod scene;
 pub mod sys;
 pub mod text;

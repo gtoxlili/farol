@@ -1,17 +1,21 @@
 //! The board's Paseo client session, as a pure state machine.
 //!
-//! The board connects to the daemon exactly like Paseo's web app: one
-//! WebSocket to `<url>` (the daemon's `/ws`), a `hello` carrying the daemon
-//! password, then only plugin RPCs to the Farol plugin. Paseo 0.14 has no
+//! The board connects to the daemon like Paseo's app, in either of its two
+//! ways ([`crate::endpoint`]): straight to the daemon's `/ws`, or through a
+//! Paseo relay with the end-to-end encrypted channel of [`crate::relay`]
+//! wrapped around every frame. Either way it sends a `hello` carrying the
+//! daemon password, then only plugin RPCs to the Farol plugin. Paseo 0.14 has no
 //! plugin push, so the board long-polls `farol.next` (the plugin answers
-//! within 25 s, under the daemon's 30 s RPC limit) and sends `farol.act` for
+//! within 20 s, under the daemon's 30 s RPC limit) and sends `farol.act` for
 //! actions. The platform moves frames ([`Out`]) and reports transport
 //! changes; everything here runs on the host in tests.
 //!
 //! Wire shapes (Paseo v0.14.0, `packages/protocol/src/messages.ts`): every
 //! frame is one JSON text frame; session traffic is wrapped as
 //! `{"type":"session","message":{..}}`; `{"type":"ping"}` is answered with
-//! `{"type":"pong"}`; a refused hello yields `hello.rejected` and close 4401.
+//! `{"type":"pong"}`; a refused hello yields `hello.rejected` and close 4401
+//! (a relay replaces close codes with its own, so the board asks for
+//! `hello.rejected` up front).
 
 use alloc::collections::BTreeMap;
 use alloc::format;
@@ -20,11 +24,19 @@ use alloc::vec::Vec;
 
 use serde_json::{Value, json};
 
+pub use crate::endpoint::Config;
 use crate::model::{self, Act, ActResult, BoardPrefs, Snapshot};
+use crate::relay;
 
 /// Plugin id the RPCs address.
 pub const PLUGIN_ID: &str = "farol";
 const HELLO_TIMEOUT_MS: u64 = 15_000;
+/// The relay handshake's `e2ee_hello` repeats this often until the daemon answers.
+const RELAY_HELLO_EVERY_MS: u64 = 1_000;
+/// Relay closes: the daemon is not attached to the relay (1012), or the relay
+/// gave up waiting for it or is overloaded (1013); a refused routing key (1008).
+const RELAY_GONE: [u16; 2] = [1012, 1013];
+const RELAY_BAD_KEY: u16 = 1008;
 const PING_EVERY_MS: u64 = 10_000;
 /// No frame at all for this long means the link is dead (pings get pongs).
 const SILENCE_LIMIT_MS: u64 = 30_000;
@@ -34,13 +46,6 @@ const BACKOFF_MAX_MS: u64 = 60_000;
 const AUTH_RETRY_MS: u64 = 60_000;
 const POLL_RETRY_MS: u64 = 2_000;
 const PLUGIN_MISSING_RETRY_MS: u64 = 15_000;
-
-/// Where to connect and with which daemon password (empty = none).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Config {
-    pub url: String,
-    pub password: String,
-}
 
 /// Why the session is not ready, for the status page.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -60,6 +65,13 @@ pub enum Down {
     Refused(u16),
     /// The daemon refused the password.
     Auth,
+    /// The daemon wants a password and the board has none.
+    NeedPassword,
+    /// The relay's encrypted channel failed: the daemon's key changed (pair
+    /// again) or the daemon is too old for it.
+    Handshake,
+    /// The relay could not reach the daemon (offline, or relay turned off).
+    RelayAway,
     /// The daemon does not speak this protocol version.
     Incompatible,
     /// The Farol plugin answers in another farol/N (its version).
@@ -90,14 +102,34 @@ pub enum Notice {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Phase {
     Idle,
-    Backoff { until: u64 },
-    Connecting { since: u64 },
-    Hello { since: u64 },
+    Backoff {
+        until: u64,
+    },
+    Connecting {
+        since: u64,
+    },
+    /// Relay only: the encrypted channel's handshake.
+    Securing {
+        since: u64,
+        resend_at: u64,
+    },
+    Hello {
+        since: u64,
+    },
     Ready,
+}
+
+/// The relay channel of the current connection.
+enum Secure {
+    /// A direct connection: frames go as they are.
+    Plain,
+    Handshake(relay::Initiator),
+    Open(relay::Channel),
 }
 
 pub struct Session {
     config: Option<Config>,
+    secure: Secure,
     device: String,
     phase: Phase,
     failures: u32,
@@ -127,6 +159,7 @@ impl Session {
     pub fn new(device: &str) -> Self {
         Self {
             config: None,
+            secure: Secure::Plain,
             device: device.to_string(),
             phase: Phase::Idle,
             failures: 0,
@@ -164,7 +197,7 @@ impl Session {
         match &self.config {
             Some(c) => {
                 self.phase = Phase::Connecting { since: now };
-                self.out.push(Out::Open(c.url.clone()));
+                self.out.push(Out::Open(c.url()));
                 self.set_down(Down::None);
             }
             None => {
@@ -222,14 +255,46 @@ impl Session {
     pub fn retry_now(&mut self, now: u64) {
         if let (Phase::Backoff { .. }, Some(c)) = (&self.phase, &self.config) {
             self.phase = Phase::Connecting { since: now };
-            self.out.push(Out::Open(c.url.clone()));
+            self.out.push(Out::Open(c.url()));
         }
     }
 
-    /// The transport opened: introduce ourselves.
-    pub fn on_open(&mut self, now: u64) {
+    /// The transport opened. Direct: introduce ourselves. Relay: start the
+    /// encrypted channel first; `entropy` (fresh random bytes) seeds its keys.
+    pub fn on_open(&mut self, now: u64, entropy: &[u8; 64]) {
         let Some(config) = &self.config else {
             self.out.push(Out::Close);
+            return;
+        };
+        self.last_rx = now;
+        self.last_ping = now;
+        self.ping_at = None;
+        let Some(r) = config.relay() else {
+            self.secure = Secure::Plain;
+            self.send_hello(now);
+            return;
+        };
+        let (ephemeral, routing) = entropy.split_at(32);
+        let start = relay::Initiator::start(
+            &r.daemon_key,
+            ephemeral.try_into().unwrap_or_default(),
+            routing.try_into().unwrap_or_default(),
+        );
+        match start {
+            Ok(handshake) => {
+                self.out.push(Out::Send(handshake.hello().into()));
+                self.secure = Secure::Handshake(handshake);
+                self.phase = Phase::Securing {
+                    since: now,
+                    resend_at: now + RELAY_HELLO_EVERY_MS,
+                };
+            }
+            Err(_) => self.fail(now, Down::Handshake),
+        }
+    }
+
+    fn send_hello(&mut self, now: u64) {
+        let Some(config) = &self.config else {
             return;
         };
         let mut hello = json!({
@@ -243,11 +308,23 @@ impl Session {
         if !config.password.is_empty() {
             hello["auth"] = json!({"kind": "password", "password": config.password});
         }
-        self.out.push(Out::Send(hello.to_string()));
+        self.send(hello.to_string());
         self.phase = Phase::Hello { since: now };
-        self.last_rx = now;
-        self.last_ping = now;
-        self.ping_at = None;
+    }
+
+    /// One frame to the daemon, sealed when the relay channel is open.
+    fn send(&mut self, text: String) {
+        let frame = match &mut self.secure {
+            Secure::Open(channel) => channel.seal(&text),
+            _ => text,
+        };
+        self.out.push(Out::Send(frame));
+    }
+
+    /// Closes the socket and waits as for a failed connection.
+    fn fail(&mut self, now: u64, why: Down) {
+        self.out.push(Out::Close);
+        self.on_close(now, why);
     }
 
     /// The transport closed or failed to open; `why` is the platform's reading.
@@ -256,17 +333,22 @@ impl Session {
             return;
         }
         self.reset_requests();
+        let relay = self.config.as_ref().is_some_and(|c| c.relay().is_some());
+        self.secure = Secure::Plain;
         let why = match (&self.down, why) {
             // A close right after hello.rejected keeps the rejection's reason.
-            (Down::Auth, Down::Closed(_)) => Down::Auth,
-            (Down::Incompatible, Down::Closed(_)) => Down::Incompatible,
+            (Down::Auth | Down::NeedPassword | Down::Incompatible, Down::Closed(_)) => {
+                self.down.clone()
+            }
             (_, Down::Closed(4401)) => Down::Auth,
             (_, Down::Closed(4003)) => Down::Incompatible,
+            (_, Down::Closed(code)) if relay && RELAY_GONE.contains(&code) => Down::RelayAway,
+            (_, Down::Closed(RELAY_BAD_KEY)) if relay => Down::Handshake,
             (_, w) => w,
         };
         self.failures = self.failures.saturating_add(1);
         let wait = match why {
-            Down::Auth | Down::Incompatible => AUTH_RETRY_MS,
+            Down::Auth | Down::NeedPassword | Down::Incompatible | Down::Handshake => AUTH_RETRY_MS,
             _ => (BACKOFF_MIN_MS << self.failures.saturating_sub(1).min(6)).min(BACKOFF_MAX_MS),
         };
         self.phase = if self.config.is_some() {
@@ -277,9 +359,55 @@ impl Session {
         self.set_down(why);
     }
 
-    /// One text frame from the daemon.
+    /// One text message from the socket: through the relay channel when
+    /// there is one, else straight to [`Session::on_frame`].
     pub fn on_text(&mut self, now: u64, text: &str) {
         self.last_rx = now;
+        match &mut self.secure {
+            Secure::Plain => self.on_frame(now, text),
+            Secure::Handshake(_) => {
+                let Ok(frame) = serde_json::from_str::<Value>(text) else {
+                    return;
+                };
+                if frame["type"] != "e2ee_ready" {
+                    return;
+                }
+                let Secure::Handshake(handshake) =
+                    core::mem::replace(&mut self.secure, Secure::Plain)
+                else {
+                    return;
+                };
+                match handshake.finish(&frame) {
+                    Ok(channel) => {
+                        self.secure = Secure::Open(channel);
+                        self.send_hello(now);
+                    }
+                    Err(_) => self.fail(now, Down::Handshake),
+                }
+            }
+            Secure::Open(channel) => {
+                // Base64 records never start with `{`; plaintext JSON may only
+                // be a repeated ready, anything else means the peer stopped
+                // encrypting.
+                if text.trim_start().starts_with('{') {
+                    let frame = serde_json::from_str::<Value>(text).ok();
+                    if frame.is_some_and(|f| f["type"] == "e2ee_ready") {
+                        return;
+                    }
+                    self.fail(now, Down::Handshake);
+                    return;
+                }
+                match channel.open(text) {
+                    Ok(Some(frame)) => self.on_frame(now, &frame),
+                    Ok(None) => {}
+                    Err(_) => self.fail(now, Down::Handshake),
+                }
+            }
+        }
+    }
+
+    /// One application frame from the daemon.
+    fn on_frame(&mut self, now: u64, text: &str) {
         let Ok(frame) = serde_json::from_str::<Value>(text) else {
             return;
         };
@@ -292,6 +420,7 @@ impl Session {
             Some("hello.rejected") => {
                 let down = match frame["reason"].as_str() {
                     Some("incompatible_protocol") => Down::Incompatible,
+                    Some("password_required") => Down::NeedPassword,
                     _ => Down::Auth,
                 };
                 self.set_down(down);
@@ -393,23 +522,33 @@ impl Session {
         match self.phase {
             Phase::Backoff { until } if now >= until => self.retry_now(now),
             Phase::Connecting { since } if now.saturating_sub(since) > HELLO_TIMEOUT_MS * 2 => {
-                self.out.push(Out::Close);
-                self.on_close(now, Down::Timeout);
+                self.fail(now, Down::Timeout);
+            }
+            Phase::Securing { since, .. } if now.saturating_sub(since) > HELLO_TIMEOUT_MS => {
+                self.fail(now, Down::Timeout);
+            }
+            Phase::Securing { since, resend_at } if now >= resend_at => {
+                // The same bytes again: the daemon answers each with a ready.
+                if let Secure::Handshake(handshake) = &self.secure {
+                    self.out.push(Out::Send(handshake.hello().into()));
+                }
+                self.phase = Phase::Securing {
+                    since,
+                    resend_at: now + RELAY_HELLO_EVERY_MS,
+                };
             }
             Phase::Hello { since } if now.saturating_sub(since) > HELLO_TIMEOUT_MS => {
-                self.out.push(Out::Close);
-                self.on_close(now, Down::Timeout);
+                self.fail(now, Down::Timeout);
             }
             Phase::Hello { .. } | Phase::Ready => {
                 if now.saturating_sub(self.last_rx) > SILENCE_LIMIT_MS {
-                    self.out.push(Out::Close);
-                    self.on_close(now, Down::Closed(0));
+                    self.fail(now, Down::Closed(0));
                     return;
                 }
                 if now.saturating_sub(self.last_ping) >= PING_EVERY_MS {
                     self.last_ping = now;
                     self.ping_at = Some(now);
-                    self.out.push(Out::Send(String::from(r#"{"type":"ping"}"#)));
+                    self.send(String::from(r#"{"type":"ping"}"#));
                 }
                 if self.phase == Phase::Ready
                     && self.poll.is_none()
@@ -429,6 +568,7 @@ impl Session {
         match self.phase {
             Phase::Backoff { until } => until,
             Phase::Connecting { since } => since + HELLO_TIMEOUT_MS * 2,
+            Phase::Securing { since, resend_at } => resend_at.min(since + HELLO_TIMEOUT_MS),
             Phase::Hello { since } => {
                 (since + HELLO_TIMEOUT_MS).min(self.last_ping + PING_EVERY_MS)
             }
@@ -519,7 +659,7 @@ impl Session {
                 "input": input,
             }
         });
-        self.out.push(Out::Send(frame.to_string()));
+        self.send(frame.to_string());
         id
     }
 
@@ -553,7 +693,11 @@ mod tests {
 
     fn config() -> Option<Config> {
         Some(Config {
-            url: "wss://paseo.example.net/ws".into(),
+            endpoint: crate::endpoint::Endpoint::Direct {
+                host: "paseo.example.net".into(),
+                port: 443,
+                tls: true,
+            },
             password: "pw".into(),
         })
     }
@@ -574,10 +718,144 @@ mod tests {
     fn ready() -> Session {
         let mut s = Session::new("3a1f");
         s.configure(config(), 0);
-        s.on_open(10);
+        s.on_open(10, &[0; 64]);
         s.take_out();
         s.on_text(20, SERVER_INFO);
         s
+    }
+
+    fn relay_vectors() -> Value {
+        serde_json::from_str(include_str!("../../../protocol/fixtures/relay.json")).unwrap()
+    }
+
+    /// The vectors' board secrets, as the platform's random bytes.
+    fn relay_entropy(v: &Value) -> [u8; 64] {
+        let mut out = [0u8; 64];
+        let hex = format!(
+            "{}{}",
+            v["boardEphemeralSecret"].as_str().unwrap(),
+            v["boardRoutingSecret"].as_str().unwrap()
+        );
+        for (i, byte) in out.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).unwrap();
+        }
+        out
+    }
+
+    /// A relay session past the handshake, and the daemon's end of its channel.
+    fn relay_ready(password: &str) -> (Session, relay::Channel) {
+        let v = relay_vectors();
+        let mut config =
+            crate::endpoint::parse_link(v["links"]["offerUrl"].as_str().unwrap()).unwrap();
+        config.password = password.into();
+        let mut s = Session::new("3a1f");
+        s.configure(Some(config), 0);
+        s.take_out();
+        s.on_open(10, &relay_entropy(&v));
+        s.take_out();
+        s.on_text(20, v["handshake"]["readyText"].as_str().unwrap());
+        let Secure::Open(channel) = &s.secure else {
+            panic!("the channel did not open");
+        };
+        let daemon = channel.mirror();
+        (s, daemon)
+    }
+
+    /// What the daemon reads from the board's queued frames.
+    fn relay_sent(s: &mut Session, daemon: &mut relay::Channel) -> Vec<Value> {
+        s.take_out()
+            .into_iter()
+            .filter_map(|o| match o {
+                Out::Send(t) => daemon.open(&t).unwrap(),
+                _ => None,
+            })
+            .map(|t| serde_json::from_str(&t).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn a_relay_connection_opens_the_relay_and_repeats_its_hello() {
+        let v = relay_vectors();
+        let config = crate::endpoint::parse_link(v["links"]["offerUrl"].as_str().unwrap()).unwrap();
+        let mut s = Session::new("3a1f");
+        s.configure(Some(config), 0);
+        let Some(Out::Open(url)) = s.take_out().pop() else {
+            panic!("no open");
+        };
+        assert_eq!(
+            url.replace(":443", ""),
+            v["links"]["relayWebSocketUrl"].as_str().unwrap()
+        );
+        s.on_open(10, &relay_entropy(&v));
+        let hello = Out::Send(v["handshake"]["helloText"].as_str().unwrap().into());
+        assert_eq!(s.take_out(), core::slice::from_ref(&hello));
+        s.poll(1_010);
+        assert_eq!(s.take_out(), [hello]);
+        s.poll(15_011);
+        assert!(s.take_out().contains(&Out::Close));
+        assert_eq!(s.down(), &Down::Timeout);
+    }
+
+    #[test]
+    fn over_the_relay_the_hello_and_rpcs_travel_sealed() {
+        let (mut s, mut daemon) = relay_ready("pw");
+        let hello = &relay_sent(&mut s, &mut daemon)[0];
+        assert_eq!(hello["type"], "hello");
+        assert_eq!(hello["clientId"], "farol-3a1f");
+        assert_eq!(hello["auth"]["password"], "pw");
+        s.on_text(30, &daemon.seal(SERVER_INFO));
+        assert!(s.is_ready());
+        let poll = &relay_sent(&mut s, &mut daemon)[0]["message"];
+        assert_eq!(poll["method"], "farol.next");
+        // Pings are sealed too; the daemon's pong comes back sealed.
+        s.poll(10_030);
+        assert_eq!(relay_sent(&mut s, &mut daemon)[0]["type"], "ping");
+        s.on_text(10_050, &daemon.seal(r#"{"type":"pong"}"#));
+        assert_eq!(s.rtt_ms(), Some(20));
+    }
+
+    #[test]
+    fn a_relay_without_its_daemon_or_with_another_key_says_so() {
+        let (mut s, _) = relay_ready("");
+        s.on_close(40, Down::Closed(1013));
+        assert_eq!(s.down(), &Down::RelayAway);
+
+        let v = relay_vectors();
+        let mut config =
+            crate::endpoint::parse_link(v["links"]["offerUrl"].as_str().unwrap()).unwrap();
+        if let crate::endpoint::Endpoint::Relay(r) = &mut config.endpoint {
+            r.daemon_key[0] ^= 0x40;
+        }
+        let mut s = Session::new("3a1f");
+        s.configure(Some(config), 0);
+        s.on_open(10, &relay_entropy(&v));
+        s.take_out();
+        s.on_text(20, v["handshake"]["readyText"].as_str().unwrap());
+        assert!(s.take_out().contains(&Out::Close));
+        assert_eq!(s.down(), &Down::Handshake);
+    }
+
+    #[test]
+    fn plaintext_after_the_channel_opened_ends_it() {
+        let (mut s, _) = relay_ready("");
+        s.take_out();
+        s.on_text(30, SERVER_INFO);
+        assert!(!s.is_ready());
+        assert!(s.take_out().contains(&Out::Close));
+        assert_eq!(s.down(), &Down::Handshake);
+    }
+
+    #[test]
+    fn a_missing_password_is_told_apart_from_a_wrong_one() {
+        let (mut s, mut daemon) = relay_ready("");
+        s.on_text(
+            30,
+            &daemon.seal(
+                r#"{"type":"hello.rejected","reason":"password_required","accepts":["password"]}"#,
+            ),
+        );
+        s.on_close(31, Down::Closed(1012));
+        assert_eq!(s.down(), &Down::NeedPassword);
     }
 
     #[test]
@@ -586,9 +864,9 @@ mod tests {
         s.configure(config(), 0);
         assert_eq!(
             s.take_out(),
-            [Out::Open("wss://paseo.example.net/ws".into())]
+            [Out::Open("wss://paseo.example.net:443/ws".into())]
         );
-        s.on_open(10);
+        s.on_open(10, &[0; 64]);
         let hello = &sent(&mut s)[0];
         assert_eq!(hello["type"], "hello");
         assert_eq!(hello["clientId"], "farol-3a1f");
@@ -602,7 +880,7 @@ mod tests {
     fn server_info_makes_it_ready_and_starts_the_long_poll() {
         let mut s = Session::new("3a1f");
         s.configure(config(), 0);
-        s.on_open(10);
+        s.on_open(10, &[0; 64]);
         s.take_out();
         s.on_text(20, SERVER_INFO);
         assert!(s.is_ready());
@@ -710,7 +988,7 @@ mod tests {
     fn a_refused_password_waits_long_and_says_why() {
         let mut s = Session::new("3a1f");
         s.configure(config(), 0);
-        s.on_open(10);
+        s.on_open(10, &[0; 64]);
         s.on_text(
             20,
             r#"{"type":"hello.rejected","reason":"incorrect_password","accepts":["password"]}"#,
@@ -737,7 +1015,7 @@ mod tests {
             waits,
             [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 60_000, 60_000]
         );
-        s.on_open(now);
+        s.on_open(now, &[0; 64]);
         s.on_text(now, SERVER_INFO);
         assert_eq!(s.failures(), 0);
     }

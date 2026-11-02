@@ -689,12 +689,15 @@ fn down_text(down: &Down) -> &'static str {
     match down {
         Down::None => "正在连接…",
         Down::Unconfigured => "还没有连接 Paseo",
-        Down::Dns => "找不到这个地址",
+        Down::Dns => "找不到这个 Host",
         Down::Timeout => "连接超时",
-        Down::Tls => "TLS 证书无效",
-        Down::Refused(403) => "daemon 不认这个域名（hostnames）",
-        Down::Refused(_) => "地址拒绝了连接",
+        Down::Tls => "SSL 证书无效",
+        Down::Refused(403) => "daemon 不认这个 Host（hostnames）",
+        Down::Refused(_) => "对方拒绝了连接",
         Down::Auth => "daemon 密码不对",
+        Down::NeedPassword => "这台 Paseo 需要 daemon 密码",
+        Down::Handshake => "加密连接失败：请重新扫 Paseo 的配对码",
+        Down::RelayAway => "relay 联系不上这台 Paseo",
         Down::Incompatible => "Paseo 版本不兼容，需要更新",
         Down::PluginVersion(v) if *v > VERSION => "Farol 插件比固件新：请更新板子的固件",
         Down::PluginVersion(_) => "Farol 插件比固件旧：请在 Paseo 里更新插件",
@@ -721,8 +724,18 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     );
     p.visible(
         ui,
+        bind(gsp::GSP_BIND_ST_CONNECT_VIS),
+        *o == Overlay::Connect,
+    );
+    p.visible(
+        ui,
         bind(gsp::GSP_BIND_ST_PAIR_VIS),
         matches!(o, Overlay::Pair { .. }),
+    );
+    p.visible(
+        ui,
+        bind(gsp::GSP_BIND_ST_TLS_VIS),
+        matches!(o, Overlay::Tls { .. }),
     );
     p.visible(ui, bind(gsp::GSP_BIND_ST_SCAN_VIS), *o == Overlay::Scan);
     p.visible(
@@ -746,6 +759,18 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
         Overlay::Wifi => wifi_page(app, p, ui),
         Overlay::NetInfo => net_details(app, p, ui),
         Overlay::Link => link_details(app, p, ui),
+        Overlay::Tls { host, port } => p.text(
+            ui,
+            bind(gsp::GSP_BIND_TL_CAPTION),
+            &text::fit(
+                &format!(
+                    "第 3 步，共 4 步 · {}",
+                    crate::endpoint::host_port(host, *port)
+                ),
+                432,
+                13,
+            ),
+        ),
         _ => {}
     }
 
@@ -831,25 +856,26 @@ fn overlays(app: &App, p: &mut Painter, ui: &mut impl Ui) {
     );
 
     // Pair.
-    if let Overlay::Pair { config, host } = o {
-        let title = if host.is_empty() {
-            String::from("连接到这台 Paseo？")
+    if let Overlay::Pair { config } = o {
+        let relay = config.relay().is_some();
+        let title = if relay {
+            "通过 relay 连接这台 Paseo？"
         } else {
-            format!("连接到 {host}？")
+            "直接连接这台 Paseo？"
         };
+        p.text(ui, bind(gsp::GSP_BIND_ST_PAIR_TITLE), title);
         p.text(
             ui,
-            bind(gsp::GSP_BIND_ST_PAIR_TITLE),
-            &text::fit(&title, 424, 25),
+            bind(gsp::GSP_BIND_ST_PAIR_URL),
+            &text::fit(&config.describe(), 424, 16),
         );
-        p.text(ui, bind(gsp::GSP_BIND_ST_PAIR_URL), &config.url);
-        let code = if config.password.is_empty() {
-            String::from("这台 daemon 没有设密码")
-        } else {
-            format!(
+        let code = match (config.password.is_empty(), relay) {
+            (false, _) => format!(
                 "daemon 密码 {}",
                 "•".repeat(config.password.chars().count().min(12))
-            )
+            ),
+            (true, true) => String::from("端到端加密 · 需要密码时会再问你"),
+            (true, false) => String::from("不使用密码"),
         };
         p.text(ui, bind(gsp::GSP_BIND_ST_PAIR_CODE), &code);
     }
@@ -895,17 +921,26 @@ fn input_page(
     error: Option<&str>,
     joining: bool,
 ) {
+    let direct = || String::from("直接连接");
     let (title, caption) = match entry {
-        Entry::Address => (
-            String::from("连接 Paseo"),
-            String::from("第 1 步，共 2 步 · daemon 地址，例如 paseo.example.net"),
+        Entry::Host => (
+            direct(),
+            String::from("第 1 步，共 4 步 · Host，例如 192.168.1.20 或 paseo.example.net"),
         ),
-        Entry::Password { url } => (
-            String::from("连接 Paseo"),
+        Entry::Port { host, default } => (
+            direct(),
+            format!("第 2 步，共 4 步 · {host} 的端口，直接点“好”用 {default}"),
+        ),
+        Entry::Password { host, port, .. } => (
+            direct(),
             format!(
-                "第 2 步，共 2 步 · {} 的 daemon 密码",
-                crate::qr::host_of(url)
+                "第 4 步，共 4 步 · {} 的 daemon 密码，没有就直接点“好”",
+                crate::endpoint::host_port(host, *port)
             ),
+        ),
+        Entry::DaemonPassword { config } => (
+            String::from("daemon 密码"),
+            format!("{} 需要 daemon 密码", config.fallback_name()),
         ),
         Entry::WifiPassword { ssid } => (
             format!("加入「{ssid}」"),
@@ -991,16 +1026,22 @@ fn net_details(app: &App, p: &mut Painter, ui: &mut impl Ui) {
 }
 
 fn link_details(app: &App, p: &mut Painter, ui: &mut impl Ui) {
-    let url = app.session.config().map(|c| c.url.as_str()).unwrap_or("");
-    let host = if !app.host.is_empty() && app.host != "demo" {
-        app.host.clone()
-    } else if url.is_empty() {
-        String::from("还没有连接 Paseo")
-    } else {
-        crate::qr::host_of(url)
+    let config = app.session.config();
+    let host = match config {
+        _ if !app.host.is_empty() && app.host != "demo" => app.host.clone(),
+        Some(c) => c.fallback_name(),
+        None => String::from("还没有连接 Paseo"),
     };
     p.text(ui, bind(gsp::GSP_BIND_LK_HOST), &text::fit(&host, 432, 28));
-    p.text(ui, bind(gsp::GSP_BIND_LK_URL), url);
+    let route = config.map_or(String::new(), |c| {
+        let way = if c.relay().is_some() {
+            "relay"
+        } else {
+            "直接连接"
+        };
+        format!("{way} · {}", c.describe())
+    });
+    p.text(ui, bind(gsp::GSP_BIND_LK_URL), &text::fit(&route, 432, 15));
     let state = if app.session.is_ready() {
         let mut line = String::from("已连接");
         if let Some(rtt) = app.session.rtt_ms() {
@@ -1010,7 +1051,7 @@ fn link_details(app: &App, p: &mut Painter, ui: &mut impl Ui) {
             line.push_str(&format!(" · {}同步", time::ago(app.now as i64, at as i64)));
         }
         line
-    } else if url.is_empty() {
+    } else if config.is_none() {
         String::new()
     } else {
         String::from(down_text(app.down()))

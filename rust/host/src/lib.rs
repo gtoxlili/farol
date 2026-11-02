@@ -67,7 +67,17 @@ impl Sys for SimSys {
         eprintln!("farol sim: display {display:?}");
     }
     fn save_config(&mut self, config: Option<&Config>) {
-        eprintln!("farol sim: save config {:?}", config.map(|c| &c.url));
+        eprintln!("farol sim: save config {:?}", config.map(Config::describe));
+    }
+    fn random(&mut self, out: &mut [u8]) {
+        // The simulator's link only logs, but its keys still come from the OS.
+        use std::io::Read;
+        if std::fs::File::open("/dev/urandom")
+            .and_then(|mut f| f.read_exact(out))
+            .is_err()
+        {
+            out.fill(0);
+        }
     }
     fn save_prefs(&mut self, prefs: &Prefs) {
         eprintln!("farol sim: save prefs {prefs:?}");
