@@ -39,3 +39,5 @@ brightness register (0..100 %) and `app_display_set_enabled(on)` switches panel
 scanning, keeping brightness and GSP state. Like the factory display service,
 both send their commands to the panel directly while the presenter runs; each
 returns `ESP_ERR_INVALID_STATE` before `app_display_create` succeeded.
+In Farol both are called only from `app_feedback`'s task, which carries out
+the logic's display requests.
