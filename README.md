@@ -2,24 +2,24 @@
 
 <h1 align="center">Farol</h1>
 
-<p align="center">A desk lamp for your Paseo agents · <a href="README_CN.md">中文</a></p>
+<p align="center">A status display and controller for your Paseo agents · <a href="README_CN.md">中文</a></p>
 
-Farol is a desk lamp for your [Paseo](https://paseo.sh) agents. It runs on an ESP-Mosaico board. You see how your agents are doing at a glance, and you can answer them, stop them and start new ones without opening the app.
+Farol turns an ESP-Mosaico board into a separate screen for your [Paseo](https://paseo.sh) agents. See which agents are working or waiting, answer their questions and stop a turn from the board. You can also start a session by voice without opening the Paseo app.
 
 <p align="center"><img src="plugin/assets/demo.webp" width="480" alt="A real board: hold the AI key and ask a question, hold Send, and the new session runs to its answer"></p>
 
 <p align="center">A real board, set to Chinese: ask by voice, hold Send, and the session runs to its answer.</p>
 
-- The light shows the state of all your agents. It breathes cool while they work, turns amber when one waits for you and red when a turn fails. Its height follows your tightest usage quota.
-- Behind the lamp is a deck of cards, one per agent. Hold an option to answer a question, a permission request or a plan. Hold a running card to stop the turn.
+- The on-screen status light shows the state of all your agents. It breathes cool while they work, turns amber when one waits for you and red when a turn fails. Its height follows your tightest usage quota.
+- Swipe from the status light to a deck of cards, one per agent. Hold an option to answer a question, a permission request or a plan. Hold a running card to stop the turn.
 - Hold the AI key and speak to start a new session. Paseo's own dictation turns your voice into the first prompt. You can also type it.
 - The board and the plugin speak Chinese or English and follow the Paseo app.
 
-![The lamp, a question, a running turn and a new session](docs/media/en/overview.png)
+![The status light, a question, a running turn and a new session](docs/media/en/overview.png)
 
 ## What you need
 
-- An ESP-Mosaico board. The camera module in the left slot scans Wi-Fi codes and Paseo's pairing code. The interaction module in the right slot is optional. With it, the screen wakes when you come near and follows the room's light, and the LEDs show the lamp's state.
+- An ESP-Mosaico board. The camera module in the left slot scans Wi-Fi codes and Paseo's pairing code. The interaction module in the right slot is optional. With it, the screen wakes when you come near and follows the room's light, and the LEDs mirror the on-screen status light.
 - Paseo 0.14 or later with plugins on. To start sessions by voice, set up dictation in Paseo.
 - To build the firmware, an [ESP-Mosaico workspace](https://github.com/esp-mosaico/esp-mosaico-vibe) with its submodules, Python 3.10 or later and Rust stable. rustup installs the board's target from `rust/rust-toolchain.toml`.
 
@@ -55,15 +55,15 @@ Farol is a desk lamp for your [Paseo](https://paseo.sh) agents. It runs on an ES
 
 | Where | Gesture | Result |
 |---|---|---|
-| Anywhere | Swipe left or right | Usage, lamp, cards |
+| Anywhere | Swipe left or right | Usage, status light, cards |
 | Anywhere | Pull down from the top | Control centre: Wi-Fi, Paseo, do not disturb, sound, haptics, brightness |
-| Lamp | Tap | The most urgent card |
-| Lamp | Hold | A new session. Hold the light again to talk. |
+| Status light | Tap | The most urgent card |
+| Status light | Hold | A new session. Hold the light again to talk. |
 | Cards | Swipe up or down | The next agent, most urgent first |
 | A question | Hold an option for 0.5 s | Sends that answer |
 | A running card | Hold for 1.2 s | Stops this turn. Let go early to cancel. |
-| A finished card | Tap Mark read | The button checks, the card leaves the deck and the next card says how many are left. After the last card the board goes back to the lamp. A card comes back when its agent starts something new. |
-| AI key | Click | The most urgent card. Click again to go back to the lamp. |
+| A finished card | Tap Mark read | The button checks, the card leaves the deck and the next card says how many are left. After the last card the board returns to the status light. A card comes back when its agent starts something new. |
+| AI key | Click | The most urgent card. Click again to return to the status light. |
 | AI key | Hold | Talk. Let go, check the text, hold Send. |
 | The board | Turn face down | Do not disturb while it lies there |
 
@@ -71,7 +71,7 @@ A tap never changes an agent. Only a hold does.
 
 ### Answer a question
 
-<img src="docs/media/en/answer.gif" width="360" alt="Tap the amber lamp, hold an option, the agent works again">
+<img src="docs/media/en/answer.gif" width="360" alt="Tap the amber status light, hold an option, the agent works again">
 
 ### Stop a turn
 
@@ -79,11 +79,11 @@ A tap never changes an agent. Only a hold does.
 
 ### Start a session by voice
 
-<img src="docs/media/en/voice.gif" width="360" alt="The lamp turns violet and listens, the words become the card, holding Send starts the session">
+<img src="docs/media/en/voice.gif" width="360" alt="The status light turns violet during dictation, the words become the card, holding Send starts the session">
 
-Hold the AI key and talk. The lamp turns violet and rises and falls with your voice. Let go, and Paseo turns the words into text. The text shows as the card the session will be. Hold Send until the bar fills, and the new session's card opens. To redo, hold the AI key again.
+Hold the AI key and talk. The status light turns violet and rises and falls with your voice. Let go, and Paseo turns the words into text. The text shows as the card the session will be. Hold Send until the bar fills, and the new session's card opens. To redo, hold the AI key again.
 
-<img src="docs/media/en/listening.png" width="240" alt="The lamp listening"> <img src="docs/media/en/transcript.png" width="240" alt="The session to be, with its send bar"> <img src="docs/media/en/new-session.png" width="240" alt="The new session at work">
+<img src="docs/media/en/listening.png" width="240" alt="The status light during dictation"> <img src="docs/media/en/transcript.png" width="240" alt="The session to be, with its send bar"> <img src="docs/media/en/new-session.png" width="240" alt="The new session at work">
 
 The session starts in the workspace and with the agent profile you pick in the plugin's settings. The board's keyboard has Latin letters only, so speak to write Chinese. Paseo's dictation does the speech-to-text with the provider set up in Paseo. If it mishears your language, set `features.dictation.stt.language` in the daemon's config.
 

@@ -2,24 +2,24 @@
 
 <h1 align="center">Farol</h1>
 
-<p align="center">替你看着 Paseo agent 的桌面灯 · <a href="README.md">English</a></p>
+<p align="center">Paseo agent 的状态屏和控制器 · <a href="README.md">English</a></p>
 
-Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里的 agent，跑在 ESP-Mosaico 开发板上。看一眼就知道 agent 们怎么样了。不打开 App 也能回答和停止它们，还能开新会话。
+Farol 把一块 ESP-Mosaico 开发板变成 [Paseo](https://paseo.sh) agent 的状态屏和控制器。看一眼就知道谁在干活、谁在等你。你可以直接在板子上回答问题或停止这一轮，也可以用语音开新会话，不用打开 Paseo App。
 
 <p align="center"><img src="plugin/assets/demo.webp" width="480" alt="真机演示：按住 AI 键提问，按住发送，新会话一直跑到给出答案"></p>
 
 <p align="center">真机演示：用语音提问，按住发送，会话一直跑到给出答案。</p>
 
-- 灯光反映所有 agent 的状态。都在干活时是冷色、慢慢呼吸，有 agent 等你时变琥珀色，一轮失败时变红。光的高低跟着你最紧的那份额度走。
-- 灯后面是一叠卡片，一个 agent 一张。按住选项就能回答问题、权限请求或计划，按住运行中的卡片能停止这一轮。
+- 屏幕上的状态灯反映所有 agent 的状态。都在干活时是冷色、慢慢呼吸，有 agent 等你时变琥珀色，一轮失败时变红。光的高低跟着你最紧的那份额度走。
+- 从状态灯页滑到卡片组，一个 agent 一张。按住选项就能回答问题、权限请求或计划，按住运行中的卡片能停止这一轮。
 - 按住 AI 键说话，就能开始一段新会话。Paseo 自己的语音输入把你说的话变成第一条消息，也可以打字。
 - 板子和插件都有中文和英文，跟着 Paseo App 的语言走。
 
-![光、提问卡、运行中的一轮和新会话](docs/media/zh/overview.png)
+![状态灯、提问卡、运行中的一轮和新会话](docs/media/zh/overview.png)
 
 ## 需要什么
 
-- 一块 ESP-Mosaico 板子。左槽的摄像头模块用来扫 Wi-Fi 码和 Paseo 的配对码。右槽的交互模块可选，插上后屏幕随人亮灭、跟着环境光调亮度，LED 也会显示灯的状态。
+- 一块 ESP-Mosaico 板子。左槽的摄像头模块用来扫 Wi-Fi 码和 Paseo 的配对码。右槽的交互模块可选，插上后屏幕随人亮灭、跟着环境光调亮度，LED 也会同步屏幕上的状态灯。
 - Paseo 0.14 或更新，并开启插件。想用语音开会话，要在 Paseo 里设置好语音输入。
 - 构建固件需要一个 [ESP-Mosaico 工作区](https://github.com/esp-mosaico/esp-mosaico-vibe)（含子模块），以及 Python 3.10+ 和 Rust stable。板子的编译目标由 rustup 按 `rust/rust-toolchain.toml` 装上。
 
@@ -55,15 +55,15 @@ Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里�
 
 | 在哪 | 手势 | 结果 |
 |---|---|---|
-| 任何地方 | 左右滑 | 额度、灯、卡片组 |
+| 任何地方 | 左右滑 | 额度、状态灯、卡片组 |
 | 任何地方 | 从顶部下拉 | 控制中心，含 Wi-Fi、Paseo、勿扰、声音、振动和亮度 |
-| 灯 | 轻点 | 最紧急的那张卡 |
-| 灯 | 按住 | 新会话，再按住光说话 |
+| 状态灯 | 轻点 | 最紧急的那张卡 |
+| 状态灯 | 按住 | 新会话，再按住状态灯说话 |
 | 卡片组 | 上下滑 | 下一个 agent，最紧急的排在前面 |
 | 提问卡 | 按住一个选项 0.5 秒 | 用这个选项回答 |
 | 运行中的卡 | 按住 1.2 秒 | 停止这一轮，提前松手就取消 |
-| 完成的卡 | 点“已读” | 按钮打勾，卡片离开卡片组，下一张卡提示还剩几张；最后一张读完就回到灯。agent 开始新的一轮时，卡片再回来 |
-| AI 键 | 单击 | 最紧急的那张卡，再按一次回到灯 |
+| 完成的卡 | 点“已读” | 按钮打勾，卡片离开卡片组，下一张卡提示还剩几张；最后一张读完就回到状态灯页。agent 开始新的一轮时，卡片再回来 |
+| AI 键 | 单击 | 最紧急的那张卡，再按一次回到状态灯页 |
 | AI 键 | 按住 | 说话，松开后看一眼文字，按住“发送” |
 | 板子 | 扣过来放 | 扣着的时候勿扰 |
 
@@ -71,7 +71,7 @@ Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里�
 
 ### 回答问题
 
-<img src="docs/media/zh/answer.gif" width="360" alt="点亮着琥珀色的灯，按住一个选项，agent 接着干活">
+<img src="docs/media/zh/answer.gif" width="360" alt="点亮着琥珀色的状态灯，按住一个选项，agent 接着干活">
 
 ### 停止一轮
 
@@ -79,11 +79,11 @@ Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里�
 
 ### 用语音开会话
 
-<img src="docs/media/zh/voice.gif" width="360" alt="灯变成紫色在听，文字变成卡片，按住发送开始新会话">
+<img src="docs/media/zh/voice.gif" width="360" alt="语音输入时状态灯变成紫色，文字变成卡片，按住发送开始新会话">
 
-按住 AI 键说话，灯会变成紫色，跟着你的声音起伏。松开后 Paseo 把话转成文字，文字显示成这个新会话将来的卡片。按住“发送”直到条填满，新会话的卡片就打开了。想重说，就再按住 AI 键。
+按住 AI 键说话，状态灯会变成紫色，跟着你的声音起伏。松开后 Paseo 把话转成文字，文字显示成这个新会话将来的卡片。按住“发送”直到条填满，新会话的卡片就打开了。想重说，就再按住 AI 键。
 
-<img src="docs/media/zh/listening.png" width="240" alt="灯在听"> <img src="docs/media/zh/transcript.png" width="240" alt="将要开始的会话和发送条"> <img src="docs/media/zh/new-session.png" width="240" alt="新会话开始工作">
+<img src="docs/media/zh/listening.png" width="240" alt="语音输入时的状态灯"> <img src="docs/media/zh/transcript.png" width="240" alt="将要开始的会话和发送条"> <img src="docs/media/zh/new-session.png" width="240" alt="新会话开始工作">
 
 新会话开在插件设置里选的 workspace 里，用那里选的 agent 配置。板子的键盘只有英文字母，写中文就用说的。语音转文字由 Paseo 的语音输入完成，用的是你在 Paseo 里配好的服务。中文识别不准时，在 daemon 配置里把 `features.dictation.stt.language` 设成 `zh`。
 

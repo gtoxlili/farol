@@ -2,7 +2,7 @@
   "name": "farol-paseo-plugin",
   "private": true,
   "version": "0.1.0",
-  "description": "A desk lamp for your Paseo agents on an ESP-Mosaico board. See them at a glance, answer and stop them, and start sessions by voice.",
+  "description": "A status display and controller for Paseo agents on an ESP-Mosaico board. Check progress, answer questions, stop turns and start sessions by voice.",
   "license": "Apache-2.0",
   "type": "module",
   "files": [

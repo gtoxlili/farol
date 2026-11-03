@@ -1,10 +1,10 @@
 {
   "schema": "mosaico-ideas/project-release/1",
   "project": {
-    "title": "Farol：替你看着 Paseo agent 的桌面灯",
+    "title": "Farol：Paseo agent 的状态屏和控制器",
     "categories": ["display", "communication", "audio"],
     "boards": ["camera"],
-    "tags": ["Paseo", "AI Agent", "Coding Agent", "桌面灯", "状态灯", "语音输入", "二维码配网", "Rust", "GSP", "Paseo 插件"],
+    "tags": ["Paseo", "AI Agent", "Coding Agent", "控制器", "状态灯", "语音输入", "二维码配网", "Rust", "GSP", "Paseo 插件"],
     "license": "Apache-2.0；字体为 Noto Sans SC 与 Geist 子集，SIL Open Font License 1.1",
     "external_links": [
       {"label": "GitHub 仓库", "url": "https://github.com/gtoxlili/farol", "platform": "github"}
@@ -35,13 +35,13 @@
     "presentations": {
       "zh-CN": {
         "name": "Farol",
-        "description": "替你看着 Paseo agent 的桌面灯。\n看一眼就知道它们的状态，在板子上回答、停止它们，还能用语音开新会话。",
+        "description": "Paseo agent 的状态屏和控制器。\n查看进度，回答问题或停止一轮，还能用语音开新会话。",
         "font": "components/app_logic/ui/fonts/NotoSansSC-Farol.ttf",
         "icon": "plugin/assets/icon.png"
       },
       "en": {
         "name": "Farol",
-        "description": "A desk lamp for your Paseo agents. See them at a glance, answer and stop them on the board, and start sessions by voice.",
+        "description": "A status display and controller for your Paseo agents. Check progress, answer questions, stop turns and start sessions by voice.",
         "font": "components/app_logic/ui/fonts/Geist-Regular-Farol.ttf",
         "icon": "plugin/assets/icon.png"
       }

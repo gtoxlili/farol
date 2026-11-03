@@ -1,4 +1,4 @@
-Farol is a desk lamp for your Paseo agents, on an ESP-Mosaico board. The light shows how your agents are doing. On the board you answer questions, permission requests and plans, stop a running turn, and start a new session by voice or keyboard. This plugin feeds the board and carries out what you do on it.
+Farol turns an ESP-Mosaico board into a status display and controller for your Paseo agents. Its on-screen status light shows when agents work, need you or fail. Use the cards to answer questions, permission requests and plans, or stop a running turn. Start new sessions by voice or keyboard. This plugin sends agent states to the board and handles its action requests.
 
 ## Connect a board
 
