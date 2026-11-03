@@ -57,6 +57,18 @@ cd plugin && npm run check              # plugin typecheck and tests
 
 `protocol/fixtures/` holds data both sides test against. `relay.json` comes from Paseo's own relay code. Regenerate it with `node tools/relay_vectors.mjs > protocol/fixtures/relay.json` after Paseo changes its relay protocol.
 
+## The plugin from a checkout
+
+To run this checkout's plugin on your own daemon instead of the catalog release:
+
+```sh
+cd plugin && npm install && npm run check
+paseo plugin remove farol                 # if the catalog release is installed
+paseo plugin install "$PWD" --id farol
+```
+
+`paseo plugin remove` deletes the plugin's settings too, so note them before you switch, either way.
+
 ## Against a real Paseo
 
 `plugin/dev/dev-daemon.sh` starts an isolated Paseo daemon. It has its own home, port 47661 and password, no relay, and fake agents from the `scripted-agents` plugin. Nothing reaches your own daemon.

@@ -33,12 +33,13 @@ Farol is a desk lamp for your [Paseo](https://paseo.sh) agents. It runs on an ES
 
    The camera driver patches ESP-IDF when the project configures, so the build stops on an unpatched ESP-IDF. Build against a private copy as the [development guide](docs/development.md#esp-idf-with-the-camera-patch) shows, or set `FAROL_ALLOW_IDF_PATCH=1` to let it patch the workspace's copy.
 
-2. On the computer that runs the Paseo daemon, install the plugin:
+2. On the computer that runs the Paseo daemon, install the plugin from [Paseo's plugin catalog](https://paseo.sh/plugins/gtoxlili/farol):
 
    ```sh
-   cd plugin && npm install && npm run check
-   paseo plugin install "$PWD" --id farol
+   paseo plugin add gtoxlili/farol
    ```
+
+   `paseo plugin update farol` brings it up to the latest reviewed release. To run the plugin from this checkout instead, see the [development guide](docs/development.md#the-plugin-from-a-checkout).
 
 ## Connect a board
 

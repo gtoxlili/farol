@@ -33,12 +33,13 @@ Farol 是一盏放在桌上的灯，替你看着 [Paseo](https://paseo.sh) 里�
 
    摄像头驱动会在配置时给 ESP-IDF 打补丁，所以遇到没打补丁的 ESP-IDF，构建会停下。按[开发说明](docs/development.md#esp-idf-with-the-camera-patch)用一份私有副本构建，或者设置 `FAROL_ALLOW_IDF_PATCH=1`，让它直接给工作区的那份打补丁。
 
-2. 在运行 Paseo daemon 的电脑上安装插件：
+2. 在运行 Paseo daemon 的电脑上，从 [Paseo 的插件目录](https://paseo.sh/plugins/gtoxlili/farol)安装插件：
 
    ```sh
-   cd plugin && npm install && npm run check
-   paseo plugin install "$PWD" --id farol
+   paseo plugin add gtoxlili/farol
    ```
+
+   以后用 `paseo plugin update farol` 更新到最新的审核版本。想直接运行本仓库里的插件代码，见[开发说明](docs/development.md#the-plugin-from-a-checkout)。
 
 ## 连接板子
 

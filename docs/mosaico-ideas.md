@@ -32,7 +32,7 @@ Farol 由两部分组成：板子上的固件，以及装在 Paseo daemon 上的
 本次发布的固件版本是 1.0.0。安装分两步，具体命令见仓库的[中文说明](https://github.com/gtoxlili/farol/blob/main/README_CN.md#安装)。
 
 1. **固件。** 从源码构建时，把仓库放在 ESP-Mosaico 工作区的 `projects/farol`，用工作区的 `mosaico.py` 构建并安装到板子上。摄像头驱动需要给 ESP-IDF 打补丁，没打补丁的 ESP-IDF 会让构建停下，做法见[开发说明](https://github.com/gtoxlili/farol/blob/main/docs/development.md#esp-idf-with-the-camera-patch)（英文）。
-2. **Paseo 插件。** 在运行 Paseo daemon 的电脑上，从仓库的 `plugin/` 目录安装 Farol 插件，装好后在 Paseo 的插件列表里确认它已启用。
+2. **Paseo 插件。** 在运行 Paseo daemon 的电脑上，从 Paseo 的插件目录安装 [Farol](https://paseo.sh/plugins/gtoxlili/farol)，装好后在 Paseo 的插件列表里确认它已启用。
 
 ## 连接
 
